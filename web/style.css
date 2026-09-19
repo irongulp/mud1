@@ -42,3 +42,22 @@ dialog p { line-height: 1.5; }
 #controls-title { margin-top: 0; }
 .settings-actions { display: flex; justify-content: space-between; gap: 1rem; }
 select { display: block; width: 100%; margin-top: .5rem; padding: .5rem; font: inherit; }
+
+/* Chat uses document scrolling, with the same 80-character parser as Default. */
+[hidden] { display: none !important; }
+:root[data-style="chat"] { background: #101611; color: #c0e3bf; }
+:root[data-style="chat"] dialog { background: #101611; color: #c0e3bf; }
+.chat-mode body { padding-bottom: 5rem; }
+#chat-output { width: 80ch; font: 16px/1.25 Menlo, Consolas, monospace; }
+#chat-output > div { white-space: pre; min-height: 1.25em; }
+.chat-command-bar {
+    position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
+    box-sizing: border-box; width: min(900px, 100%); padding: 1rem;
+    display: flex; gap: .75rem; align-items: center; z-index: 20;
+    background: #101611; color: #c0e3bf; border-top: 1px solid #354d34;
+}
+#chat-command {
+    min-width: 0; flex: 1; padding: .5rem; color: inherit; background: transparent;
+    border: 1px solid #71926d; font: 16px Menlo, Consolas, monospace;
+}
+#chat-command:focus-visible { outline: 2px solid #c0e3bf; outline-offset: 2px; }

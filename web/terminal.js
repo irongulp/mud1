@@ -9,6 +9,7 @@ const styles = {
     bbc0: { cols: 80, rows: 32, fontSize: 16, fontFamily: 'BBCBitmap, monospace', theme: monochrome }
 };
 const styleKey = 'mud86-terminal-style';
+styles.chat = { ...styles.original };
 let selectedStyle = 'original';
 try {
     let saved = localStorage.getItem(styleKey);
@@ -52,6 +53,14 @@ const incoming = new SerialPacer(data => {
 const outgoing = new SerialPacer(data => {
     if (!restartRequested && socket && socket.readyState === WebSocket.OPEN) socket.send(data);
 }, 9600);
+const chat = new ChatView(terminal, data => {
+    if (!restartRequested && socket && socket.readyState === WebSocket.OPEN) outgoing.enqueue(data);
+}, openControls);
+
+function focusInput() {
+    if (chat.active) chat.focus();
+    else terminal.focus();
+}
 
 function applyStyle(resize) {
     const preset = styles[selectedStyle];
@@ -59,7 +68,10 @@ function applyStyle(resize) {
     terminal.options.fontSize = preset.fontSize;
     terminal.options.theme = preset.theme;
     document.documentElement.dataset.style = selectedStyle;
-    if (resize) terminal.resize(preset.cols, preset.rows);
+    if (resize) {
+        terminal.resize(preset.cols, preset.rows);
+        chat.activate(selectedStyle === 'chat');
+    }
 }
 
 function saveStyle(style) {
@@ -76,7 +88,8 @@ function requestRestart() {
 
 styleSelect.addEventListener('change', () => {
     const preset = styles[styleSelect.value];
-    const needsRestart = terminal.cols !== preset.cols || terminal.rows !== preset.rows;
+    const needsRestart = terminal.cols !== preset.cols || terminal.rows !== preset.rows
+        || chat.active !== (styleSelect.value === 'chat');
     if (needsRestart && socket && socket.readyState < WebSocket.CLOSING) {
         proposedStyle = styleSelect.value;
         confirmStyle.returnValue = '';
@@ -96,6 +109,7 @@ confirmStyle.addEventListener('close', () => {
     }
     saveStyle(proposedStyle);
     outgoing.reset();
+    chat.connection(false);
     restartRequested = true;
     styleSelect.disabled = true;
     controls.close();
@@ -113,7 +127,7 @@ document.getElementById('close-controls').addEventListener('click', () => contro
 controls.addEventListener('close', () => {
     terminal.options.cursorBlink = true;
     terminal.options.cursorInactiveStyle = 'outline';
-    terminal.focus();
+    focusInput();
 });
 controls.addEventListener('keydown', event => {
     if (event.key === 'Tab' && !event.ctrlKey && !event.altKey && !event.metaKey) {
@@ -128,7 +142,10 @@ speed.addEventListener('change', () => {
     outgoing.setBaud(send);
 });
 document.getElementById('send-tab').addEventListener('click', () => {
-    if (!restartRequested && socket && socket.readyState === WebSocket.OPEN) outgoing.enqueue('\t');
+    if (!restartRequested && socket && socket.readyState === WebSocket.OPEN) {
+        if (chat.active) chat.insertTab();
+        else outgoing.enqueue('\t');
+    }
     controls.close();
 });
 terminal.attachCustomKeyEventHandler(event => {
@@ -170,6 +187,7 @@ function start() {
     applyStyle(true);
     incoming.reset();
     outgoing.reset();
+    chat.connection(false);
     wrapping = selectedStyle === 'bbc40';
     wrappedOutput.reset();
     if (firstConnection) terminal.write('Connecting...');
@@ -178,9 +196,11 @@ function start() {
     socket = new WebSocket(`${scheme}//${location.host}/terminal?style=${selectedStyle}`);
     socket.onopen = () => {
         if (restartRequested) requestRestart();
-        if (!controls.open) terminal.focus();
+        chat.connection(!restartRequested);
+        if (!controls.open) focusInput();
     };
     socket.onmessage = event => {
+        if (chat.active) chat.observe(event.data);
         if (waitingForOutput) {
             // Queue the clear after the Connecting text, even on a fast response.
             if (firstConnection) terminal.write('\x1b[2J\x1b[H');
@@ -190,6 +210,7 @@ function start() {
     };
     socket.onclose = event => {
         outgoing.reset();
+        chat.connection(false);
         if (restartRequested) retryDelay = RETRY_INITIAL_MS;
         if (event.code === 1000 && !waitingForOutput) retryDelay = RETRY_INITIAL_MS;
         const delay = retryDelay;

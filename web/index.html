@@ -11,12 +11,21 @@
     <header>
         <div><h1>MUD1</h1><p>The original multi-user dungeon by Roy Trubshaw and Richard Bartle, Essex University.</p></div>
     </header>
-    <main><div id="terminal" aria-label="MUD terminal"></div></main>
+    <main>
+        <div id="terminal" aria-label="MUD terminal"></div>
+        <div id="chat-output" role="log" aria-label="Game transcript" aria-live="polite" hidden></div>
+    </main>
+    <form id="chat-form" class="chat-command-bar" hidden>
+        <label for="chat-command">Command</label>
+        <input id="chat-command" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" disabled>
+        <button type="submit">Send</button>
+    </form>
     <dialog id="controls" aria-labelledby="controls-title">
         <h2 id="controls-title">Settings</h2>
         <label for="terminal-style">Terminal style</label>
         <select id="terminal-style" disabled>
             <option value="original">Default</option>
+            <option value="chat">Chat</option>
             <option value="vt220">Computer Centre on Square 2</option>
             <option value="bbc0">BBC Micro Mode 0</option>
             <option value="bbc40">BBC Micro Mode 7</option>
@@ -42,6 +51,7 @@
     <script src="/static/vendor/xterm.js"></script>
     <script src="/static/serial.js"></script>
     <script src="/static/wrap.js"></script>
+    <script src="/static/chat.js"></script>
     <script src="/static/terminal.js"></script>
 </body>
 </html>
