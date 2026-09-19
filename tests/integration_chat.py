@@ -3,6 +3,8 @@
 Creates a disposable saved persona to verify password re-entry after QUIT.
 """
 import asyncio
+import argparse
+import json
 import secrets
 import string
 
@@ -13,12 +15,14 @@ from server.gateway import create_app
 from tests.browser_smoke import wait_display, wait_prompt
 
 
-async def main():
+async def main(style):
     async with TestServer(create_app()) as server, async_playwright() as playwright:
         browser = await playwright.chromium.launch()
         try:
             page = await browser.new_page()
-            await page.add_init_script("localStorage.setItem('mud86-terminal-style', 'chat')")
+            await page.add_init_script(
+                f"localStorage.setItem('mud86-terminal-style', {json.dumps(style)});"
+                "localStorage.setItem('mud86-chat-mode', 'true')")
             await page.goto(str(server.make_url('/')))
             await page.evaluate('terminalReady')
             await page.evaluate("""() => {
@@ -29,7 +33,7 @@ async def main():
 
             async def expect(text):
                 await page.wait_for_function(
-                    "text => document.getElementById('chat-output').textContent.includes(text)",
+                    "text => Array.from(document.querySelectorAll('#chat-output > div'), row => row.textContent).join(' ').includes(text)",
                     arg=text, timeout=30000)
 
             async def submit(text):
@@ -39,6 +43,9 @@ async def main():
             name = 'Chat' + ''.join(secrets.choice(string.ascii_lowercase) for _ in range(4))
             password = 'chatproof'
             await expect('By what name shall I call you?')
+            assert await page.locator('#terminal-style').input_value() == style
+            assert await page.locator('#chat-mode').is_checked()
+            assert not await page.locator('#chat-form').evaluate("el => el.classList.contains('docked')")
             await submit(name)
             await expect('What sex do you wish to be?')
             await submit('m')
@@ -60,6 +67,12 @@ async def main():
                 await wait_prompt(page)
             assert password not in await page.locator('#chat-output').inner_text()
             assert await page.locator('#chat-output > div').count() > 30
+            await page.wait_for_function("document.getElementById('chat-form').classList.contains('docked')")
+            await page.evaluate('window.scrollTo(0, 0)')
+            await page.wait_for_function("!document.getElementById('chat-form').classList.contains('docked')")
+            await page.evaluate('window.scrollTo(0, document.documentElement.scrollHeight)')
+            await page.wait_for_function("document.getElementById('chat-form').classList.contains('docked')")
+            assert abs((await page.locator('header').bounding_box())['y']) < 1
             await submit('quit')
             await page.wait_for_function('socket.readyState === WebSocket.CLOSED', timeout=30000)
             await page.wait_for_function("socket.readyState === WebSocket.OPEN && !document.getElementById('chat-command').disabled", timeout=30000)
@@ -77,10 +90,12 @@ async def main():
             assert await page.evaluate("document.activeElement.id === 'chat-command'")
             await submit('quit')
             await page.wait_for_function('socket.readyState === WebSocket.CLOSED', timeout=30000)
-            print(f'PASS: Chat login, local editing, INFO, expanding transcript, saved-password reconnect and Settings ({name})')
+            print(f'PASS: {style} Chat login, editing, INFO, adaptive input, pinned header, saved-password reconnect and Settings ({name})')
         finally:
             await browser.close()
 
 
 if __name__ == '__main__':
-    asyncio.run(main())
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--style', choices=('original', 'vt220', 'bbc0', 'bbc40'), default='original')
+    asyncio.run(main(parser.parse_args().style))

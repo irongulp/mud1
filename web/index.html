@@ -13,23 +13,24 @@
     </header>
     <main>
         <div id="terminal" aria-label="MUD terminal"></div>
-        <div id="chat-output" role="log" aria-label="Game transcript" aria-live="polite" hidden></div>
+        <div id="chat-panel" hidden>
+            <div id="chat-output" role="log" aria-label="Game transcript" aria-live="polite"></div>
+            <form id="chat-form" class="chat-command-form">
+                <input id="chat-command" aria-label="Command" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" disabled>
+                <button type="submit">Send</button>
+            </form>
+        </div>
     </main>
-    <form id="chat-form" class="chat-command-bar" hidden>
-        <label for="chat-command">Command</label>
-        <input id="chat-command" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" disabled>
-        <button type="submit">Send</button>
-    </form>
     <dialog id="controls" aria-labelledby="controls-title">
         <h2 id="controls-title">Settings</h2>
         <label for="terminal-style">Terminal style</label>
         <select id="terminal-style" disabled>
             <option value="original">Default</option>
-            <option value="chat">Chat</option>
             <option value="vt220">Computer Centre on Square 2</option>
             <option value="bbc0">BBC Micro Mode 0</option>
             <option value="bbc40">BBC Micro Mode 7</option>
         </select>
+        <label class="chat-toggle"><input id="chat-mode" type="checkbox" role="switch" disabled> Chat mode</label>
         <label for="speed">Connection speed</label>
         <select id="speed">
             <option value="9600-9600">9600 — Terminal</option>

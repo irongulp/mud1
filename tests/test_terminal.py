@@ -43,7 +43,7 @@ class TerminalTests(unittest.IsolatedAsyncioTestCase):
         await self.page.evaluate("socket.onopen()")
 
     async def open_controls(self):
-        await self.page.evaluate('terminalReady.then(() => terminal.focus())')
+        await self.page.evaluate('terminalReady.then(focusInput)')
         await self.page.keyboard.press('Tab')
 
     async def initial_style(self, style):
@@ -51,11 +51,15 @@ class TerminalTests(unittest.IsolatedAsyncioTestCase):
         await self.page.reload()
         await self.page.evaluate('terminalReady')
 
+    async def initial_chat(self, style='original'):
+        await self.page.evaluate("localStorage.setItem('mud86-chat-mode', 'true')")
+        await self.initial_style(style)
+
     async def test_chat_submission_passwords_settings_and_reconnect(self):
-        await self.initial_style('chat')
+        await self.initial_chat()
         await self.connect()
         self.assertEqual(await self.page.locator('#terminal-style option').all_text_contents(),
-                         ['Default', 'Chat', 'Computer Centre on Square 2', 'BBC Micro Mode 0', 'BBC Micro Mode 7'])
+                         ['Default', 'Computer Centre on Square 2', 'BBC Micro Mode 0', 'BBC Micro Mode 7'])
         command = self.page.get_by_label('Command', exact=True)
         await self.page.evaluate("socket.onmessage({data: 'Welcome! By what name shall I call you?\\r\\n*'})")
         await self.page.clock.run_for(200)
@@ -95,10 +99,10 @@ class TerminalTests(unittest.IsolatedAsyncioTestCase):
         await self.page.clock.run_for(200)
         self.assertIn('Welcome!', await self.page.locator('#chat-output').inner_text())
         self.assertIn('Fresh persona prompt*', await self.page.locator('#chat-output').inner_text())
-        self.assertTrue((await self.page.evaluate('socket.url')).endswith('?style=chat'))
+        self.assertTrue((await self.page.evaluate('socket.url')).endswith('?style=original'))
 
     async def test_chat_expands_to_80_columns_and_preserves_scrolling(self):
-        await self.initial_style('chat')
+        await self.initial_chat()
         await self.connect()
         await self.page.evaluate("socket.onmessage({data: ('x'.repeat(80) + '\\r\\n').repeat(80) + '*wx\\b \\bho'})")
         await self.page.clock.run_for(8000)
@@ -122,16 +126,18 @@ class TerminalTests(unittest.IsolatedAsyncioTestCase):
     async def test_chat_switch_requires_confirmation_even_at_same_dimensions(self):
         await self.connect()
         await self.open_controls()
-        await self.page.get_by_label('Terminal style').select_option('chat')
+        await self.page.get_by_role('switch', name='Chat mode').check()
         self.assertTrue(await self.page.locator('#confirm-style').is_visible())
         await self.page.get_by_role('button', name='Cancel', exact=True).click()
         await self.page.clock.run_for(50)
         self.assertEqual(await self.page.locator('#terminal-style').input_value(), 'original')
+        self.assertFalse(await self.page.get_by_role('switch', name='Chat mode').is_checked())
+        self.assertIsNone(await self.page.evaluate("localStorage.getItem('mud86-chat-mode')"))
 
     async def test_chat_confirmed_switch_and_literal_tab(self):
         await self.connect()
         await self.open_controls()
-        await self.page.get_by_label('Terminal style').select_option('chat')
+        await self.page.get_by_role('switch', name='Chat mode').check()
         await self.page.get_by_role('button', name='Change settings and reconnect').click()
         await self.page.clock.run_for(50)
         self.assertEqual(await self.page.evaluate('Array.from(sent[0])'), list(b'restart'))
@@ -150,7 +156,7 @@ class TerminalTests(unittest.IsolatedAsyncioTestCase):
         await self.page.clock.run_for(100)
         self.assertEqual(await self.page.evaluate("sent.join('')"), 'say one\t\r')
         await command.press('Tab')
-        await self.page.get_by_label('Terminal style').select_option('original')
+        await self.page.get_by_role('switch', name='Chat mode').uncheck()
         await self.page.get_by_role('button', name='Change settings and reconnect').click()
         await self.page.clock.run_for(50)
         await self.page.evaluate('socket.close()')
@@ -158,6 +164,92 @@ class TerminalTests(unittest.IsolatedAsyncioTestCase):
         await self.page.evaluate('socket.onopen()')
         self.assertTrue(await self.page.locator('#terminal').is_visible())
         self.assertFalse(await self.page.locator('#chat-form').is_visible())
+
+    async def test_legacy_chat_preference_migrates_to_independent_toggle(self):
+        await self.initial_style('chat')
+        self.assertEqual(await self.page.locator('#terminal-style').input_value(), 'original')
+        self.assertTrue(await self.page.locator('#chat-mode').is_checked())
+        self.assertEqual(await self.page.evaluate("localStorage.getItem('mud86-terminal-style')"), 'original')
+        self.assertEqual(await self.page.evaluate("localStorage.getItem('mud86-chat-mode')"), 'true')
+
+    async def test_chat_follows_each_style_and_mode7_wraps_words(self):
+        for style, cols, font, size in [('original', 80, 'Menlo', 16), ('vt220', 80, 'GlassTTY', 20),
+                                        ('bbc0', 80, 'BBCBitmap', 16), ('bbc40', 40, 'Bedstead', 20)]:
+            await self.initial_chat(style)
+            await self.connect()
+            self.assertEqual(await self.page.locator('#terminal-style').input_value(), style)
+            self.assertTrue(await self.page.locator('#chat-mode').is_checked())
+            self.assertTrue((await self.page.evaluate('socket.url')).endswith('?style=' + style))
+            self.assertEqual(await self.page.evaluate('terminal.cols'), cols)
+            measured = await self.page.evaluate("""() => {
+                const output = document.getElementById('chat-output');
+                const style = getComputedStyle(output);
+                const canvas = document.createElement('canvas').getContext('2d');
+                canvas.font = style.font;
+                return {font: style.fontFamily, size: style.fontSize,
+                    columns: output.getBoundingClientRect().width / canvas.measureText('0').width};
+            }""")
+            self.assertIn(font, measured['font'])
+            self.assertEqual(measured['size'], f'{size}px')
+            self.assertAlmostEqual(measured['columns'], cols, delta=0.1)
+        await self.page.evaluate("socket.onmessage({data: 'A sentence with thirty characters: elephant walks past.\\r\\n*'})")
+        await self.page.clock.run_for(200)
+        self.assertEqual(await self.page.locator('#chat-output > div').all_text_contents(),
+                         ['A sentence with thirty characters:', 'elephant walks past.', '*'])
+        await self.open_controls()
+        await self.page.get_by_label('Terminal style').select_option('bbc0')
+        await self.page.get_by_role('button', name='Cancel', exact=True).click()
+        await self.page.clock.run_for(50)
+        self.assertEqual(await self.page.locator('#terminal-style').input_value(), 'bbc40')
+        self.assertTrue(await self.page.locator('#chat-mode').is_checked())
+        await self.page.get_by_label('Terminal style').select_option('bbc0')
+        await self.page.get_by_role('button', name='Change settings and reconnect').click()
+        await self.page.clock.run_for(50)
+        await self.page.evaluate('socket.close()')
+        await self.page.clock.run_for(1500)
+        await self.page.evaluate('socket.onopen()')
+        self.assertTrue(await self.page.locator('#chat-panel').is_visible())
+        self.assertEqual(await self.page.evaluate('terminal.cols'), 80)
+        self.assertEqual(await self.page.evaluate("localStorage.getItem('mud86-terminal-style')"), 'bbc0')
+        self.assertEqual(await self.page.evaluate("localStorage.getItem('mud86-chat-mode')"), 'true')
+
+    async def test_chat_input_docks_only_at_bottom_and_preserves_draft(self):
+        await self.initial_chat()
+        await self.connect()
+        await self.page.evaluate("socket.onmessage({data: 'Welcome\\r\\n*'})")
+        await self.page.clock.run_for(200)
+        command = self.page.get_by_label('Command', exact=True)
+        self.assertTrue(await command.is_visible())
+        self.assertEqual(await self.page.locator('#chat-form label').count(), 0)
+        self.assertFalse(await self.page.locator('#chat-form').evaluate("el => el.classList.contains('docked')"))
+        self.assertFalse(await self.page.get_by_role('button', name='Send', exact=True).is_visible())
+        prompt = await self.page.locator('#chat-output > div').last.bounding_box()
+        field = await command.bounding_box()
+        self.assertAlmostEqual(field['y'], prompt['y'], delta=2)
+        self.assertGreater(field['x'], prompt['x'])
+        await self.page.evaluate("socket.onmessage({data: 'What is your present password?\\r\\n*'})")
+        await self.page.clock.run_for(100)
+        await command.fill('secret draft')
+        await command.evaluate('el => el.setSelectionRange(1, 5)')
+        await self.page.evaluate("socket.onmessage({data: ('\\r\\nLine').repeat(70) + '\\r\\n*'})")
+        await self.page.clock.run_for(1000)
+        self.assertTrue(await self.page.locator('#chat-form').evaluate("el => el.classList.contains('docked')"))
+        self.assertTrue(await self.page.get_by_role('button', name='Send', exact=True).is_visible())
+        # Native scroll/resize events are dispatched by the browser's real frames.
+        await self.page.clock.resume()
+        for top in (0, 100000):
+            await self.page.evaluate('top => window.scrollTo(0, top)', top)
+            await self.page.wait_for_function(
+                "expected => document.getElementById('chat-form').classList.contains('docked') === expected", arg=top != 0)
+            self.assertEqual(await self.page.locator('#chat-form').evaluate("el => el.classList.contains('docked')"), top != 0)
+            self.assertAlmostEqual((await self.page.locator('header').bounding_box())['y'], 0, delta=1)
+            self.assertEqual(await command.input_value(), 'secret draft')
+            self.assertEqual(await command.get_attribute('type'), 'password')
+            self.assertEqual(await command.evaluate('el => [el.selectionStart, el.selectionEnd]'), [1, 5])
+        await self.page.set_viewport_size({'width': 1280, 'height': 3000})
+        await self.page.wait_for_function("!document.getElementById('chat-form').classList.contains('docked')")
+        self.assertFalse(await self.page.locator('#chat-form').evaluate("el => el.classList.contains('docked')"))
+        self.assertEqual(await self.page.evaluate('sent'), [])
 
     async def test_style_restart_confirmation_and_cancel(self):
         await self.connect()

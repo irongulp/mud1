@@ -5,7 +5,7 @@
     font-weight: normal;
     font-display: block;
 }
-:root { color-scheme: dark; font-family: system-ui, sans-serif; background: #000000; color: #dddddd; }
+:root { --page-background: #000000; color-scheme: dark; font-family: system-ui, sans-serif; background: var(--page-background); color: #dddddd; }
 @font-face {
     font-family: Bedstead;
     src: url('/static/vendor/bedstead.otf') format('opentype');
@@ -13,7 +13,7 @@
     font-weight: normal;
     font-display: block;
 }
-:root[data-style="original"] { background: #101611; color: #c0e3bf; }
+:root[data-style="original"] { --page-background: #101611; color: #c0e3bf; }
 @font-face {
     font-family: BBCBitmap;
     src: url('/static/vendor/web_master_512-2y.woff') format('woff');
@@ -25,9 +25,10 @@
 :root[data-style="original"] button { background: #28432b; color: #e0efdd; border-color: #71926d; }
 :root[data-style="original"] main { border-color: #354d34; }
 :root[data-style="original"] dialog { background: #101611; color: #c0e3bf; border-color: #71926d; }
-body { max-width: 900px; margin: 2rem auto; padding: 0 1rem; }
-header { display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
-h1 { font-size: 1.5rem; margin-bottom: .25rem; }
+body { max-width: 900px; margin: 0 auto 2rem; padding: 0 1rem; }
+header { display: flex; justify-content: space-between; align-items: center; gap: 1rem; position: sticky; top: 0; z-index: 30; background: var(--page-background); padding: 1rem 0; }
+h1 { font-size: 1.5rem; margin: 0 0 .25rem; }
+header p { margin-bottom: 0; }
 header p, footer { color: #aaaaaa; font-size: .85rem; }
 button { background: #262626; color: #eeeeee; border: 1px solid #777777; border-radius: .3rem; padding: .6rem 1rem; cursor: pointer; }
 button:disabled { opacity: .5; cursor: default; }
@@ -43,21 +44,30 @@ dialog p { line-height: 1.5; }
 .settings-actions { display: flex; justify-content: space-between; gap: 1rem; }
 select { display: block; width: 100%; margin-top: .5rem; padding: .5rem; font: inherit; }
 
-/* Chat uses document scrolling, with the same 80-character parser as Default. */
+/* Chat keeps the chosen terminal width and uses document scrolling. */
 [hidden] { display: none !important; }
-:root[data-style="chat"] { background: #101611; color: #c0e3bf; }
-:root[data-style="chat"] dialog { background: #101611; color: #c0e3bf; }
+.chat-toggle { display: flex; align-items: center; gap: .5rem; margin: 1rem 0; }
+.chat-toggle input { accent-color: currentColor; }
+/* Constant space keeps docking from changing the document's scroll boundary. */
 .chat-mode body { padding-bottom: 5rem; }
-#chat-output { width: 80ch; font: 16px/1.25 Menlo, Consolas, monospace; }
+#chat-panel { position: relative; width: calc(var(--chat-columns) * 1ch); margin-inline: auto; line-height: 1.25; }
 #chat-output > div { white-space: pre; min-height: 1.25em; }
-.chat-command-bar {
-    position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
-    box-sizing: border-box; width: min(900px, 100%); padding: 1rem;
-    display: flex; gap: .75rem; align-items: center; z-index: 20;
-    background: #101611; color: #c0e3bf; border-top: 1px solid #354d34;
+.chat-command-form {
+    position: absolute; top: var(--input-top); left: var(--input-left); right: 0;
+    display: flex; align-items: center; margin: 0; font: inherit;
+    background: var(--chat-background); color: inherit;
 }
+.chat-command-form:not(.docked) button { display: none; }
 #chat-command {
-    min-width: 0; flex: 1; padding: .5rem; color: inherit; background: transparent;
-    border: 1px solid #71926d; font: 16px Menlo, Consolas, monospace;
+    box-sizing: border-box; min-width: 0; width: 100%; flex: 1;
+    padding: 0; border: 0; height: 1.25em; font: inherit; line-height: inherit;
+    color: inherit; background: transparent; caret-color: var(--chat-caret);
 }
-#chat-command:focus-visible { outline: 2px solid #c0e3bf; outline-offset: 2px; }
+.chat-command-form:not(.docked) #chat-command:focus { outline: none; }
+.chat-command-form.docked {
+    position: fixed; top: auto; bottom: 0; left: 50%; right: auto; transform: translateX(-50%);
+    box-sizing: border-box; width: min(calc(var(--chat-columns) * 1ch + 2rem), calc(100% - 2rem));
+    padding: .75rem 1rem; gap: .75rem; z-index: 20; border-top: 1px solid currentColor;
+}
+.docked #chat-command { height: auto; padding: .25rem; border: 1px solid currentColor; }
+.docked #chat-command:focus-visible { outline: 2px solid var(--chat-caret); outline-offset: 2px; }

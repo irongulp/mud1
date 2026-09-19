@@ -1,7 +1,7 @@
 'use strict';
 
 // xterm remains the stream parser (including CR, rubout, and VT erase commands).
-// Chat projects its 80-column buffer into ordinary document rows, not a viewport.
+// Chat projects the selected style's buffer into document rows, not a viewport.
 class ChatView {
     static FOLLOW_DISTANCE = 24;
     static PROMPT_WINDOW = 512;
@@ -10,6 +10,7 @@ class ChatView {
     constructor(terminal, send, settings) {
         this.terminal = terminal;
         this.send = send;
+        this.panel = document.getElementById('chat-panel');
         this.output = document.getElementById('chat-output');
         this.form = document.getElementById('chat-form');
         this.input = document.getElementById('chat-command');
@@ -18,6 +19,8 @@ class ChatView {
         this.recent = '';
         this.baseY = 0;
         terminal.onWriteParsed(() => { if (this.active) this.render(); });
+        window.addEventListener('scroll', () => this.layoutInput(), { passive: true });
+        window.addEventListener('resize', () => this.layoutInput());
         this.form.addEventListener('submit', event => {
             event.preventDefault();
             if (!this.active || this.input.disabled) return;
@@ -42,11 +45,40 @@ class ChatView {
 
     activate(active) {
         this.active = active;
-        this.output.hidden = !active;
-        this.form.hidden = !active;
+        this.panel.hidden = !active;
         document.getElementById('terminal').hidden = active;
         document.documentElement.classList.toggle('chat-mode', active);
         if (active) this.render(true);
+    }
+
+    configure(preset) {
+        this.panel.style.fontFamily = preset.fontFamily;
+        this.panel.style.fontSize = `${preset.fontSize}px`;
+        this.panel.style.color = preset.theme.foreground;
+        this.panel.style.setProperty('--chat-columns', this.terminal.cols);
+        this.panel.style.setProperty('--chat-background', preset.theme.background);
+        this.panel.style.setProperty('--chat-caret', preset.theme.cursor);
+        this.layoutInput();
+    }
+
+    atBottom() {
+        return document.documentElement.scrollHeight - innerHeight - scrollY <= ChatView.FOLLOW_DISTANCE;
+    }
+
+    layoutInput() {
+        if (!this.active || !this.output.lastElementChild) return;
+        const row = this.output.lastElementChild;
+        const lineHeight = row.getBoundingClientRect().height;
+        const cursor = this.terminal.buffer.active.cursorX;
+        const nextRow = cursor >= this.terminal.cols - 1;
+        const column = nextRow ? 0 : cursor;
+        this.form.style.setProperty('--input-left', `${column}ch`);
+        this.form.style.setProperty('--input-top', `${row.offsetTop + (nextRow ? lineHeight : 0)}px`);
+        this.panel.style.paddingBottom = nextRow ? `${lineHeight}px` : '0px';
+        const fillsScreen = this.panel.getBoundingClientRect().bottom + scrollY >= innerHeight;
+        // The same input stays in the DOM: layout changes cannot lose its draft,
+        // selection, password type or focus, and must not scroll the reader down.
+        this.form.classList.toggle('docked', fillsScreen && this.atBottom());
     }
 
     connection(ready) {
@@ -81,7 +113,7 @@ class ChatView {
     }
 
     render(full = false) {
-        const follow = document.documentElement.scrollHeight - innerHeight - scrollY <= ChatView.FOLLOW_DISTANCE;
+        const follow = this.atBottom();
         const buffer = this.terminal.buffer.active;
         const count = buffer.baseY + buffer.cursorY + 1;
         // Settled scrollback does not change until the bounded xterm buffer trims.
@@ -99,6 +131,8 @@ class ChatView {
             if (row.textContent !== text) row.textContent = text;
         }
         this.baseY = buffer.baseY;
+        this.layoutInput();
         if (follow || full) window.scrollTo(0, document.documentElement.scrollHeight);
+        this.layoutInput();
     }
 }

@@ -117,8 +117,16 @@
 
 ## Validation
 
-- Chat appears directly after Default in Settings. It uses Default's font/colours
-  and an expanding 80-column document transcript, with a fixed bottom command form.
+- Chat mode is a separate Settings switch, stored in `mud86-chat-mode`, alongside
+  the independent `mud86-terminal-style` preference. The old `chat` style migrates
+  to Default + Chat enabled. Chat inherits the chosen style's font, colours and
+  width (40 for Mode 7, 80 otherwise), with no fixed transcript height.
+  Input is inline after the parsed cursor until the transcript fills the screen
+  and the reader is at the bottom; only then does it dock at the viewport bottom.
+  Scrolling up restores inline input without forcing focus or scroll position.
+  The same input element preserves drafts, selection and password masking across
+  docking/resize transitions. Its Command label is accessible-only. The header is
+  sticky with an opaque style-matched background in every presentation.
   `web/chat.js` projects xterm's parsed buffer into text-only DOM rows, so CR,
   rubout and VT erase sequences retain their original meaning. The existing
   10,000-line scrollback limit still applies; there is no fixed-height viewport.
@@ -126,10 +134,12 @@
   Only the engine echoes commands. Known login and PASSWORD prompts mask the input;
   no command history is stored. Disconnect/restart clears drafts and queued input.
   Send Tab inserts a tab into the unsent Chat draft; the terminal modes send it
-  directly. Switching to/from Chat requires confirmation even at the same 80×30
-  parser geometry. Settings restores focus to the active input, not hidden xterm.
+  directly. Toggling Chat requires the existing session-restart confirmation even
+  without a geometry change. Style changes preserve the Chat switch. Settings
+  restores focus to the active input, not hidden xterm.
   `tests.integration_chat` checks real-game login/editing/INFO, saved-password
-  reconnect, expanding output and Settings. It leaves a disposable saved persona.
+  reconnect, adaptive input, pinned header and Settings. It leaves a disposable
+  saved persona. `--style bbc40` exercises the 40-column Chat presentation.
 - Terminal styles live in the Settings dialog and persist in browser localStorage.
   Original is the default: green, Menlo/Consolas, 16px, 80×30. VT220 uses white
   GlassTTY lettering at 20px, 80×24. BBC Mode 7 uses Bedstead at 20px, 40×25.

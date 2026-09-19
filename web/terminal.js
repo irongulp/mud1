@@ -9,10 +9,18 @@ const styles = {
     bbc0: { cols: 80, rows: 32, fontSize: 16, fontFamily: 'BBCBitmap, monospace', theme: monochrome }
 };
 const styleKey = 'mud86-terminal-style';
-styles.chat = { ...styles.original };
+const chatKey = 'mud86-chat-mode';
 let selectedStyle = 'original';
+let chatEnabled = false;
 try {
+    chatEnabled = localStorage.getItem(chatKey) === 'true';
     let saved = localStorage.getItem(styleKey);
+    if (saved === 'chat') {
+        saved = 'original';
+        chatEnabled = true;
+        localStorage.setItem(chatKey, 'true');
+        localStorage.setItem(styleKey, saved);
+    }
     if (saved === 'bbc80') {
         saved = 'bbc0';
         localStorage.setItem(styleKey, saved);
@@ -26,7 +34,9 @@ const terminal = new Terminal({
     screenReaderMode: true
 });
 const styleSelect = document.getElementById('terminal-style');
+const chatToggle = document.getElementById('chat-mode');
 styleSelect.value = selectedStyle;
+chatToggle.checked = chatEnabled;
 document.documentElement.dataset.style = selectedStyle;
 styleSelect.disabled = true;
 const terminalReady = Promise.all([
@@ -36,12 +46,14 @@ const terminalReady = Promise.all([
 ]).then(() => {
     terminal.open(document.getElementById('terminal'));
     styleSelect.disabled = false;
+    chatToggle.disabled = false;
     start();
 });
 let socket;
 const controls = document.getElementById('controls');
 const confirmStyle = document.getElementById('confirm-style');
-let proposedStyle;
+let proposedSettings;
+let settingsControl;
 let restartRequested = false;
 const speed = document.getElementById('speed');
 let wrapping = false;
@@ -70,13 +82,18 @@ function applyStyle(resize) {
     document.documentElement.dataset.style = selectedStyle;
     if (resize) {
         terminal.resize(preset.cols, preset.rows);
-        chat.activate(selectedStyle === 'chat');
     }
+    chat.configure(preset);
+    if (resize) chat.activate(chatEnabled);
 }
 
-function saveStyle(style) {
+function saveSettings(style, enabled) {
     selectedStyle = style;
-    try { localStorage.setItem(styleKey, selectedStyle); } catch (_) { /* Optional persistence. */ }
+    chatEnabled = enabled;
+    try {
+        localStorage.setItem(styleKey, selectedStyle);
+        localStorage.setItem(chatKey, String(chatEnabled));
+    } catch (_) { /* Optional persistence. */ }
 }
 
 function requestRestart() {
@@ -86,32 +103,37 @@ function requestRestart() {
     }
 }
 
-styleSelect.addEventListener('change', () => {
+function changeSettings(event) {
     const preset = styles[styleSelect.value];
     const needsRestart = terminal.cols !== preset.cols || terminal.rows !== preset.rows
-        || chat.active !== (styleSelect.value === 'chat');
+        || chat.active !== chatToggle.checked;
     if (needsRestart && socket && socket.readyState < WebSocket.CLOSING) {
-        proposedStyle = styleSelect.value;
+        proposedSettings = { style: styleSelect.value, chat: chatToggle.checked };
+        settingsControl = event.currentTarget;
         confirmStyle.returnValue = '';
         confirmStyle.showModal();
         return;
     }
-    saveStyle(styleSelect.value);
+    saveSettings(styleSelect.value, chatToggle.checked);
     // Closed sessions may still have paced output: resize only at next start.
     applyStyle(!socket);
-});
+}
+styleSelect.addEventListener('change', changeSettings);
+chatToggle.addEventListener('change', changeSettings);
 
 confirmStyle.addEventListener('close', () => {
     if (confirmStyle.returnValue !== 'confirm') {
         styleSelect.value = selectedStyle;
-        styleSelect.focus();
+        chatToggle.checked = chatEnabled;
+        settingsControl.focus();
         return;
     }
-    saveStyle(proposedStyle);
+    saveSettings(proposedSettings.style, proposedSettings.chat);
     outgoing.reset();
     chat.connection(false);
     restartRequested = true;
     styleSelect.disabled = true;
+    chatToggle.disabled = true;
     controls.close();
     requestRestart();
 });
@@ -184,6 +206,7 @@ function start() {
     const firstConnection = !socket;
     restartRequested = false;
     styleSelect.disabled = false;
+    chatToggle.disabled = false;
     applyStyle(true);
     incoming.reset();
     outgoing.reset();
