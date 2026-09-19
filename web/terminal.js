@@ -1,0 +1,208 @@
+'use strict';
+
+const monochrome = { background: '#000000', foreground: '#dddddd', cursor: '#eeeeee' };
+const styles = {
+    original: { cols: 80, rows: 30, fontSize: 16, fontFamily: 'Menlo, Consolas, monospace',
+        theme: { background: '#101611', foreground: '#c0e3bf', cursor: '#dfefd5' } },
+    vt220: { cols: 80, rows: 24, fontSize: 20, fontFamily: 'GlassTTY, monospace', theme: monochrome },
+    bbc40: { cols: 40, rows: 25, fontSize: 20, fontFamily: 'Bedstead, monospace', theme: monochrome },
+    bbc0: { cols: 80, rows: 32, fontSize: 16, fontFamily: 'BBCBitmap, monospace', theme: monochrome }
+};
+const styleKey = 'mud86-terminal-style';
+let selectedStyle = 'original';
+try {
+    let saved = localStorage.getItem(styleKey);
+    if (saved === 'bbc80') {
+        saved = 'bbc0';
+        localStorage.setItem(styleKey, saved);
+    }
+    if (Object.hasOwn(styles, saved)) selectedStyle = saved;
+} catch (_) { /* Storage can be unavailable in private browser contexts. */ }
+const terminal = new Terminal({
+    ...styles[selectedStyle],
+    cursorBlink: true,
+    scrollback: 10000,
+    screenReaderMode: true
+});
+const styleSelect = document.getElementById('terminal-style');
+styleSelect.value = selectedStyle;
+document.documentElement.dataset.style = selectedStyle;
+styleSelect.disabled = true;
+const terminalReady = Promise.all([
+    document.fonts.load('20px "GlassTTY"').catch(() => []),
+    document.fonts.load('20px "Bedstead"').catch(() => []),
+    document.fonts.load('16px "BBCBitmap"').catch(() => [])
+]).then(() => {
+    terminal.open(document.getElementById('terminal'));
+    styleSelect.disabled = false;
+    start();
+});
+let socket;
+const controls = document.getElementById('controls');
+const confirmStyle = document.getElementById('confirm-style');
+let proposedStyle;
+let restartRequested = false;
+const speed = document.getElementById('speed');
+let wrapping = false;
+const wrappedOutput = new WordWrappedOutput(data => terminal.write(data), styles.bbc40.cols);
+const incoming = new SerialPacer(data => {
+    if (wrapping) wrappedOutput.push(data);
+    else terminal.write(data);
+}, 9600);
+const outgoing = new SerialPacer(data => {
+    if (!restartRequested && socket && socket.readyState === WebSocket.OPEN) socket.send(data);
+}, 9600);
+
+function applyStyle(resize) {
+    const preset = styles[selectedStyle];
+    terminal.options.fontFamily = preset.fontFamily;
+    terminal.options.fontSize = preset.fontSize;
+    terminal.options.theme = preset.theme;
+    document.documentElement.dataset.style = selectedStyle;
+    if (resize) terminal.resize(preset.cols, preset.rows);
+}
+
+function saveStyle(style) {
+    selectedStyle = style;
+    try { localStorage.setItem(styleKey, selectedStyle); } catch (_) { /* Optional persistence. */ }
+}
+
+function requestRestart() {
+    if (socket && socket.readyState === WebSocket.OPEN) {
+        // Binary frames carry browser controls; text frames remain game input.
+        socket.send(new TextEncoder().encode('restart'));
+    }
+}
+
+styleSelect.addEventListener('change', () => {
+    const preset = styles[styleSelect.value];
+    const needsRestart = terminal.cols !== preset.cols || terminal.rows !== preset.rows;
+    if (needsRestart && socket && socket.readyState < WebSocket.CLOSING) {
+        proposedStyle = styleSelect.value;
+        confirmStyle.returnValue = '';
+        confirmStyle.showModal();
+        return;
+    }
+    saveStyle(styleSelect.value);
+    // Closed sessions may still have paced output: resize only at next start.
+    applyStyle(!socket);
+});
+
+confirmStyle.addEventListener('close', () => {
+    if (confirmStyle.returnValue !== 'confirm') {
+        styleSelect.value = selectedStyle;
+        styleSelect.focus();
+        return;
+    }
+    saveStyle(proposedStyle);
+    outgoing.reset();
+    restartRequested = true;
+    styleSelect.disabled = true;
+    controls.close();
+    requestRestart();
+});
+
+function openControls() {
+    terminal.options.cursorBlink = false;
+    terminal.options.cursorInactiveStyle = 'none';
+    if (!controls.open) controls.showModal();
+    speed.focus();
+}
+
+document.getElementById('close-controls').addEventListener('click', () => controls.close());
+controls.addEventListener('close', () => {
+    terminal.options.cursorBlink = true;
+    terminal.options.cursorInactiveStyle = 'outline';
+    terminal.focus();
+});
+controls.addEventListener('keydown', event => {
+    if (event.key === 'Tab' && !event.ctrlKey && !event.altKey && !event.metaKey) {
+        event.preventDefault();
+        event.stopPropagation();
+        controls.close();
+    }
+});
+speed.addEventListener('change', () => {
+    const [receive, send] = speed.value.split('-').map(Number);
+    incoming.setBaud(receive);
+    outgoing.setBaud(send);
+});
+document.getElementById('send-tab').addEventListener('click', () => {
+    if (!restartRequested && socket && socket.readyState === WebSocket.OPEN) outgoing.enqueue('\t');
+    controls.close();
+});
+terminal.attachCustomKeyEventHandler(event => {
+    if (event.key === 'Tab' && !event.ctrlKey && !event.altKey && !event.metaKey) {
+        if (event.type === 'keydown') {
+            event.preventDefault();
+            openControls();
+        }
+        return false;
+    }
+    return true;
+});
+
+const RETRY_INITIAL_MS = 1000;
+const RETRY_MAX_MS = 30000;
+const OUTPUT_DRAIN_POLL_MS = 50;
+let retryDelay = RETRY_INITIAL_MS;
+let retryTimer;
+
+function reconnect(delay) {
+    // Finish the old session at its selected baud rate before changing geometry
+    // or resetting the line formatter. Flush xterm's write queue as well.
+    if (incoming.pending) {
+        retryTimer = setTimeout(() => reconnect(delay), OUTPUT_DRAIN_POLL_MS);
+        return;
+    }
+    wrappedOutput.reset();
+    terminal.write(`\x18\r\n[Reconnecting in ${delay / 1000}s...]\r\n`, () => {
+        retryTimer = setTimeout(start, delay);
+    });
+}
+
+function start() {
+    if (socket && socket.readyState < WebSocket.CLOSING) return;
+    clearTimeout(retryTimer);
+    const firstConnection = !socket;
+    restartRequested = false;
+    styleSelect.disabled = false;
+    applyStyle(true);
+    incoming.reset();
+    outgoing.reset();
+    wrapping = selectedStyle === 'bbc40';
+    wrappedOutput.reset();
+    if (firstConnection) terminal.write('Connecting...');
+    let waitingForOutput = true;
+    const scheme = location.protocol === 'https:' ? 'wss:' : 'ws:';
+    socket = new WebSocket(`${scheme}//${location.host}/terminal?style=${selectedStyle}`);
+    socket.onopen = () => {
+        if (restartRequested) requestRestart();
+        if (!controls.open) terminal.focus();
+    };
+    socket.onmessage = event => {
+        if (waitingForOutput) {
+            // Queue the clear after the Connecting text, even on a fast response.
+            if (firstConnection) terminal.write('\x1b[2J\x1b[H');
+            waitingForOutput = false;
+        }
+        incoming.enqueue(event.data);
+    };
+    socket.onclose = event => {
+        outgoing.reset();
+        if (restartRequested) retryDelay = RETRY_INITIAL_MS;
+        if (event.code === 1000 && !waitingForOutput) retryDelay = RETRY_INITIAL_MS;
+        const delay = retryDelay;
+        if (event.code !== 1000 || waitingForOutput) {
+            retryDelay = Math.min(retryDelay * 2, RETRY_MAX_MS);
+        }
+        reconnect(delay);
+    };
+    // WebSocket errors are followed by close, which owns the retry schedule.
+    socket.onerror = () => {};
+}
+
+terminal.onData(data => {
+    // TOPS-10 uses DEL/RUBOUT for erase, including at the persona prompts.
+    if (!restartRequested && socket && socket.readyState === WebSocket.OPEN) outgoing.enqueue(data.replace(/\x08/g, '\x7f'));
+});

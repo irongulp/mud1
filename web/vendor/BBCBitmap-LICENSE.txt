@@ -1,0 +1,16 @@
+Web Master 512-2y, by VileR, from The Ultimate Oldschool PC Font Pack v2.2.
+Copyright 2015-2020 VileR.
+Licensed under Creative Commons Attribution-ShareAlike 4.0 International:
+https://creativecommons.org/licenses/by-sa/4.0/
+
+Unmodified font downloaded from:
+https://int10h.org/oldschool-pc-fonts/fontlist/woff/web_master_512-2y.woff
+Source documentation and licensing:
+https://int10h.org/oldschool-pc-fonts/readme/#legal_stuff
+https://int10h.org/oldschool-pc-fonts/fontlist/font?master_512-2y
+
+This is the BBC Master 512 DOS Plus 8x8 system font, with a 1:2 aspect
+ratio. It supplies BBC-family bitmap lettering for our Mode 0 presentation,
+not a claim of exact BBC Micro MOS ROM or CRT reproduction. The upstream
+adaptation uses CP437 and replaces the duplicate pound sign with a backquote.
+The preset uses 80x32 cells, white on black. No font modifications were made.

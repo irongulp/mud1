@@ -1,0 +1,21 @@
+Bedstead by Ben Harris
+Source: https://bjh21.me.uk/bedstead/
+Font: https://bjh21.me.uk/bedstead/bedstead.otf (unmodified)
+Retrieved: 2026-09-18
+
+The author's copyright statement:
+
+The program that generates Bedstead and all of the newly-designed glyphs
+have been released into the public domain.
+
+I believe that the original SAA5050 bitmap font is essentially in the public
+domain in the United Kingdom as a result of Section 55 of the Copyright,
+Designs and Patents Act 1988 as applied by subparagraph 14(5) of Schedule 1.
+I'm not a lawyer, though, so this may well be wrong.
+
+https://www.legislation.gov.uk/id/ukpga/1988/48/section/55
+https://www.legislation.gov.uk/id/ukpga/1988/48/schedule/1/paragraph/14/5
+
+Bedstead is based on the SAA5050 teletext character generator used for BBC
+Micro MODE 7. This application uses its lettering as a terminal presentation;
+it does not emulate teletext control codes or mosaic graphics.

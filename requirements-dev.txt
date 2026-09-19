@@ -1,0 +1,3 @@
+-r requirements.lock
+playwright==1.55.0
+pexpect==4.9.0

@@ -1,0 +1,294 @@
+{
+  "disk_sha256": "9697a34851e8b6857a0450b849c9484a9f3f4eea63766cb9aab7d8664f5f10a2",
+  "source_provenance": {
+    "upstream_revision": "8d2ce6ee5ca1ae3d835538de20aeb87acaae3df1",
+    "original_sha256": {
+      "DBADAT.MAC": "7de8e269f113c620d015f17af1a06cc94fef0e4d8916eacaddeadcd1e78de5d3",
+      "DBASE.BCL": "6dfc4d480406b41b13160745a8bdb36bdc9a22a2d0399d3b207e83f9bbc729d7",
+      "DUNGEN.GET": "66a4976f5a1bd76a0c03aedddc8c7f499ae3b7e4e1bf76099dd62b1ed433e9d4",
+      "MBOOTS.MAC": "c86170884f944dc09a76c0f1f7ae9a567d4bb190e81e7b3ea939b04433693412",
+      "MUD.BOX": "23791fa2b1fb54cb9d5c7dce9df81ff09df7048c3909f4e1cf32bb38d0622d36",
+      "MUD.SUB": "90585bf2f0bad7d61d07f82b1de1b37e357949fb3870dbfb07dabbe3b3d4b349",
+      "MUD.TXT": "4125564a79a9bfc80f81f0138cbeb064317ccc42b11d70103e2caed1391255fa",
+      "MUD0.BCL": "f037bb11a5e481f3e8d4ef1b9237d7dc6e8d0c658d971b7850bd4f18f94bb662",
+      "MUD1.BCL": "d7af73f61e628cde6da01cf29e9afd38750f259fa27cc6d8dc6a66159e7d9bb4",
+      "MUD2.BCL": "4d7d62abd43115d0cb827285e5df028a9d8a1f7ff567c3b4423c6a7c60cf3d8d",
+      "MUD3.BCL": "15aa5ad267bf3ec4872bcff3c5375bae2117a1de1267ae745b82c574eb14ce72",
+      "MUD4.BCL": "d30e925304cff5260887fec3e24c0a63536e872e2558f772b61bb753ce4ca1fc",
+      "MUD5.BCL": "7552eecd5c0264b13bb841ea4c3939c1b2c2397768c59d17bd410b1bb8222d26",
+      "MUD6.BCL": "10434313774b18b0df269c956208512aa936c214f7aa504868002594ad52bfa3",
+      "MUD7.BCL": "0c1cf75a5c12b730b5231951bab0989023eee8521af50426af664b34eb7b5ad4",
+      "MUD8.BCL": "204b68b2c8db632395bd3ba08e7911a3c0af20b0c5443c3edc96a1cb684c937b",
+      "MUDLIB.BCL": "f3aa39b4466b983626a0e9da1091dc9f1a7329c93a939cb5fe646330c633d950",
+      "MUDLIB.GET": "6ad23b2cf408b9978b1ad14dd0ef55ce17e393bb228725619fe311fa92b8d621",
+      "MUDTXT.SUB": "c415eeb8d398ef6bfbdc7fe0e368a975c6b5aced82aefe3527e66e67662eced8",
+      "TXTBTM.GET": "b84333d73d3c3bed337fa02b03325fd9a2c8e45a249d28a8551fcd5cd483ed64",
+      "TXTCBT.GET": "929cf637ba5bdbc5f4dc9e40fd1e40e807d078cf27d58a0049915d04c1b9d1d1",
+      "TXTCSY.GET": "bc6455ef213438eb82752e3bd4e77a76ec3448952049eac21fd089843774cc96",
+      "TXTDAC.GET": "deb154a360e78cf2ab7da6f3eeeb9af1ba069111a98df75eb94f5cab3c093fa6",
+      "TXTDMN.GET": "2e64d32ab2802bb1ac0f1b09c1379d81159841d22e8a38c995229359a74ca520",
+      "TXTHRS.GET": "42ca97765c80819a0a4f4998443eefdc17e1a50fddcba2c686144704b16677c9",
+      "TXTLEV.GET": "0703e15678dff0e8244a00c12dc04c607584fd172dc7a15207c9096e408fedc3",
+      "TXTMAP.GET": "d0a75440ce6a063545ef3c0527ba896cc364c4903569158f6056ddc2d27bc937",
+      "TXTMTN.GET": "d99a2cd78a199ef77b70e7d602be5ea95507b32b8ac059c1797845062949f0e4",
+      "TXTOBJ.GET": "b9e05b3efd2bfe8a41f37bb84a04150915c666923acad68f1b7fd76135db698e",
+      "TXTOSY.GET": "b2fcec8428c66a6ba38b49c7bcabfc105782300cad38659ff9558b1c1cc5df42",
+      "TXTRMS.GET": "bfd9469c4dc00f5292c7fa9a92a39377420f975f93869985aecb07798597239e",
+      "TXTTOP.GET": "3e1fd1e6da713a5bf251d8865eda95a3201b624cc2a19cb025ca73367cf19502",
+      "TXTTXT.GET": "027dbe448f7d9074b246eb38b91f1d2ff8a56beb5d7c4eb405ebae87eb65c5e4",
+      "TXTVOC.GET": "10e68e5b91b4d83998476834e7cdd19a426d1e56fc32a8aa54b8ce3b748f57bc",
+      "VALLEY.TXT": "441083af48afa3f84a4d723b2f50e7922245999607f9e347e274480230c7ac81"
+    },
+    "includes": [
+      "TXTCBT.GET",
+      "TXTLEV.GET",
+      "TXTHRS.GET",
+      "TXTRMS.GET",
+      "TXTMAP.GET",
+      "TXTVOC.GET",
+      "TXTCSY.GET",
+      "TXTOBJ.GET",
+      "TXTOSY.GET",
+      "TXTMTN.GET",
+      "TXTTOP.GET",
+      "TXTBTM.GET",
+      "TXTDAC.GET",
+      "TXTDMN.GET",
+      "TXTTXT.GET"
+    ],
+    "files": {
+      "1.DBA": {
+        "origin": "PDP-10/MUD1@8d2ce6ee5ca1ae3d835538de20aeb87acaae3df1/1.DBA",
+        "sha256": "5a71d8199ce3103c98c371fbdc01665faa398d5db5e247b79cb7d7a5ff017dc2",
+        "upstream_comparison": "identical"
+      },
+      "2.DBA": {
+        "origin": "PDP-10/MUD1@8d2ce6ee5ca1ae3d835538de20aeb87acaae3df1/2.DBA",
+        "sha256": "afd7bbf6f5f970c3951b6b0f8c21354096617829dfa39b552f047135aae12952",
+        "upstream_comparison": "identical"
+      },
+      "5.DBA": {
+        "origin": "PDP-10/MUD1@8d2ce6ee5ca1ae3d835538de20aeb87acaae3df1/5.DBA",
+        "sha256": "ce22e070a4f12b6fb9d12807f373692e03f2910100399dd918ee0d3e80dc3bd9",
+        "upstream_comparison": "identical"
+      },
+      "6.DBA": {
+        "origin": "PDP-10/MUD1@8d2ce6ee5ca1ae3d835538de20aeb87acaae3df1/6.DBA",
+        "sha256": "e70604ac0d1b0849659be6055e07180d3102582b14331f99beb96e312f286ddc",
+        "upstream_comparison": "identical"
+      },
+      "7.DBA": {
+        "origin": "PDP-10/MUD1@8d2ce6ee5ca1ae3d835538de20aeb87acaae3df1/7.DBA",
+        "sha256": "af3dc13947264204cd38bfa6c140abe20f8727f9d4dd5b6de5fa1c0bb5969480",
+        "upstream_comparison": "identical"
+      },
+      "ALMANA.DBA": {
+        "origin": "PDP-10/MUD1@8d2ce6ee5ca1ae3d835538de20aeb87acaae3df1/ALMANA.DBA",
+        "sha256": "da6f5047409ec3114220a3c2834475b728e01c6c8d310647684c7dd089d70853",
+        "upstream_comparison": "identical"
+      },
+      "BOOK.DBA": {
+        "origin": "PDP-10/MUD1@8d2ce6ee5ca1ae3d835538de20aeb87acaae3df1/BOOK.DBA",
+        "sha256": "a31baf53c226c62b421c291771637cf64b90f115fb27fd156b78b05f0c05af15",
+        "upstream_comparison": "identical"
+      },
+      "DBADAT.MAC": {
+        "origin": "source/DBADAT.MAC",
+        "sha256": "7de8e269f113c620d015f17af1a06cc94fef0e4d8916eacaddeadcd1e78de5d3",
+        "upstream_comparison": "different"
+      },
+      "DBASE.BCL": {
+        "origin": "source/DBASE.BCL",
+        "sha256": "6dfc4d480406b41b13160745a8bdb36bdc9a22a2d0399d3b207e83f9bbc729d7",
+        "upstream_comparison": "different"
+      },
+      "DUNGEN.GET": {
+        "origin": "source/DUNGEN.GET",
+        "sha256": "66a4976f5a1bd76a0c03aedddc8c7f499ae3b7e4e1bf76099dd62b1ed433e9d4",
+        "upstream_comparison": "different"
+      },
+      "LOGBOO.DBA": {
+        "origin": "PDP-10/MUD1@8d2ce6ee5ca1ae3d835538de20aeb87acaae3df1/LOGBOO.DBA",
+        "sha256": "e736df1a7445a647852032255b8473806f1108273bf62e90ed569b47f39ca208",
+        "upstream_comparison": "identical"
+      },
+      "MBOOTS.MAC": {
+        "origin": "source/MBOOTS.MAC",
+        "sha256": "fa6c602e193c69e609b52ae4938b2d3da7427b1a96a18568ee693fd378066fc7",
+        "upstream_comparison": "different"
+      },
+      "MUD.BOX": {
+        "origin": "source/MUD.BOX",
+        "sha256": "23791fa2b1fb54cb9d5c7dce9df81ff09df7048c3909f4e1cf32bb38d0622d36",
+        "upstream_comparison": "identical"
+      },
+      "MUD.MIC": {
+        "origin": "PDP-10/MUD1@8d2ce6ee5ca1ae3d835538de20aeb87acaae3df1/MUD.MIC",
+        "sha256": "3242f46d4b2bd79d0432adbbb5250c020ac84cb662bb9521ab4058a811953a8f",
+        "upstream_comparison": "identical"
+      },
+      "MUD.SUB": {
+        "origin": "source/MUD.SUB",
+        "sha256": "90585bf2f0bad7d61d07f82b1de1b37e357949fb3870dbfb07dabbe3b3d4b349",
+        "upstream_comparison": "identical"
+      },
+      "MUD.TXT": {
+        "origin": "source/MUD.TXT",
+        "sha256": "4125564a79a9bfc80f81f0138cbeb064317ccc42b11d70103e2caed1391255fa",
+        "upstream_comparison": "different"
+      },
+      "MUD0.BCL": {
+        "origin": "source/MUD0.BCL",
+        "sha256": "f037bb11a5e481f3e8d4ef1b9237d7dc6e8d0c658d971b7850bd4f18f94bb662",
+        "upstream_comparison": "different"
+      },
+      "MUD1.BCL": {
+        "origin": "source/MUD1.BCL",
+        "sha256": "d7af73f61e628cde6da01cf29e9afd38750f259fa27cc6d8dc6a66159e7d9bb4",
+        "upstream_comparison": "different"
+      },
+      "MUD2.BCL": {
+        "origin": "source/MUD2.BCL",
+        "sha256": "4d7d62abd43115d0cb827285e5df028a9d8a1f7ff567c3b4423c6a7c60cf3d8d",
+        "upstream_comparison": "different"
+      },
+      "MUD3.BCL": {
+        "origin": "source/MUD3.BCL",
+        "sha256": "15aa5ad267bf3ec4872bcff3c5375bae2117a1de1267ae745b82c574eb14ce72",
+        "upstream_comparison": "different"
+      },
+      "MUD4.BCL": {
+        "origin": "source/MUD4.BCL",
+        "sha256": "d30e925304cff5260887fec3e24c0a63536e872e2558f772b61bb753ce4ca1fc",
+        "upstream_comparison": "different"
+      },
+      "MUD5.BCL": {
+        "origin": "source/MUD5.BCL",
+        "sha256": "7552eecd5c0264b13bb841ea4c3939c1b2c2397768c59d17bd410b1bb8222d26",
+        "upstream_comparison": "different"
+      },
+      "MUD6.BCL": {
+        "origin": "source/MUD6.BCL",
+        "sha256": "10434313774b18b0df269c956208512aa936c214f7aa504868002594ad52bfa3",
+        "upstream_comparison": "different"
+      },
+      "MUD7.BCL": {
+        "origin": "source/MUD7.BCL",
+        "sha256": "0c1cf75a5c12b730b5231951bab0989023eee8521af50426af664b34eb7b5ad4",
+        "upstream_comparison": "different"
+      },
+      "MUD8.BCL": {
+        "origin": "source/MUD8.BCL",
+        "sha256": "204b68b2c8db632395bd3ba08e7911a3c0af20b0c5443c3edc96a1cb684c937b",
+        "upstream_comparison": "different"
+      },
+      "MUDLIB.BCL": {
+        "origin": "source/MUDLIB.BCL",
+        "sha256": "f3aa39b4466b983626a0e9da1091dc9f1a7329c93a939cb5fe646330c633d950",
+        "upstream_comparison": "different"
+      },
+      "MUDLIB.GET": {
+        "origin": "source/MUDLIB.GET",
+        "sha256": "6ad23b2cf408b9978b1ad14dd0ef55ce17e393bb228725619fe311fa92b8d621",
+        "upstream_comparison": "different"
+      },
+      "MUDTXT.SUB": {
+        "origin": "source/MUDTXT.SUB",
+        "sha256": "c415eeb8d398ef6bfbdc7fe0e368a975c6b5aced82aefe3527e66e67662eced8",
+        "upstream_comparison": "identical"
+      },
+      "POWER.BCL": {
+        "origin": "source/MBOOTS.MAC",
+        "sha256": "370c7fb9eea7642067748242e2e0d45fec1aa198f6775fd3314174d0c2fc591f",
+        "upstream_comparison": "absent"
+      },
+      "TXTBTM.GET": {
+        "origin": "source/TXTBTM.GET",
+        "sha256": "b84333d73d3c3bed337fa02b03325fd9a2c8e45a249d28a8551fcd5cd483ed64",
+        "upstream_comparison": "identical"
+      },
+      "TXTCBT.GET": {
+        "origin": "source/TXTCBT.GET",
+        "sha256": "929cf637ba5bdbc5f4dc9e40fd1e40e807d078cf27d58a0049915d04c1b9d1d1",
+        "upstream_comparison": "different"
+      },
+      "TXTCSY.GET": {
+        "origin": "source/TXTCSY.GET",
+        "sha256": "bc6455ef213438eb82752e3bd4e77a76ec3448952049eac21fd089843774cc96",
+        "upstream_comparison": "identical"
+      },
+      "TXTDAC.GET": {
+        "origin": "source/TXTDAC.GET",
+        "sha256": "deb154a360e78cf2ab7da6f3eeeb9af1ba069111a98df75eb94f5cab3c093fa6",
+        "upstream_comparison": "identical"
+      },
+      "TXTDMN.GET": {
+        "origin": "source/TXTDMN.GET",
+        "sha256": "2e64d32ab2802bb1ac0f1b09c1379d81159841d22e8a38c995229359a74ca520",
+        "upstream_comparison": "identical"
+      },
+      "TXTHRS.GET": {
+        "origin": "source/TXTHRS.GET",
+        "sha256": "42ca97765c80819a0a4f4998443eefdc17e1a50fddcba2c686144704b16677c9",
+        "upstream_comparison": "identical"
+      },
+      "TXTLEV.GET": {
+        "origin": "source/TXTLEV.GET",
+        "sha256": "0703e15678dff0e8244a00c12dc04c607584fd172dc7a15207c9096e408fedc3",
+        "upstream_comparison": "identical"
+      },
+      "TXTMAP.GET": {
+        "origin": "source/TXTMAP.GET",
+        "sha256": "237d714ddd670d0ec5fafbdf00feea62af9773062039913d7cc68c9d3bc14927",
+        "upstream_comparison": "identical"
+      },
+      "TXTMTN.GET": {
+        "origin": "source/TXTMTN.GET",
+        "sha256": "d99a2cd78a199ef77b70e7d602be5ea95507b32b8ac059c1797845062949f0e4",
+        "upstream_comparison": "identical"
+      },
+      "TXTOBJ.GET": {
+        "origin": "source/TXTOBJ.GET",
+        "sha256": "b9e05b3efd2bfe8a41f37bb84a04150915c666923acad68f1b7fd76135db698e",
+        "upstream_comparison": "identical"
+      },
+      "TXTOSY.GET": {
+        "origin": "source/TXTOSY.GET",
+        "sha256": "b2fcec8428c66a6ba38b49c7bcabfc105782300cad38659ff9558b1c1cc5df42",
+        "upstream_comparison": "identical"
+      },
+      "TXTRMS.GET": {
+        "origin": "source/TXTRMS.GET",
+        "sha256": "bfd9469c4dc00f5292c7fa9a92a39377420f975f93869985aecb07798597239e",
+        "upstream_comparison": "identical"
+      },
+      "TXTTOP.GET": {
+        "origin": "source/TXTTOP.GET",
+        "sha256": "3e1fd1e6da713a5bf251d8865eda95a3201b624cc2a19cb025ca73367cf19502",
+        "upstream_comparison": "identical"
+      },
+      "TXTTXT.GET": {
+        "origin": "source/TXTTXT.GET",
+        "sha256": "027dbe448f7d9074b246eb38b91f1d2ff8a56beb5d7c4eb405ebae87eb65c5e4",
+        "upstream_comparison": "identical"
+      },
+      "TXTVOC.GET": {
+        "origin": "source/TXTVOC.GET",
+        "sha256": "10e68e5b91b4d83998476834e7cdd19a426d1e56fc32a8aa54b8ce3b748f57bc",
+        "upstream_comparison": "identical"
+      },
+      "VALLEY.TXT": {
+        "origin": "source/VALLEY.TXT",
+        "sha256": "441083af48afa3f84a4d723b2f50e7922245999607f9e347e274480230c7ac81",
+        "upstream_comparison": "different"
+      }
+    }
+  },
+  "simh_revision": "47b7ddabbe5b548cfc32f2fd45f7bed238ff7921",
+  "boot_media": {
+    "url": "https://pdp-10.trailing-edge.com/tapes/tops10_ks_bootable_bb-x138c-bb_704.tap.bz2",
+    "sha256": "d87ebaa1b907d738fa5ab75fb658958c6ccc04bbc95fd4958b7e6abe54071122",
+    "size": 563615
+  },
+  "boot_mode": "TOPS-10 7.04 bootstrap tape, BOOT>/tm02"
+}
