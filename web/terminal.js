@@ -86,7 +86,10 @@ function applyStyle(resize) {
         terminal.resize(preset.cols, preset.rows);
     }
     chat.configure(preset);
-    if (resize) chat.activate(chatEnabled);
+    if (resize) {
+        if (chat.active !== chatEnabled) chat.activate(chatEnabled);
+        else if (chat.active) chat.render();
+    }
 }
 
 function saveSettings(style, enabled) {
@@ -107,7 +110,7 @@ function requestRestart() {
 
 function changeSettings(event) {
     const preset = styles[styleSelect.value];
-    const needsRestart = terminal.cols !== preset.cols || terminal.rows !== preset.rows
+    const needsRestart = terminal.cols !== preset.cols
         || chat.active !== chatToggle.checked;
     if (needsRestart && socket && socket.readyState < WebSocket.CLOSING) {
         proposedSettings = { style: styleSelect.value, chat: chatToggle.checked };
@@ -117,8 +120,9 @@ function changeSettings(event) {
         return;
     }
     saveSettings(styleSelect.value, chatToggle.checked);
-    // Closed sessions may still have paced output: resize only at next start.
-    applyStyle(!socket);
+    // Font, colour and row count are local presentation changes. Width changes
+    // also affect upstream wrapping; retain that geometry until the next start.
+    applyStyle(!socket || !needsRestart);
 }
 styleSelect.addEventListener('change', changeSettings);
 chatToggle.addEventListener('change', changeSettings);

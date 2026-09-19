@@ -25,6 +25,7 @@ class ChatView {
         terminal.onWriteParsed(() => { if (this.active) this.render(); });
         window.addEventListener('scroll', () => this.layoutInput(), { passive: true });
         window.addEventListener('resize', () => this.layoutInput());
+        document.addEventListener('copy', event => this.copySelection(event));
         this.form.addEventListener('submit', event => {
             event.preventDefault();
             if (!this.active || this.input.disabled) return;
@@ -45,6 +46,41 @@ class ChatView {
                 this.send('\x03');
             }
         });
+    }
+
+    copySelection(event) {
+        if (!this.active || !event.clipboardData || event.defaultPrevented) return;
+        // Input-field selection is independent of the document's selection,
+        // which can still point at a previously selected transcript passage.
+        if (event.target instanceof Element && event.target.closest('input, textarea, [contenteditable]')) return;
+        const selection = window.getSelection();
+        if (!selection || selection.isCollapsed || selection.rangeCount !== 1) return;
+        const range = selection.getRangeAt(0);
+        if (!this.output.contains(range.startContainer) || !this.output.contains(range.endContainer)) return;
+        const rows = Array.from(this.output.children);
+        if (!rows.length) return;
+
+        // DOM selections may end in a text node, an empty row, or between rows
+        // on the output element itself. Normalize all three to row + column.
+        const position = (node, offset) => {
+            if (node === this.output) {
+                return offset < rows.length ? [offset, 0]
+                    : [rows.length - 1, rows[rows.length - 1].textContent.length];
+            }
+            let row = node;
+            while (row.parentNode !== this.output) row = row.parentNode;
+            const prefix = document.createRange();
+            prefix.selectNodeContents(row);
+            prefix.setEnd(node, offset);
+            return [rows.indexOf(row), prefix.toString().length];
+        };
+        const [first, start] = position(range.startContainer, range.startOffset);
+        const [last, end] = position(range.endContainer, range.endOffset);
+        const lines = rows.slice(first, last + 1).map(row => row.textContent);
+        lines[lines.length - 1] = lines[lines.length - 1].slice(0, end);
+        lines[0] = lines[0].slice(start);
+        event.clipboardData.setData('text/plain', lines.join('\n'));
+        event.preventDefault();
     }
 
     activate(active) {

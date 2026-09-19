@@ -30,12 +30,20 @@ press `m` or `f` when asked for sex, and enter a persona password. Try `look`,
 `quit` ends the game and the gateway logs out the terminal. The browser then
 reconnects to the persona prompt automatically. Close the tab when finished.
 
+In Chat mode, select transcript text and use normal Copy (Ctrl+C / Cmd+C or the
+browser menu). Plain-text copies retain the displayed line breaks, blank lines,
+indentation and wrapping, including Mode 7's 40-column layout. Partial selections
+copy only the selected text; unsent commands are separate from the transcript.
+
 Reconnecting preserves the transcript, selected style and baud rate, and waits
 for queued output to finish displaying. Queued keystrokes are discarded. Pending
-terminal dimensions apply on reconnect. Failed connections retry with exponential
+terminal widths apply on reconnect. Failed connections retry with exponential
 backoff from one second up to 30 seconds, with a message in the terminal.
 
-Selecting a terminal style with different dimensions opens a confirmation dialog.
+Switching among the 80-column styles (Default, Computer Centre on Square 2, and
+BBC Micro Mode 0) applies immediately, including the new visible row count, without
+ending the session. Switching to or from 40-column BBC Micro Mode 7 opens a
+confirmation dialog, as does toggling Chat mode.
 **Cancel** (or Escape) keeps the current session and setting. **Change settings and
 reconnect** ends the session through the gateway's logout flow and automatically
 reconnects with the new style. You then enter your persona name to rejoin the game.

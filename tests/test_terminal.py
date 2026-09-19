@@ -55,6 +55,79 @@ class TerminalTests(unittest.IsolatedAsyncioTestCase):
         await self.page.evaluate("localStorage.setItem('mud86-chat-mode', 'true')")
         await self.initial_style(style)
 
+    async def copy_chat(self, start=None, end=None, backwards=False):
+        return await self.page.evaluate("""({start, end, backwards}) => {
+            document.activeElement.blur();
+            const output = document.getElementById('chat-output');
+            const point = position => {
+                const row = output.children[position[0]];
+                return [row.firstChild || row, position[1]];
+            };
+            const a = start ? point(start) : [output, 0];
+            const b = end ? point(end) : [output, output.childNodes.length];
+            const selection = getSelection();
+            selection.removeAllRanges();
+            selection.setBaseAndExtent(...(backwards ? b : a), ...(backwards ? a : b));
+            const data = new DataTransfer();
+            const event = new ClipboardEvent('copy', {bubbles: true, cancelable: true, clipboardData: data});
+            output.dispatchEvent(event);
+            return {text: data.getData('text/plain'), handled: event.defaultPrevented};
+        }""", dict(start=start, end=end, backwards=backwards))
+
+    async def test_chat_copy_preserves_rows_blank_lines_and_indentation(self):
+        await self.initial_chat()
+        await self.connect()
+        text = '*who\r\nAlice is playing\r\nBob is playing\r\n\r\n  Indented text\r\n*'
+        await self.page.evaluate('data => socket.onmessage({data})', text)
+        await self.page.clock.run_for(300)
+        copied = await self.copy_chat()
+        self.assertEqual(copied, dict(text=text.replace('\r\n', '\n'), handled=True))
+        # Exercise an actual browser keyboard copy as well as the event contract
+        # used by keyboard shortcuts and the context menu alike.
+        await self.page.context.grant_permissions(['clipboard-read', 'clipboard-write'])
+        await self.page.keyboard.press('ControlOrMeta+c')
+        self.assertEqual(await self.page.evaluate('navigator.clipboard.readText()'), copied['text'])
+        self.assertEqual(await self.page.evaluate('sent'), [])
+
+    async def test_chat_copy_partial_and_backwards_selections(self):
+        await self.initial_chat()
+        await self.connect()
+        await self.page.evaluate("socket.onmessage({data: '*who\\r\\nAlice is playing\\r\\n\\r\\n  Indented text'})")
+        await self.page.clock.run_for(300)
+        for backwards in (False, True):
+            self.assertEqual((await self.copy_chat([0, 2], [3, 6], backwards))['text'],
+                             'ho\nAlice is playing\n\n  Inde')
+        self.assertEqual((await self.copy_chat([1, 2], [1, 5]))['text'], 'ice')
+        self.assertEqual((await self.copy_chat([1, 16], [3, 0]))['text'], '\n\n')
+        self.assertFalse((await self.copy_chat([1, 2], [1, 2]))['handled'])
+        handled = await self.page.evaluate("""() => {
+            const range = document.createRange();
+            range.setStart(document.querySelector('h1').firstChild, 0);
+            range.setEnd(document.getElementById('chat-output').children[1].firstChild, 3);
+            getSelection().removeAllRanges();
+            getSelection().addRange(range);
+            const event = new ClipboardEvent('copy', {cancelable: true, clipboardData: new DataTransfer()});
+            document.dispatchEvent(event);
+            return event.defaultPrevented;
+        }""")
+        self.assertFalse(handled, 'Mixed page/transcript selections should retain native copying')
+
+    async def test_chat_copy_mode7_visible_wraps_and_excludes_draft(self):
+        await self.initial_chat('bbc40')
+        await self.connect()
+        await self.page.evaluate("socket.onmessage({data: 'A sentence with thirty characters: elephant walks past.\\r\\n*'})")
+        await self.page.clock.run_for(300)
+        await self.page.locator('#chat-command').fill('unsent draft')
+        self.assertEqual((await self.copy_chat())['text'],
+                         'A sentence with thirty characters:\nelephant walks past.\n*')
+        await self.page.locator('#chat-command').evaluate("el => { el.focus(); el.select(); }")
+        handled = await self.page.locator('#chat-command').evaluate("""el => {
+            const event = new ClipboardEvent('copy', {bubbles: true, cancelable: true, clipboardData: new DataTransfer()});
+            el.dispatchEvent(event);
+            return event.defaultPrevented;
+        }""")
+        self.assertFalse(handled)
+
     async def test_settings_shortcut_opens_modal_without_sending_tab(self):
         for chat_mode in (False, True):
             if chat_mode:
@@ -298,6 +371,31 @@ class TerminalTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(await self.page.evaluate('terminal.cols'), 80)
         self.assertEqual(await self.page.evaluate("localStorage.getItem('mud86-terminal-style')"), 'bbc0')
         self.assertEqual(await self.page.evaluate("localStorage.getItem('mud86-chat-mode')"), 'true')
+
+    async def test_same_width_styles_change_live_preserving_session_and_input(self):
+        for chat_mode in (False, True):
+            if chat_mode:
+                await self.initial_chat()
+            await self.connect()
+            await self.page.evaluate("socket.onmessage({data: 'Earlier output\\r\\n' + 'Line\\r\\n'.repeat(40) + '*'}); window.originalSocket = socket")
+            await self.page.clock.run_for(1000)
+            if chat_mode:
+                await self.page.locator('#chat-command').fill('unsent draft')
+            await self.open_controls()
+            await self.page.get_by_label('Connection speed').select_option('1200-75')
+            await self.page.evaluate("outgoing.enqueue('look\\r')")
+            for style, rows, font in [('vt220', 24, 'GlassTTY'), ('bbc0', 32, 'BBCBitmap'), ('original', 30, 'Menlo')]:
+                await self.page.get_by_label('Terminal style').select_option(style)
+                self.assertFalse(await self.page.locator('#confirm-style').is_visible())
+                self.assertTrue(await self.page.evaluate('socket === originalSocket && socket.readyState === WebSocket.OPEN'))
+                self.assertEqual(await self.page.evaluate('[terminal.cols, terminal.rows]'), [80, rows])
+                self.assertIn(font, await self.page.evaluate('terminal.options.fontFamily'))
+                self.assertEqual(await self.page.evaluate('[incoming.baud, outgoing.baud, outgoing.pending]'), [1200, 75, 'look\r'])
+                self.assertEqual(await self.page.evaluate('localStorage.getItem(styleKey)'), style)
+                self.assertEqual(await self.page.evaluate('terminal.buffer.active.getLine(0).translateToString(true)'), 'Earlier output')
+                if chat_mode:
+                    self.assertEqual(await self.page.locator('#chat-command').input_value(), 'unsent draft')
+            await self.page.keyboard.press('Escape')
 
     async def test_chat_input_docks_only_at_bottom_and_preserves_draft(self):
         await self.initial_chat()

@@ -117,6 +117,12 @@
 
 ## Validation
 
+- Chat transcript copying serializes the selected visible DOM rows with explicit
+  newlines, preserving blank rows, indentation and displayed wrapping. Keep native
+  copying for input fields and selections extending outside the transcript.
+  `tests/test_terminal.py` covers partial/backwards selections, Mode 7 wrapping,
+  draft exclusion and an actual Chromium keyboard-to-clipboard copy.
+
 - Chat mode is a separate Settings switch, stored in `mud86-chat-mode`, alongside
   the independent `mud86-terminal-style` preference. The old `chat` style migrates
   to Default + Chat enabled. Chat inherits the chosen style's font, colours and
@@ -156,7 +162,8 @@
   not BBC graphics or teletext control codes. Font provenance is in
   `web/vendor/GlassTTY-LICENSE.txt`, `Bedstead-LICENSE.txt`, and `BBCBitmap-LICENSE.txt`.
   `terminalReady` loads fonts before opening xterm and enabling style/Connect controls.
-  Live font/colour changes preserve the session. Dimension changes during an
+  Font, colour and row-count changes apply live when the column width is unchanged,
+  preserving the connection, scrollback, draft and baud queues. Width changes during an
   active connection require confirmation; Cancel/Escape leaves the saved style
   and session unchanged. Confirm sends the reserved binary WebSocket `restart`
   control frame, clears queued input, and waits for gateway QUIT/KJOB cleanup
@@ -166,7 +173,7 @@
   original lines to 40 columns AFTER receive pacing. This avoids monitor-inserted
   breaks splitting words. Other presets use upstream width 80. Always set width
   before login, even when reusing a line. Wrapping stays fixed for the session
-  alongside its dimensions, independent of live font/colour changes.
+  alongside its column count, independent of live font/colour/row-count changes.
   The formatter tracks a logical line and its cursor for CR, BS, tabs and CSI
   erase/horizontal motion. Explicit newlines are preserved, not joined into
   paragraphs; this is a line-oriented MUD presentation, not a full VT reflow engine.
