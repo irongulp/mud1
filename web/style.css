@@ -22,6 +22,32 @@
     font-display: block;
 }
 :root[data-style="original"] header p { color: #91a28f; }
+@font-face {
+    font-family: VT52;
+    src: url('/static/vendor/vt52.otf') format('opentype');
+    font-style: normal;
+    font-weight: normal;
+    font-display: block;
+}
+@font-face {
+    font-family: IBMMDA;
+    src: url('/static/vendor/web_ibm_mda.woff') format('woff');
+    font-style: normal;
+    font-weight: normal;
+    font-display: block;
+}
+@font-face {
+    font-family: IBMCGA;
+    src: url('/static/vendor/web_ibm_cga-2y.woff') format('woff');
+    font-style: normal;
+    font-weight: normal;
+    font-display: block;
+}
+:root[data-style="mda"] { --frame-border: #315831; color: #80ff80; }
+:root[data-style="mda"] header p { color: #80b080; }
+:root[data-style="mda"] button { background: #142814; color: #80ff80; border-color: #568856; }
+:root[data-style="mda"] dialog { background: #000000; color: #80ff80; border-color: #568856; }
+:root[data-style="cga"] { color: #aaaaaa; }
 :root[data-style="original"] button { background: #28432b; color: #e0efdd; border-color: #71926d; }
 :root[data-style="original"] dialog { background: #101611; color: #c0e3bf; border-color: #71926d; }
 body { max-width: 900px; margin: 0 auto 2rem; padding: 0 1rem; }

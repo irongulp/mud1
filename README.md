@@ -40,13 +40,26 @@ for queued output to finish displaying. Queued keystrokes are discarded. Pending
 terminal widths apply on reconnect. Failed connections retry with exponential
 backoff from one second up to 30 seconds, with a message in the terminal.
 
-Switching among the 80-column styles (Default, Computer Centre on Square 2, and
-BBC Micro Mode 0) applies immediately, including the new visible row count, without
+Switching among the 80-column styles (Default, Computer Centre on Square 2,
+DEC VT52, IBM PC MDA, IBM PC CGA, and BBC Micro Mode 0) applies immediately,
+including the new visible row count, without
 ending the session. Switching to or from 40-column BBC Micro Mode 7 opens a
 confirmation dialog, as does toggling Chat mode.
 **Cancel** (or Escape) keeps the current session and setting. **Change settings and
 reconnect** ends the session through the gateway's logout flow and automatically
 reconnects with the new style. You then enter your persona name to rejoin the game.
+
+Additional period display presets work in both terminal and Chat modes:
+
+| Preset | Terminal layout | Lettering and colour |
+|---|---|---|
+| DEC VT52 | 80 × 24 | ROM-extracted VT52 font, white on black |
+| IBM PC MDA | 80 × 25 | MDA 9×14 font, green on black |
+| IBM PC CGA | 80 × 25 | Thick CGA font with doubled vertical pixels for 80-column text, light grey on black |
+
+These are display presentations; the upstream VT100-compatible terminal protocol
+is retained for game input and editing. Font attribution, licences and SHA-256
+hashes are in `web/vendor/VT52-LICENSE.txt` and `web/vendor/IBMPC-LICENSE.txt`.
 
 Press **Tab** while the terminal has focus to select
 a simulated connection speed: **9600** directly wired (the default), **300/300**,

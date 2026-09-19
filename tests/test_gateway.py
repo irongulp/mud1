@@ -134,6 +134,13 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response.status, 400)
         self.assertIn('Unknown terminal style', await response.text())
 
+    async def test_vt52_mda_and_cga_use_80_column_upstream(self):
+        for style in ('vt52', 'mda', 'cga'):
+            socket = await self.client.ws_connect(self.server.make_url('/terminal?style=' + style))
+            await self.receive_until(socket, '*')
+            self.assertEqual(self.terminal_setups[-1], 'set tty width 80\r')
+            await socket.close()
+
     async def test_simh_linemode_offer_and_extra_prompt_newline(self):
         received = asyncio.Queue()
 

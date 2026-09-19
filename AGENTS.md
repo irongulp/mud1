@@ -156,6 +156,14 @@
 - Terminal styles live in the Settings dialog and persist in browser localStorage.
   Original is the default: green, Menlo/Consolas, 16px, 80×30. VT220 uses white
   GlassTTY lettering at 20px, 80×24. BBC Mode 7 uses Bedstead at 20px, 40×25.
+  DEC VT52 (`vt52`) uses Fritz Mueller's MIT-licensed ROM-extracted font at 15px,
+  white on black, 80×24. IBM PC MDA (`mda`) uses VileR's Web IBM MDA at 14px,
+  green on black, 80×25; IBM PC CGA (`cga`) uses Web IBM CGA-2y at 16px,
+  light grey on black, 80×25. Both IBM fonts are CC BY-SA 4.0. All three are
+  bundled unmodified; provenance and hashes are in `VT52-LICENSE.txt` and
+  `IBMPC-LICENSE.txt`. These are presentation presets; keep upstream VT100
+  setup and width 80 for all three. Tests check loaded fonts, ASCII cell widths,
+  exact 80-column wrapping, persisted Chat styling, and live session retention.
   BBC Mode 0 uses BBC Master-family bitmap lettering at 16px, 80×32; its
   source is VileR's CC BY-SA 4.0 Master 512-2y font, not an exact MOS ROM font.
   The old `bbc80` preference migrates to `bbc0`. These reproduce lettering,

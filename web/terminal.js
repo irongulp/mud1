@@ -5,6 +5,11 @@ const styles = {
     original: { cols: 80, rows: 30, fontSize: 16, fontFamily: 'Menlo, Consolas, monospace',
         theme: { background: '#101611', foreground: '#c0e3bf', cursor: '#dfefd5' } },
     vt220: { cols: 80, rows: 24, fontSize: 20, fontFamily: 'GlassTTY, monospace', theme: monochrome },
+    vt52: { cols: 80, rows: 24, fontSize: 15, fontFamily: 'VT52, monospace', theme: monochrome },
+    mda: { cols: 80, rows: 25, fontSize: 14, fontFamily: 'IBMMDA, monospace',
+        theme: { background: '#000000', foreground: '#80ff80', cursor: '#aaffaa' } },
+    cga: { cols: 80, rows: 25, fontSize: 16, fontFamily: 'IBMCGA, monospace',
+        theme: { background: '#000000', foreground: '#aaaaaa', cursor: '#ffffff' } },
     bbc40: { cols: 40, rows: 25, fontSize: 20, fontFamily: 'Bedstead, monospace', theme: monochrome },
     bbc0: { cols: 80, rows: 32, fontSize: 16, fontFamily: 'BBCBitmap, monospace', theme: monochrome }
 };
@@ -42,7 +47,10 @@ styleSelect.disabled = true;
 const terminalReady = Promise.all([
     document.fonts.load('20px "GlassTTY"').catch(() => []),
     document.fonts.load('20px "Bedstead"').catch(() => []),
-    document.fonts.load('16px "BBCBitmap"').catch(() => [])
+    document.fonts.load('16px "BBCBitmap"').catch(() => []),
+    document.fonts.load('15px "VT52"').catch(() => []),
+    document.fonts.load('14px "IBMMDA"').catch(() => []),
+    document.fonts.load('16px "IBMCGA"').catch(() => [])
 ]).then(() => {
     terminal.open(document.getElementById('terminal'));
     styleSelect.disabled = false;

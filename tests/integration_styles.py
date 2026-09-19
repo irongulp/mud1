@@ -1,4 +1,4 @@
-"""Check BBC widths and editing in Chromium against the local original game."""
+"""Check period terminal styles and editing against the local original game."""
 import asyncio
 import secrets
 import string
@@ -15,7 +15,7 @@ async def main():
         async with async_playwright() as playwright:
             browser = await playwright.chromium.launch()
             try:
-                for style in ('bbc40', 'bbc0'):
+                for style in ('bbc40', 'bbc0', 'vt52', 'mda', 'cga'):
                     page = await browser.new_page()
                     try:
                         await page.add_init_script(f"localStorage.setItem('mud86-terminal-style', '{style}')")

@@ -218,7 +218,8 @@ class TerminalTests(unittest.IsolatedAsyncioTestCase):
         await self.initial_chat()
         await self.connect()
         self.assertEqual(await self.page.locator('#terminal-style option').all_text_contents(),
-                         ['Default', 'Computer Centre on Square 2', 'BBC Micro Mode 0', 'BBC Micro Mode 7'])
+                         ['Default', 'Computer Centre on Square 2', 'DEC VT52', 'IBM PC MDA',
+                          'IBM PC CGA', 'BBC Micro Mode 0', 'BBC Micro Mode 7'])
         command = self.page.get_by_label('Command', exact=True)
         await self.page.evaluate("socket.onmessage({data: 'Welcome! By what name shall I call you?\\r\\n*'})")
         await self.page.clock.run_for(200)
@@ -384,7 +385,9 @@ class TerminalTests(unittest.IsolatedAsyncioTestCase):
             await self.open_controls()
             await self.page.get_by_label('Connection speed').select_option('1200-75')
             await self.page.evaluate("outgoing.enqueue('look\\r')")
-            for style, rows, font in [('vt220', 24, 'GlassTTY'), ('bbc0', 32, 'BBCBitmap'), ('original', 30, 'Menlo')]:
+            for style, rows, font in [('vt220', 24, 'GlassTTY'), ('bbc0', 32, 'BBCBitmap'),
+                                      ('vt52', 24, 'VT52'), ('mda', 25, 'IBMMDA'),
+                                      ('cga', 25, 'IBMCGA'), ('original', 30, 'Menlo')]:
                 await self.page.get_by_label('Terminal style').select_option(style)
                 self.assertFalse(await self.page.locator('#confirm-style').is_visible())
                 self.assertTrue(await self.page.evaluate('socket === originalSocket && socket.readyState === WebSocket.OPEN'))
@@ -396,6 +399,38 @@ class TerminalTests(unittest.IsolatedAsyncioTestCase):
                 if chat_mode:
                     self.assertEqual(await self.page.locator('#chat-command').input_value(), 'unsent draft')
             await self.page.keyboard.press('Escape')
+
+    async def test_new_terminal_fonts_geometry_and_chat_persistence(self):
+        for style, label, rows, font, size, colour in [
+            ('vt52', 'DEC VT52', 24, 'VT52', 15, '#dddddd'),
+            ('mda', 'IBM PC MDA', 25, 'IBMMDA', 14, '#80ff80'),
+            ('cga', 'IBM PC CGA', 25, 'IBMCGA', 16, '#aaaaaa'),
+        ]:
+            with self.subTest(style=style):
+                await self.initial_style(style)
+                await self.connect()
+                self.assertEqual(await self.page.locator(f'#terminal-style option[value={style}]').inner_text(), label)
+                self.assertEqual(await self.page.evaluate('[terminal.cols, terminal.rows, terminal.options.fontSize, terminal.options.theme.foreground]'),
+                                 [80, rows, size, colour])
+                self.assertTrue((await self.page.evaluate('socket.url')).endswith('?style=' + style))
+                metrics = await self.page.evaluate("""({font, size}) => {
+                    const face = Array.from(document.fonts).find(f => f.family === font);
+                    const canvas = document.createElement('canvas').getContext('2d');
+                    canvas.font = `${size}px ${font}`;
+                    const widths = Array.from({length: 95}, (_, i) => canvas.measureText(String.fromCharCode(32 + i)).width);
+                    return {loaded: face && face.status === 'loaded', min: Math.min(...widths), max: Math.max(...widths)};
+                }""", dict(font=font, size=size))
+                self.assertTrue(metrics['loaded'])
+                self.assertAlmostEqual(metrics['min'], metrics['max'], delta=0.01)
+                await self.page.evaluate("socket.onmessage({data: 'W'.repeat(80) + 'i'})")
+                await self.page.clock.run_for(300)
+                self.assertEqual(await self.page.evaluate('terminal.buffer.active.getLine(0).translateToString(true)'), 'W' * 80)
+                self.assertEqual(await self.page.evaluate('terminal.buffer.active.getLine(1).translateToString(true)'), 'i')
+                await self.initial_chat(style)
+                await self.connect()
+                self.assertEqual(await self.page.locator('#terminal-style').input_value(), style)
+                self.assertIn(font, await self.page.locator('#chat-output').evaluate('el => getComputedStyle(el).fontFamily'))
+                self.assertEqual(await self.page.locator('#chat-output').evaluate('el => getComputedStyle(el).fontSize'), f'{size}px')
 
     async def test_chat_input_docks_only_at_bottom_and_preserves_draft(self):
         await self.initial_chat()

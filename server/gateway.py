@@ -25,6 +25,9 @@ TERMINAL_STYLES = {
     "original": (TERMINAL_COLUMNS, TERMINAL_ROWS),
     "chat": (TERMINAL_COLUMNS, TERMINAL_ROWS),
     "vt220": (80, 24),
+    "vt52": (80, 24),
+    "mda": (80, 25),
+    "cga": (80, 25),
     "bbc40": (40, 25),
     "bbc0": (80, 32),
 }

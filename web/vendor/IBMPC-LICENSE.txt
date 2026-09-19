@@ -1,0 +1,23 @@
+Web IBM MDA and Web IBM CGA-2y, by VileR,
+from The Ultimate Oldschool PC Font Pack v2.2.
+Copyright 2015-2020 VileR.
+Licensed under Creative Commons Attribution-ShareAlike 4.0 International:
+https://creativecommons.org/licenses/by-sa/4.0/
+
+Unmodified fonts downloaded from:
+https://int10h.org/oldschool-pc-fonts/fontlist/woff/web_ibm_mda.woff
+https://int10h.org/oldschool-pc-fonts/fontlist/woff/web_ibm_cga-2y.woff
+
+SHA-256:
+web_ibm_mda.woff: 45f9673df7e18a35bb9094b6c9bd11f430b20c20f966e68fd4fb0cf9bae95c9f
+web_ibm_cga-2y.woff: 2b21f745e5cefaed7ebfd512eb254ba6a40f6a66d486250734514f336a63ee00
+
+Source documentation and licensing:
+https://int10h.org/oldschool-pc-fonts/fontlist/#ibm-1st
+https://int10h.org/oldschool-pc-fonts/readme/#legal_stuff
+
+MDA uses the 9x14 text-mode character cell. CGA-2y supplies the default
+thick CGA 8x8 lettering stretched vertically for an 80-column text-mode
+presentation (8x16 displayed cell). No font modifications were made.
+The presets reproduce lettering and a chosen foreground/background palette,
+not graphics modes, CP437 transport, CRT electronics or a PC terminal program.
