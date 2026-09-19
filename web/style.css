@@ -5,7 +5,7 @@
     font-weight: normal;
     font-display: block;
 }
-:root { --page-background: #000000; color-scheme: dark; font-family: system-ui, sans-serif; background: var(--page-background); color: #dddddd; }
+:root { --page-background: #000000; --frame-border: #444444; color-scheme: dark; font-family: system-ui, sans-serif; background: var(--page-background); color: #dddddd; }
 @font-face {
     font-family: Bedstead;
     src: url('/static/vendor/bedstead.otf') format('opentype');
@@ -13,7 +13,7 @@
     font-weight: normal;
     font-display: block;
 }
-:root[data-style="original"] { --page-background: #101611; color: #c0e3bf; }
+:root[data-style="original"] { --page-background: #101611; --frame-border: #354d34; color: #c0e3bf; }
 @font-face {
     font-family: BBCBitmap;
     src: url('/static/vendor/web_master_512-2y.woff') format('woff');
@@ -23,7 +23,6 @@
 }
 :root[data-style="original"] header p, :root[data-style="original"] footer { color: #91a28f; }
 :root[data-style="original"] button { background: #28432b; color: #e0efdd; border-color: #71926d; }
-:root[data-style="original"] main { border-color: #354d34; }
 :root[data-style="original"] dialog { background: #101611; color: #c0e3bf; border-color: #71926d; }
 body { max-width: 900px; margin: 0 auto 2rem; padding: 0 1rem; }
 header { display: flex; justify-content: space-between; align-items: center; gap: 1rem; position: sticky; top: 0; z-index: 30; background: var(--page-background); padding: 1rem 0; }
@@ -32,8 +31,14 @@ header p { margin-bottom: 0; }
 header p, footer { color: #aaaaaa; font-size: .85rem; }
 button { background: #262626; color: #eeeeee; border: 1px solid #777777; border-radius: .3rem; padding: .6rem 1rem; cursor: pointer; }
 button:disabled { opacity: .5; cursor: default; }
-main { border: 1px solid #444444; padding: 1rem; margin: 1.5rem 0; overflow-x: auto; }
+main { border: 1px solid var(--frame-border); padding: 1rem; margin: 1.5rem 0; overflow-x: auto; }
 footer { line-height: 1.6; }
+#settings-shortcut {
+    display: inline-flex; align-items: center; gap: .35rem;
+    padding: .2rem .4rem; border: 1px solid var(--frame-border); border-radius: .2rem;
+    background: transparent; color: inherit; font: inherit; line-height: 1.2;
+}
+#settings-shortcut:focus-visible { outline: 1px solid currentColor; outline-offset: 2px; }
 dialog { max-width: 30rem; background: #111111; color: #dddddd; border: 1px solid #777777; padding: 1.5rem; }
 dialog::backdrop { background: #0009; }
 /* Native caret browsing and xterm's DOM cursor are separate from cursorBlink. */
@@ -48,8 +53,9 @@ select { display: block; width: 100%; margin-top: .5rem; padding: .5rem; font: i
 [hidden] { display: none !important; }
 .chat-toggle { display: flex; align-items: center; gap: .5rem; margin: 1rem 0; }
 .chat-toggle input { accent-color: currentColor; }
-/* Constant space keeps docking from changing the document's scroll boundary. */
-.chat-mode body { padding-bottom: 5rem; }
+/* Reserve the docked row inside the same frame, not as a separate page spacer. */
+.chat-mode body { margin-bottom: .25rem; }
+.chat-mode main { padding-bottom: calc(var(--chat-line-height, 20px) + 2px); margin-bottom: .25rem; }
 #chat-panel { position: relative; width: calc(var(--chat-columns) * 1ch); margin-inline: auto; line-height: 1.25; }
 #chat-output > div { white-space: pre; min-height: 1.25em; }
 .chat-command-form {
@@ -57,17 +63,15 @@ select { display: block; width: 100%; margin-top: .5rem; padding: .5rem; font: i
     display: flex; align-items: center; margin: 0; font: inherit;
     background: var(--chat-background); color: inherit;
 }
-.chat-command-form:not(.docked) button { display: none; }
 #chat-command {
     box-sizing: border-box; min-width: 0; width: 100%; flex: 1;
     padding: 0; border: 0; height: 1.25em; font: inherit; line-height: inherit;
     color: inherit; background: transparent; caret-color: var(--chat-caret);
 }
-.chat-command-form:not(.docked) #chat-command:focus { outline: none; }
+#chat-command:focus { outline: none; }
 .chat-command-form.docked {
-    position: fixed; top: auto; bottom: 0; left: 50%; right: auto; transform: translateX(-50%);
-    box-sizing: border-box; width: min(calc(var(--chat-columns) * 1ch + 2rem), calc(100% - 2rem));
-    padding: .75rem 1rem; gap: .75rem; z-index: 20; border-top: 1px solid currentColor;
+    position: fixed; top: auto; bottom: var(--dock-bottom); left: var(--dock-left); right: auto;
+    box-sizing: border-box; width: var(--dock-width); padding: 0 1rem;
+    z-index: 20; border: 1px solid var(--frame-border);
 }
-.docked #chat-command { height: auto; padding: .25rem; border: 1px solid currentColor; }
-.docked #chat-command:focus-visible { outline: 2px solid var(--chat-caret); outline-offset: 2px; }
+.docked #chat-command { flex: 0 1 auto; width: calc(var(--chat-columns) * 1ch); margin-inline: auto; }

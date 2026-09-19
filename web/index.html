@@ -17,7 +17,6 @@
             <div id="chat-output" role="log" aria-label="Game transcript" aria-live="polite"></div>
             <form id="chat-form" class="chat-command-form">
                 <input id="chat-command" aria-label="Command" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" disabled>
-                <button type="submit">Send</button>
             </form>
         </div>
     </main>
@@ -48,7 +47,15 @@
             <button value="confirm">Change settings and reconnect</button>
         </form>
     </dialog>
-    <footer>Press TAB for settings.</footer>
+    <footer>
+        <button id="settings-shortcut" type="button" aria-label="Settings (Tab)" aria-haspopup="dialog" aria-controls="controls" aria-expanded="false" disabled>
+            <span>Tab</span>
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1" stroke-linejoin="round" aria-hidden="true" focusable="false">
+                <path d="M10 2h4l1 3 2 1 3-.5 2 3-2 2v3l2 2-2 3-3-.5-2 1-1 3h-4l-1-3-2-1-3 .5-2-3 2-2v-3l-2-2 2-3 3 .5 2-1Z"/>
+                <circle cx="12" cy="12" r="3"/>
+            </svg>
+        </button>
+    </footer>
     <script src="/static/vendor/xterm.js"></script>
     <script src="/static/serial.js"></script>
     <script src="/static/wrap.js"></script>

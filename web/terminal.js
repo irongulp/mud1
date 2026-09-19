@@ -47,10 +47,12 @@ const terminalReady = Promise.all([
     terminal.open(document.getElementById('terminal'));
     styleSelect.disabled = false;
     chatToggle.disabled = false;
+    settingsButton.disabled = false;
     start();
 });
 let socket;
 const controls = document.getElementById('controls');
+const settingsButton = document.getElementById('settings-shortcut');
 const confirmStyle = document.getElementById('confirm-style');
 let proposedSettings;
 let settingsControl;
@@ -67,7 +69,7 @@ const outgoing = new SerialPacer(data => {
 }, 9600);
 const chat = new ChatView(terminal, data => {
     if (!restartRequested && socket && socket.readyState === WebSocket.OPEN) outgoing.enqueue(data);
-}, openControls);
+}, toggleControls);
 
 function focusInput() {
     if (chat.active) chat.focus();
@@ -142,11 +144,19 @@ function openControls() {
     terminal.options.cursorBlink = false;
     terminal.options.cursorInactiveStyle = 'none';
     if (!controls.open) controls.showModal();
+    settingsButton.setAttribute('aria-expanded', 'true');
     speed.focus();
 }
 
+function toggleControls() {
+    if (controls.open) controls.close();
+    else openControls();
+}
+
+settingsButton.addEventListener('click', toggleControls);
 document.getElementById('close-controls').addEventListener('click', () => controls.close());
 controls.addEventListener('close', () => {
+    settingsButton.setAttribute('aria-expanded', 'false');
     terminal.options.cursorBlink = true;
     terminal.options.cursorInactiveStyle = 'outline';
     focusInput();
@@ -155,7 +165,7 @@ controls.addEventListener('keydown', event => {
     if (event.key === 'Tab' && !event.ctrlKey && !event.altKey && !event.metaKey) {
         event.preventDefault();
         event.stopPropagation();
-        controls.close();
+        toggleControls();
     }
 });
 speed.addEventListener('change', () => {
@@ -174,7 +184,7 @@ terminal.attachCustomKeyEventHandler(event => {
     if (event.key === 'Tab' && !event.ctrlKey && !event.altKey && !event.metaKey) {
         if (event.type === 'keydown') {
             event.preventDefault();
-            openControls();
+            toggleControls();
         }
         return false;
     }

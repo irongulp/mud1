@@ -55,6 +55,47 @@ class TerminalTests(unittest.IsolatedAsyncioTestCase):
         await self.page.evaluate("localStorage.setItem('mud86-chat-mode', 'true')")
         await self.initial_style(style)
 
+    async def test_settings_shortcut_opens_modal_without_sending_tab(self):
+        for chat_mode in (False, True):
+            if chat_mode:
+                await self.initial_chat()
+            await self.connect()
+            shortcut = self.page.get_by_role('button', name='Settings (Tab)', exact=True)
+            self.assertEqual(await shortcut.inner_text(), 'Tab')
+            self.assertEqual(await shortcut.locator('svg').count(), 1)
+            await shortcut.click()
+            self.assertTrue(await self.page.get_by_role('dialog', name='Settings', exact=True).is_visible())
+            await self.page.keyboard.press('Tab')
+            await self.page.clock.run_for(50)
+            self.assertFalse(await self.page.locator('#controls').is_visible())
+            self.assertTrue(await self.page.evaluate(
+                "document.activeElement.id === 'chat-command'" if chat_mode else
+                "document.activeElement.classList.contains('xterm-helper-textarea')"))
+            self.assertEqual(await self.page.evaluate('sent'), [])
+
+    async def test_docked_command_joins_display_frame_at_both_widths(self):
+        for style in ('original', 'bbc40'):
+            await self.initial_chat(style)
+            await self.connect()
+            await self.page.evaluate("socket.onmessage({data: ('Line\\r\\n').repeat(80) + '*'})")
+            await self.page.clock.run_for(1000)
+            self.assertTrue(await self.page.locator('#chat-form').evaluate("el => el.classList.contains('docked')"))
+            self.assertEqual(await self.page.locator('#chat-form button').count(), 0)
+            frame = await self.page.locator('main').bounding_box()
+            form = await self.page.locator('#chat-form').bounding_box()
+            for property in ('x', 'width'):
+                self.assertAlmostEqual(form[property], frame[property], delta=1)
+            self.assertAlmostEqual(form['y'] + form['height'], frame['y'] + frame['height'], delta=1)
+            self.assertEqual(await self.page.locator('#chat-command').evaluate(
+                "el => [getComputedStyle(el).borderTopWidth, getComputedStyle(el).outlineStyle]"), ['0px', 'none'])
+            self.assertEqual(await self.page.locator('#chat-form').evaluate(
+                "el => getComputedStyle(el).borderColor"), await self.page.locator('main').evaluate(
+                "el => getComputedStyle(el).borderColor"))
+            await self.page.get_by_label('Command', exact=True).fill('look')
+            await self.page.get_by_label('Command', exact=True).press('Enter')
+            await self.page.clock.run_for(100)
+            self.assertEqual(await self.page.evaluate("sent.join('')"), 'look\r')
+
     async def test_chat_submission_passwords_settings_and_reconnect(self):
         await self.initial_chat()
         await self.connect()
@@ -234,7 +275,7 @@ class TerminalTests(unittest.IsolatedAsyncioTestCase):
         await self.page.evaluate("socket.onmessage({data: ('\\r\\nLine').repeat(70) + '\\r\\n*'})")
         await self.page.clock.run_for(1000)
         self.assertTrue(await self.page.locator('#chat-form').evaluate("el => el.classList.contains('docked')"))
-        self.assertTrue(await self.page.get_by_role('button', name='Send', exact=True).is_visible())
+        self.assertEqual(await self.page.locator('#chat-form button').count(), 0)
         # Native scroll/resize events are dispatched by the browser's real frames.
         await self.page.clock.resume()
         for top in (0, 100000):
@@ -292,7 +333,7 @@ class TerminalTests(unittest.IsolatedAsyncioTestCase):
     async def test_automatic_connection_and_preserved_output(self):
         await self.connect()
         self.assertEqual(await self.page.locator('#connect, #status, #settings').count(), 0)
-        self.assertEqual(await self.page.locator('footer').inner_text(), 'Press TAB for settings.')
+        self.assertEqual(await self.page.locator('footer').inner_text(), 'Tab')
         self.assertEqual(await self.page.evaluate('connections.length'), 1)
         await self.page.evaluate("incoming.setBaud(300); outgoing.setBaud(75); socket.onmessage({data: 'Final score: ' + 'x'.repeat(100)}); outgoing.enqueue('look\\r'); socket.close()")
         await self.page.clock.run_for(1000)

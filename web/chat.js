@@ -11,6 +11,7 @@ class ChatView {
         this.terminal = terminal;
         this.send = send;
         this.panel = document.getElementById('chat-panel');
+        this.frame = this.panel.closest('main');
         this.output = document.getElementById('chat-output');
         this.form = document.getElementById('chat-form');
         this.input = document.getElementById('chat-command');
@@ -69,6 +70,9 @@ class ChatView {
         if (!this.active || !this.output.lastElementChild) return;
         const row = this.output.lastElementChild;
         const lineHeight = row.getBoundingClientRect().height;
+        // Reserve one input row inside the display frame in both layouts. This
+        // keeps scrolling stable when the input moves between inline and docked.
+        this.frame.style.setProperty('--chat-line-height', `${lineHeight}px`);
         const cursor = this.terminal.buffer.active.cursorX;
         const nextRow = cursor >= this.terminal.cols - 1;
         const column = nextRow ? 0 : cursor;
@@ -76,6 +80,10 @@ class ChatView {
         this.form.style.setProperty('--input-top', `${row.offsetTop + (nextRow ? lineHeight : 0)}px`);
         this.panel.style.paddingBottom = nextRow ? `${lineHeight}px` : '0px';
         const fillsScreen = this.panel.getBoundingClientRect().bottom + scrollY >= innerHeight;
+        const frame = this.frame.getBoundingClientRect();
+        this.form.style.setProperty('--dock-left', `${frame.left}px`);
+        this.form.style.setProperty('--dock-width', `${frame.width}px`);
+        this.form.style.setProperty('--dock-bottom', `${Math.max(0, innerHeight - frame.bottom)}px`);
         // The same input stays in the DOM: layout changes cannot lose its draft,
         // selection, password type or focus, and must not scroll the reader down.
         this.form.classList.toggle('docked', fillsScreen && this.atBottom());
