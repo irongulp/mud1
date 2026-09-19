@@ -21,22 +21,23 @@
     font-weight: normal;
     font-display: block;
 }
-:root[data-style="original"] header p, :root[data-style="original"] footer { color: #91a28f; }
+:root[data-style="original"] header p { color: #91a28f; }
 :root[data-style="original"] button { background: #28432b; color: #e0efdd; border-color: #71926d; }
 :root[data-style="original"] dialog { background: #101611; color: #c0e3bf; border-color: #71926d; }
 body { max-width: 900px; margin: 0 auto 2rem; padding: 0 1rem; }
 header { display: flex; justify-content: space-between; align-items: center; gap: 1rem; position: sticky; top: 0; z-index: 30; background: var(--page-background); padding: 1rem 0; }
+header > div { min-width: 0; }
 h1 { font-size: 1.5rem; margin: 0 0 .25rem; }
 header p { margin-bottom: 0; }
-header p, footer { color: #aaaaaa; font-size: .85rem; }
+header p { color: #aaaaaa; font-size: .85rem; }
 button { background: #262626; color: #eeeeee; border: 1px solid #777777; border-radius: .3rem; padding: .6rem 1rem; cursor: pointer; }
 button:disabled { opacity: .5; cursor: default; }
 main { border: 1px solid var(--frame-border); padding: 1rem; margin: 1.5rem 0; overflow-x: auto; }
-footer { line-height: 1.6; }
 #settings-shortcut {
     display: inline-flex; align-items: center; gap: .35rem;
+    align-self: flex-start; flex-shrink: 0;
     padding: .2rem .4rem; border: 1px solid var(--frame-border); border-radius: .2rem;
-    background: transparent; color: inherit; font: inherit; line-height: 1.2;
+    background: transparent; color: inherit; font: inherit; font-size: .85rem; line-height: 1.2;
 }
 #settings-shortcut:focus-visible { outline: 1px solid currentColor; outline-offset: 2px; }
 dialog { max-width: 30rem; background: #111111; color: #dddddd; border: 1px solid #777777; padding: 1.5rem; }
@@ -55,7 +56,7 @@ select { display: block; width: 100%; margin-top: .5rem; padding: .5rem; font: i
 .chat-toggle input { accent-color: currentColor; }
 /* Reserve the docked row inside the same frame, not as a separate page spacer. */
 .chat-mode body { margin-bottom: .25rem; }
-.chat-mode main { padding-bottom: calc(var(--chat-line-height, 20px) + 2px); margin-bottom: .25rem; }
+.chat-mode main { --chat-dock-padding: 6px; padding-bottom: calc(var(--chat-line-height, 20px) + 2 * var(--chat-dock-padding) + 2px); margin-bottom: .25rem; }
 #chat-panel { position: relative; width: calc(var(--chat-columns) * 1ch); margin-inline: auto; line-height: 1.25; }
 #chat-output > div { white-space: pre; min-height: 1.25em; }
 .chat-command-form {
@@ -63,6 +64,8 @@ select { display: block; width: 100%; margin-top: .5rem; padding: .5rem; font: i
     display: flex; align-items: center; margin: 0; font: inherit;
     background: var(--chat-background); color: inherit;
 }
+.chat-command-line { display: flex; align-items: center; min-width: 0; width: 100%; }
+#chat-prompt { display: none; flex: none; white-space: pre; }
 #chat-command {
     box-sizing: border-box; min-width: 0; width: 100%; flex: 1;
     padding: 0; border: 0; height: 1.25em; font: inherit; line-height: inherit;
@@ -71,7 +74,8 @@ select { display: block; width: 100%; margin-top: .5rem; padding: .5rem; font: i
 #chat-command:focus { outline: none; }
 .chat-command-form.docked {
     position: fixed; top: auto; bottom: var(--dock-bottom); left: var(--dock-left); right: auto;
-    box-sizing: border-box; width: var(--dock-width); padding: 0 1rem;
+    box-sizing: border-box; width: var(--dock-width); padding: var(--chat-dock-padding) 1rem;
     z-index: 20; border: 1px solid var(--frame-border);
 }
-.docked #chat-command { flex: 0 1 auto; width: calc(var(--chat-columns) * 1ch); margin-inline: auto; }
+.docked .chat-command-line { flex: 0 1 auto; width: calc(var(--chat-columns) * 1ch); margin-inline: auto; }
+.docked #chat-prompt { display: block; }

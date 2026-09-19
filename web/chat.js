@@ -6,6 +6,8 @@ class ChatView {
     static FOLLOW_DISTANCE = 24;
     static PROMPT_WINDOW = 512;
     static MAX_COMMAND_LENGTH = 8191; // Gateway's 8192-character frame limit, less CR.
+    // Original MUD1.BCL prompt variants (including invisibility), plus TOPS-10.
+    static LIVE_PROMPT = /^(?:(?:----)?[*>"]|\((?:----)?[*>"]\)|\.)$/;
 
     constructor(terminal, send, settings) {
         this.terminal = terminal;
@@ -14,6 +16,7 @@ class ChatView {
         this.frame = this.panel.closest('main');
         this.output = document.getElementById('chat-output');
         this.form = document.getElementById('chat-form');
+        this.prompt = document.getElementById('chat-prompt');
         this.input = document.getElementById('chat-command');
         this.input.maxLength = ChatView.MAX_COMMAND_LENGTH;
         this.active = false;
@@ -86,7 +89,17 @@ class ChatView {
         this.form.style.setProperty('--dock-bottom', `${Math.max(0, innerHeight - frame.bottom)}px`);
         // The same input stays in the DOM: layout changes cannot lose its draft,
         // selection, password type or focus, and must not scroll the reader down.
-        this.form.classList.toggle('docked', fillsScreen && this.atBottom());
+        const docked = fillsScreen && this.atBottom();
+        this.form.classList.toggle('docked', docked);
+        const buffer = this.terminal.buffer.active;
+        const text = buffer.getLine(buffer.baseY + buffer.cursorY).translateToString(true);
+        const prompt = docked && cursor === text.length && ChatView.LIVE_PROMPT.test(text) ? text : '';
+        // Project only the current standalone prompt into the command strip.
+        // Keep the parsed buffer intact so server-echoed commands retain their
+        // original prompts in history. Keep row height to avoid docking oscillation.
+        const displayText = prompt ? '' : text;
+        if (this.prompt.textContent !== prompt) this.prompt.textContent = prompt;
+        if (row.textContent !== displayText) row.textContent = displayText;
     }
 
     connection(ready) {

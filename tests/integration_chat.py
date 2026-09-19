@@ -18,6 +18,7 @@ from tests.browser_smoke import wait_display, wait_prompt
 async def main(style):
     async with TestServer(create_app()) as server, async_playwright() as playwright:
         browser = await playwright.chromium.launch()
+        page = None
         try:
             page = await browser.new_page()
             await page.add_init_script(
@@ -68,8 +69,12 @@ async def main(style):
             assert password not in await page.locator('#chat-output').inner_text()
             assert await page.locator('#chat-output > div').count() > 30
             await page.wait_for_function("document.getElementById('chat-form').classList.contains('docked')")
+            assert await page.locator('#chat-prompt').inner_text() == '*'
+            assert await page.locator('#chat-output > div').last.inner_text() == ''
+            assert await page.locator('header #settings-shortcut').is_visible()
             await page.evaluate('window.scrollTo(0, 0)')
             await page.wait_for_function("!document.getElementById('chat-form').classList.contains('docked')")
+            assert await page.locator('#chat-output > div').last.inner_text() == '*'
             await page.evaluate('window.scrollTo(0, document.documentElement.scrollHeight)')
             await page.wait_for_function("document.getElementById('chat-form').classList.contains('docked')")
             assert abs((await page.locator('header').bounding_box())['y']) < 1
@@ -91,6 +96,10 @@ async def main(style):
             await submit('quit')
             await page.wait_for_function('socket.readyState === WebSocket.CLOSED', timeout=30000)
             print(f'PASS: {style} Chat login, editing, INFO, adaptive input, pinned header, saved-password reconnect and Settings ({name})')
+        except Exception:
+            if page is not None and not page.is_closed():
+                print('Latest raw game output:', await page.evaluate("(window.gameOutput || '').slice(-2000)"), flush=True)
+            raise
         finally:
             await browser.close()
 

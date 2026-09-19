@@ -124,8 +124,12 @@
   Input is inline after the parsed cursor until the transcript fills the screen
   and the reader is at the bottom; only then does it dock to the display frame's
   lower edge. The docked strip shares main's width, edges, background and 1px
-  outline. One row is reserved inside main to keep docking scroll-stable; there
+  outline. One padded row is reserved inside main to keep docking scroll-stable; there
   is no separate input border, page spacer or Send button. Enter submits commands.
+  The docked strip has 6px vertical padding and projects the current standalone
+  engine prompt beside the input (including wizard/invisible/converse variants).
+  Its transcript row keeps its height but hides that prompt while docked; the
+  xterm buffer is untouched, so completed command echoes retain their prompts.
   Scrolling up restores inline input without forcing focus or scroll position.
   The same input element preserves drafts, selection and password masking across
   docking/resize transitions. Its Command label is accessible-only. The header is
@@ -183,7 +187,7 @@
   Socket closure clears queued input and reconnects after paced output and xterm
   writes drain, preserving scrollback and speed/style preferences. Failed attempts
   back off from 1 to 30 seconds; normal game exits reset the delay. Settings open
-  via Tab or the compact footer Tab/cog button, using the same toggle handler.
+  via Tab or the compact top-right header Tab/cog button, using the same toggle handler.
   The icon and button have thin outlines. Live browser tests
   verify QUIT returns to a fresh persona prompt while retaining earlier output.
 - `tests/test_terminal.py` uses Chromium with a fake WebSocket and virtual clock
