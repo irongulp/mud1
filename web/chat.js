@@ -37,7 +37,7 @@ class ChatView {
             // No local echo or command history: only the engine echoes commands.
             this.typing.submit();
         });
-        this.input.addEventListener('keydown', event => {
+        this.form.addEventListener('keydown', event => {
             if (event.key === 'Enter') {
                 event.preventDefault();
                 if (!event.repeat && !event.isComposing) this.form.requestSubmit();
@@ -148,7 +148,7 @@ class ChatView {
         this.input.disabled = !ready;
         if (!ready) {
             this.typing.reset();
-            this.input.type = 'text';
+            this.setPasswordMode(false);
             this.recent = '';
         }
     }
@@ -163,14 +163,40 @@ class ChatView {
         this.typing.insert('\t');
     }
 
+    setPasswordMode(masked) {
+        if (masked) {
+            this.input.type = 'password';
+            return;
+        }
+        if (this.input.type !== 'password') return;
+        // Firefox remembers hasBeenTypePassword even after type becomes text.
+        // Use a fresh element that has NEVER been a password input; cloning a
+        // password input and changing its type can carry that history too.
+        this.typing.syncSelection();
+        const previous = this.input;
+        const focused = document.activeElement === previous;
+        const replacement = document.createElement('input');
+        for (const attribute of previous.attributes) {
+            if (attribute.name !== 'type') replacement.setAttribute(attribute.name, attribute.value);
+        }
+        replacement.type = 'text';
+        replacement.value = previous.value;
+        const { selectionStart, selectionEnd, selectionDirection } = previous;
+        previous.replaceWith(replacement);
+        this.input = replacement;
+        this.typing.bindInput(replacement);
+        if (focused) replacement.focus({ preventScroll: true });
+        replacement.setSelectionRange(selectionStart, selectionEnd, selectionDirection);
+    }
+
     observe(data) {
         this.recent = (this.recent + data).slice(-ChatView.PROMPT_WINDOW);
         const passwordPrompt = /(?:what's the password\?|(?:Give me a password for this persona|No password on this persona - give me one) of up to \d+ letters, please\.|What is your present password\?|New password for persona - up to \d+ letters please\.|Enter it again to make sure it's correct, please\.)/;
         if (passwordPrompt.test(this.recent)) {
-            this.input.type = 'password';
+            this.setPasswordMode(true);
             this.recent = '';
         } else if (/Hello(?: again)?,|Your password will be updated|password remains unchanged|Sorry, incorrect\.|\r\nNo!/.test(this.recent)) {
-            this.input.type = 'text';
+            this.setPasswordMode(false);
             this.recent = '';
         }
     }

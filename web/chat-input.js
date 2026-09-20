@@ -11,6 +11,11 @@ class PacedChatInput {
         // tokens never go to the game; SerialPacer supplies its 10-bit clock.
         this.clock = new SerialPacer(tokens => this.deliver(tokens.length), baud);
         this.reset();
+        this.bindInput(input);
+    }
+
+    bindInput(input) {
+        this.input = input;
         input.addEventListener('beforeinput', event => {
             if (!event.cancelable || event.isComposing) return;
             event.preventDefault();

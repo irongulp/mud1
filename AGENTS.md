@@ -254,6 +254,18 @@
   hint via `terminal.textarea` immediately after `terminal.open`, before focus.
   Its typing/reconnect regression passed Chromium and WebKit; the non-Chat
   Firefox saved-login popup still needs user verification.
+  Follow-up: the user reproduced the popup in Chat after a saved-persona login.
+  Firefox's LoginManagerChild uses `hasBeenTypePassword`, so changing a password
+  input back to text does not stop it being treated as a login field. Chat now
+  creates a fresh text input on password-to-command transitions (also disconnect),
+  copying attributes except type rather than cloning the password element.
+  `PacedChatInput.bindInput` rebinds the existing editor without resetting its
+  queue; Chat key handling is delegated to the form. Draft, selection and focus
+  survive, and replacement must not steal focus from Settings. Docking/resizing
+  still uses the same element. The regression passed Chromium and WebKit; native
+  Firefox popup suppression after this follow-up still requires verification.
+  See Mozilla's `toolkit/components/passwordmgr/LoginManagerChild.sys.mjs`,
+  especially `isLoginManagerField` and `_getPasswordFields`.
 - Chat mode is a separate Settings switch, stored in `mud86-chat-mode`, alongside
   the independent `mud86-terminal-style` preference. The old `chat` style migrates
   to Default + Chat enabled. Chat inherits the chosen style's font, colours and
