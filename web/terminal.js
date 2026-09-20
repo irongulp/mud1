@@ -152,12 +152,73 @@ confirmStyle.addEventListener('close', () => {
     requestRestart();
 });
 
+const controlsTabs = Array.from(controls.querySelectorAll('[role="tab"]'));
+const controlsContent = controls.querySelector('.controls-content');
+let licenceRequest;
+
+function loadLicences() {
+    if (licenceRequest) return;
+    const target = document.getElementById('licence-notices');
+    const fallback = document.getElementById('licence-fallback');
+    target.textContent = 'Loading licence notices…';
+    fallback.hidden = true;
+    // This is static, same-origin project markup, never terminal/game output.
+    // The static URL also works with a gateway started before /legal was added.
+    licenceRequest = fetch('/static/legal.html').then(response => {
+        if (!response.ok) throw new Error('Licence page unavailable');
+        return response.text();
+    }).then(html => {
+        const licencePage = new DOMParser().parseFromString(html, 'text/html');
+        const content = licencePage.getElementById('licence-content');
+        if (!content) throw new Error('Licence content missing');
+        for (const link of content.querySelectorAll('a')) {
+            link.target = '_blank';
+            link.rel = 'noopener';
+        }
+        target.replaceChildren(...content.childNodes);
+    }).catch(() => {
+        target.textContent = 'The notices could not be loaded.';
+        fallback.hidden = false;
+        licenceRequest = null;
+    });
+}
+
+function selectControlsTab(tab, focus = true) {
+    for (const candidate of controlsTabs) {
+        const selected = candidate === tab;
+        candidate.setAttribute('aria-selected', String(selected));
+        candidate.tabIndex = selected ? 0 : -1;
+        document.getElementById(candidate.getAttribute('aria-controls')).hidden = !selected;
+    }
+    controlsContent.scrollTop = 0;
+    document.getElementById('send-tab').hidden = tab.id !== 'tab-settings';
+    if (tab.id === 'tab-licences') loadLicences();
+    if (focus) tab.focus();
+}
+
+for (const [index, tab] of controlsTabs.entries()) {
+    tab.addEventListener('click', () => selectControlsTab(tab));
+    tab.addEventListener('keydown', event => {
+        if (event.ctrlKey || event.altKey || event.metaKey) return;
+        let next;
+        if (event.key === 'ArrowRight') next = (index + 1) % controlsTabs.length;
+        else if (event.key === 'ArrowLeft') next = (index + controlsTabs.length - 1) % controlsTabs.length;
+        else if (event.key === 'Home') next = 0;
+        else if (event.key === 'End') next = controlsTabs.length - 1;
+        else return;
+        event.preventDefault();
+        event.stopPropagation();
+        selectControlsTab(controlsTabs[next]);
+    });
+}
+
 function openControls() {
     terminal.options.cursorBlink = false;
     terminal.options.cursorInactiveStyle = 'none';
+    selectControlsTab(controlsTabs[0], false);
     if (!controls.open) controls.showModal();
     settingsButton.setAttribute('aria-expanded', 'true');
-    speed.focus();
+    controlsTabs[0].focus();
 }
 
 function toggleControls() {

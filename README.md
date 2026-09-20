@@ -98,8 +98,17 @@ The browser approximates 10-bit serial framing in both directions; the emulator
 retains its 9600-baud configuration, and slower upstream output can still limit
 the effective rate. Each browser has its own selection, retained on reconnect
 but reset on page reload. Switching speeds also changes the rate of queued text.
-Escape or **Return to game** closes the panel. Tab navigates the panel normally;
-**Send Tab to game** forwards a literal tab if needed.
+The modal has **Settings**, **About**, **Licences** and **Links** tabs. Settings
+is selected each time it opens. About explains the game's history and the original
+engine/browser setup, and credits Tim Rogers's browser server version built using
+OpenCode and GPT-6 Astra. Licences displays the notices inline, with links to the
+full texts and source. Links lists historical and restoration resources, beginning
+with Richard Bartle's website; resource links open in a new browser tab.
+
+**Tab**, **Escape** or **Return to game** closes the modal. When a tab heading is
+focused, Left/Right arrows and Home/End select a section. **Send Tab to game** is
+available in Settings to forward a literal tab if needed. Long panels scroll
+inside the modal, keeping the tab strip and return button visible.
 
 The restored disk and dependencies have already been created locally. When the
 services are stopped, restart them from this directory:

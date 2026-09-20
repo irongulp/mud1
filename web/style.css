@@ -46,10 +46,10 @@
 :root[data-style="mda"] { --frame-border: #315831; color: #80ff80; }
 :root[data-style="mda"] header p { color: #80b080; }
 :root[data-style="mda"] button { background: #142814; color: #80ff80; border-color: #568856; }
-:root[data-style="mda"] dialog { background: #000000; color: #80ff80; border-color: #568856; }
+:root[data-style="mda"] dialog { --dialog-background: #000000; background: var(--dialog-background); color: #80ff80; border-color: #568856; }
 :root[data-style="cga"] { color: #aaaaaa; }
 :root[data-style="original"] button { background: #28432b; color: #e0efdd; border-color: #71926d; }
-:root[data-style="original"] dialog { background: #101611; color: #c0e3bf; border-color: #71926d; }
+:root[data-style="original"] dialog { --dialog-background: #101611; background: var(--dialog-background); color: #c0e3bf; border-color: #71926d; }
 body { max-width: 900px; margin: 0 auto 2rem; padding: 0 1rem; }
 header { display: flex; justify-content: space-between; align-items: center; gap: 1rem; position: sticky; top: 0; z-index: 30; background: var(--page-background); padding: 1rem 0; }
 header > div { min-width: 0; }
@@ -66,13 +66,38 @@ main { border: 1px solid var(--frame-border); padding: 1rem; margin: 1.5rem 0; o
     background: transparent; color: inherit; font: inherit; font-size: .85rem; line-height: 1.2;
 }
 #settings-shortcut:focus-visible { outline: 1px solid currentColor; outline-offset: 2px; }
-dialog { max-width: 30rem; background: #111111; color: #dddddd; border: 1px solid #777777; padding: 1.5rem; }
+dialog { --dialog-background: #111111; max-width: 30rem; background: var(--dialog-background); color: #dddddd; border: 1px solid #777777; padding: 1.5rem; }
 dialog::backdrop { background: #0009; }
 /* Native caret browsing and xterm's DOM cursor are separate from cursorBlink. */
 dialog { caret-color: transparent; }
 body:has(dialog[open]) #terminal .xterm-cursor { visibility: hidden; }
 dialog p { line-height: 1.5; }
-#controls-title { margin-top: 0; }
+#controls-title { position: absolute; width: 1px; height: 1px; margin: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+#controls {
+    box-sizing: border-box; width: min(38rem, calc(100vw - 2rem)); max-width: none;
+    height: min(40rem, calc(100dvh - 2rem)); max-height: calc(100dvh - 2rem);
+}
+#controls[open] { display: flex; flex-direction: column; }
+#controls-title, .controls-tabs, .controls-hint, .settings-actions { flex-shrink: 0; }
+.controls-tabs { display: flex; border-bottom: 1px solid; border-color: inherit; }
+#controls .controls-tabs [role="tab"] {
+    flex: 1; min-width: 0; margin: 0 0 -1px; padding: .65rem 0;
+    font: inherit; font-size: .85rem; color: inherit; background: transparent;
+    border: 1px solid transparent; border-radius: .3rem .3rem 0 0;
+}
+#controls .controls-tabs [aria-selected="true"] {
+    border-color: inherit; border-bottom-color: var(--dialog-background);
+    background: var(--dialog-background); font-weight: 600;
+}
+/* Focus follows selection; the joined tab border already identifies the active tab. */
+#controls .controls-tabs [role="tab"]:focus { outline: none; }
+.controls-content { flex: 1; min-height: 0; padding: 1rem; border: 1px solid; border-color: inherit; border-top: 0; overflow-y: auto; overscroll-behavior: contain; overflow-wrap: anywhere; }
+.controls-content h2, .controls-content h3 { font-size: 1.1rem; }
+.controls-content section > :first-child { margin-top: 0; }
+.controls-content a { color: inherit; }
+.controls-content ul { padding-left: 1.25rem; line-height: 1.5; }
+.resource-links li { margin-bottom: .65rem; }
+.controls-hint { font-size: .85rem; }
 .settings-actions { display: flex; justify-content: space-between; gap: 1rem; }
 select { display: block; width: 100%; margin-top: .5rem; padding: .5rem; font: inherit; }
 

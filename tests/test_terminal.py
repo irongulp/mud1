@@ -55,6 +55,202 @@ class TerminalTests(unittest.IsolatedAsyncioTestCase):
         await self.page.evaluate("localStorage.setItem('mud86-chat-mode', 'true')")
         await self.initial_style(style)
 
+    async def test_controls_tabs_default_content_and_session_preservation(self):
+        await self.connect()
+        await self.open_controls()
+        tabs = self.page.get_by_role('tab')
+        self.assertEqual(await tabs.all_text_contents(), ['Settings', 'About', 'Licences', 'Links'])
+        self.assertEqual(await self.page.get_by_role('tab', name='Settings', exact=True).get_attribute('aria-selected'), 'true')
+        await self.page.get_by_label('Connection speed').select_option('1200-75')
+        await self.page.get_by_role('tab', name='About', exact=True).click()
+        about = self.page.get_by_role('tabpanel', name='About', exact=True)
+        text = await about.inner_text()
+        for expected in ('1978', 'University of Essex', 'Roy Trubshaw', 'Richard Bartle',
+                         '1986', 'BCPL', 'MACRO-10', 'TOPS-10', 'SIMH', 'Python',
+                         'Tim Rogers', 'OpenCode', 'GPT-6 Astra'):
+            self.assertIn(expected, text)
+        self.assertFalse(await self.page.get_by_label('Connection speed').is_visible())
+        self.assertFalse(await self.page.get_by_role('button', name='Send Tab to game').is_visible())
+        await self.page.get_by_role('button', name='Return to game', exact=True).click()
+        await self.open_controls()
+        self.assertTrue(await self.page.get_by_role('tabpanel', name='Settings', exact=True).is_visible())
+        self.assertEqual(await self.page.get_by_label('Connection speed').input_value(), '1200-75')
+        self.assertEqual(await self.page.evaluate('[connections.length, sent.length]'), [1, 0])
+
+    async def test_controls_links_order_and_small_screen_scrolling(self):
+        await self.page.set_viewport_size({'width': 360, 'height': 480})
+        await self.open_controls()
+        await self.page.get_by_role('tab', name='Links', exact=True).click()
+        links = self.page.get_by_role('tabpanel', name='Links', exact=True).get_by_role('link')
+        self.assertNotIn('Game history, source code and restoration resources.',
+                         await self.page.get_by_role('tabpanel', name='Links', exact=True).inner_text())
+        expected = [
+            'https://mud.co.uk/richard/',
+            'https://github.com/irongulp/mud1',
+            'https://en.wikipedia.org/wiki/MUD1',
+            'https://en.wikipedia.org/wiki/PDP-10',
+            'https://www.quentin.org.uk/2018/12/08/building-mud-86-from-source/',
+            'https://www.cl.cam.ac.uk/~mr10/bcpl4raspi.pdf',
+            'https://mud.co.uk/muse/speke.htm',
+            'https://steubentech.com/~talon/pdp10/readme.txt',
+            'https://www.filfre.net/misc/TOPS-10.txt',
+            'https://avanthar.com/healyzh/decemulation/TOPS-10_tips.html',
+            'https://github.com/irongulp/mud1/blob/main/MUDDL%20-%20Multi%20User%20Dungeon%20Definition%20Language.pdf',
+        ]
+        self.assertEqual(await links.evaluate_all('(links) => links.map(link => link.href)'), expected)
+        self.assertIn('Richard Bartle', await links.first.inner_text())
+        self.assertTrue(await links.evaluate_all("links => links.every(link => link.target === '_blank' && link.relList.contains('noopener'))"))
+        await self.page.locator('.controls-content').evaluate('(element) => element.scrollTop = element.scrollHeight')
+        for locator in (self.page.locator('#controls'), self.page.get_by_role('tablist'),
+                        self.page.get_by_role('button', name='Return to game', exact=True)):
+            box = await locator.bounding_box()
+            self.assertGreaterEqual(box['x'], 0)
+            self.assertGreaterEqual(box['y'], 0)
+            self.assertLessEqual(box['x'] + box['width'], 360)
+            self.assertLessEqual(box['y'] + box['height'], 480)
+
+    async def test_controls_tabs_form_a_continuous_strip_joined_to_the_panel(self):
+        for style in ('original', 'mda'):
+            await self.initial_style(style)
+            await self.open_controls()
+            await self.page.get_by_role('tab', name='About', exact=True).click()
+            appearance = await self.page.evaluate("""() => {
+                const strip = document.querySelector('.controls-tabs');
+                const selected = strip.querySelector('[aria-selected="true"]');
+                const inactive = strip.querySelector('[aria-selected="false"]');
+                return {
+                    baseline: getComputedStyle(strip).borderBottomWidth,
+                    activeBottom: getComputedStyle(selected).borderBottomColor,
+                    surface: getComputedStyle(controls).backgroundColor,
+                    corner: getComputedStyle(selected).borderBottomLeftRadius,
+                    inactiveBackground: getComputedStyle(inactive).backgroundColor,
+                    gap: selected.getBoundingClientRect().left - inactive.getBoundingClientRect().right
+                };
+            }""")
+            self.assertEqual(appearance['baseline'], '1px')
+            self.assertEqual(appearance['activeBottom'], appearance['surface'])
+            self.assertEqual(appearance['corner'], '0px')
+            self.assertEqual(appearance['inactiveBackground'], 'rgba(0, 0, 0, 0)')
+            self.assertEqual(appearance['gap'], 0)
+
+    async def test_controls_tabs_have_no_extra_focus_highlight(self):
+        await self.open_controls()
+        selected = self.page.get_by_role('tab', name='Settings', exact=True)
+        self.assertTrue(await selected.evaluate('(element) => element === document.activeElement'))
+        self.assertEqual(await selected.evaluate('(element) => getComputedStyle(element).outlineStyle'), 'none')
+        await self.page.keyboard.press('ArrowRight')
+        selected = self.page.get_by_role('tab', name='About', exact=True)
+        self.assertEqual(await selected.get_attribute('aria-selected'), 'true')
+        self.assertTrue(await selected.evaluate('(element) => element === document.activeElement'))
+        self.assertEqual(await selected.evaluate('(element) => getComputedStyle(element).outlineStyle'), 'none')
+
+    async def test_controls_licence_section_order_and_inventory_link(self):
+        await self.page.route('**/legal/third-party', lambda route: route.fulfill(status=404, body='Not found'))
+        await self.open_controls()
+        await self.page.get_by_role('tab', name='Licences', exact=True).click()
+        panel = self.page.get_by_role('tabpanel', name='Licences', exact=True)
+        await panel.get_by_text('GPL-3.0-only', exact=True).wait_for()
+        self.assertEqual(await panel.locator('h2').all_text_contents(), [
+            'Original MUD', 'Browser and restoration software', 'Fonts and other components',
+            'Historical runtime permission review',
+        ])
+        inventory = panel.get_by_role('link', name='component inventory', exact=True)
+        self.assertEqual(await inventory.get_attribute('href'),
+                         'https://github.com/irongulp/mud1/blob/main/THIRD_PARTY.md')
+        self.assertEqual(await inventory.get_attribute('target'), '_blank')
+        self.assertIn('noopener', await inventory.get_attribute('rel'))
+
+    async def test_controls_all_licence_links_work_without_legal_routes(self):
+        await self.page.route('**/legal/**', lambda route: route.fulfill(status=404, body='Not found'))
+        await self.open_controls()
+        await self.page.get_by_role('tab', name='Licences', exact=True).click()
+        panel = self.page.get_by_role('tabpanel', name='Licences', exact=True)
+        await panel.get_by_text('GPL-3.0-only', exact=True).wait_for()
+        documents = {
+            'original copyright notices and custom not-for-profit terms': 'licenses/MUD1-NOTICE.txt',
+            'GNU General Public License version 3': 'COPYING',
+            'precise scope and exclusions': 'LICENSE',
+            'MIT notice': 'web/vendor/LICENSE',
+            'SIMH — full pinned upstream notice, including additional restrictions': 'licenses/SIMH.txt',
+            'distribution status': 'NOTICE',
+            'DEC agreement reference': 'licenses/DEC-HOBBYIST.txt',
+            'BCPL review': 'licenses/BCPL-STATUS.md',
+        }
+        for label, path in documents.items():
+            link = panel.get_by_role('link', name=label, exact=True)
+            self.assertEqual(await link.get_attribute('href'),
+                             'https://github.com/irongulp/mud1/blob/main/' + path)
+            self.assertEqual(await link.get_attribute('target'), '_blank')
+            self.assertIn('noopener', await link.get_attribute('rel'))
+        for href in await panel.locator('a').evaluate_all('links => links.map(link => link.getAttribute("href"))'):
+            if href.startswith('/'):
+                self.assertTrue(href.startswith('/static/'), href)
+                response = await self.page.request.get(str(self.server.make_url(href)))
+                self.assertEqual(response.status, 200, href)
+
+    async def test_controls_licences_inline_and_failed_load_recovery(self):
+        requests = []
+        self.page.on('request', lambda request: requests.append(request.url) if request.url.endswith('/static/legal.html') else None)
+        await self.open_controls()
+        await self.page.route('**/static/legal.html', lambda route: route.fulfill(status=503, body='Unavailable'))
+        await self.page.get_by_role('tab', name='Licences', exact=True).click()
+        panel = self.page.get_by_role('tabpanel', name='Licences', exact=True)
+        await panel.get_by_text('The notices could not be loaded.').wait_for()
+        self.assertEqual(await panel.get_by_role('link', name='Open the licence page').get_attribute('href'), '/static/legal.html')
+        await self.page.unroute('**/static/legal.html')
+        await self.page.get_by_role('tab', name='Settings', exact=True).click()
+        await self.page.get_by_role('tab', name='Licences', exact=True).click()
+        await panel.get_by_text('GPL-3.0-only', exact=True).wait_for()
+        text = await panel.inner_text()
+        self.assertIn('no warranty', text)
+        self.assertIn('custom not-for-profit terms', text)
+        self.assertIn('Redistribution review is incomplete.', text)
+        self.assertTrue(await panel.locator('a').evaluate_all("links => links.every(link => link.target === '_blank' && link.relList.contains('noopener'))"))
+        await self.page.get_by_role('tab', name='About', exact=True).click()
+        await self.page.get_by_role('tab', name='Licences', exact=True).click()
+        self.assertEqual(len(requests), 2, 'A successfully loaded notice panel should be reused')
+
+    async def test_controls_licences_work_without_the_new_legal_route(self):
+        await self.page.route('**/legal', lambda route: route.fulfill(status=404, body='Not found'))
+        await self.open_controls()
+        await self.page.get_by_role('tab', name='Licences', exact=True).click()
+        await self.page.wait_for_function("""() => {
+            const text = document.getElementById('licence-notices').textContent;
+            return text.includes('GPL-3.0-only') || text.includes('could not be loaded');
+        }""")
+        panel = self.page.get_by_role('tabpanel', name='Licences', exact=True)
+        self.assertIn('GPL-3.0-only', await panel.inner_text())
+        self.assertFalse(await self.page.locator('#licence-fallback').is_visible())
+
+    async def test_controls_keyboard_tabs_keep_tab_to_close_and_chat_draft(self):
+        await self.initial_chat()
+        await self.connect()
+        command = self.page.get_by_label('Command', exact=True)
+        await command.fill('unfinished')
+        await self.page.clock.run_for(200)
+        await self.open_controls()
+        for key, name in (('ArrowRight', 'About'), ('End', 'Links'),
+                          ('Home', 'Settings'), ('ArrowLeft', 'Links')):
+            await self.page.keyboard.press(key)
+            tab = self.page.get_by_role('tab', name=name, exact=True)
+            self.assertEqual(await tab.get_attribute('aria-selected'), 'true')
+            self.assertTrue(await tab.evaluate('(element) => element === document.activeElement'))
+        await self.page.keyboard.press('Tab')
+        self.assertFalse(await self.page.locator('#controls').is_visible())
+        self.assertTrue(await command.evaluate('(element) => element === document.activeElement'))
+        self.assertEqual(await command.input_value(), 'unfinished')
+        for name in ('Settings', 'About', 'Licences', 'Links'):
+            await self.open_controls()
+            await self.page.get_by_role('tab', name=name, exact=True).click()
+            await self.page.keyboard.press('Tab')
+            self.assertFalse(await self.page.locator('#controls').is_visible())
+        await self.open_controls()
+        await self.page.get_by_role('tab', name='About', exact=True).click()
+        await self.page.keyboard.press('Escape')
+        self.assertFalse(await self.page.locator('#controls').is_visible())
+        self.assertEqual(await command.input_value(), 'unfinished')
+        self.assertEqual(await self.page.evaluate('[connections.length, sent.length]'), [1, 0])
+
     async def test_chat_paces_typing_then_sends_one_complete_line(self):
         await self.initial_chat()
         await self.connect()

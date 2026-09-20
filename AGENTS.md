@@ -211,6 +211,29 @@
 
 ## Validation
 
+- The Settings modal has four tabs in order: Settings, About, Licences, Links.
+  The selected tab visually joins the bordered, scrollable content panel.
+  Tab headings have no extra focus outline; focus follows the selected tab.
+  Every open resets to Settings and focuses its tab heading. Tab still CLOSES
+  the modal (explicit user preference); Escape/Return to game also close it.
+  Left/Right/Home/End navigate focused tab headings. Send Tab is Settings-only.
+  Scrollable content keeps tabs/footer visible on small screens. Licence content
+  is loaded once from `/static/legal.html`'s `#licence-content` section, with a failure link
+  and retry on reselect, so the standalone page and modal share one source.
+  Use the static URL so a local gateway started before /legal was added can still
+  display the notices without a restart. The Links panel starts directly with its list.
+  Licence sections begin with Original MUD, then Browser and restoration software,
+  then Fonts and other components. Full licence documents and the component
+  inventory link to GitHub's rendered files so they also work with older local
+  gateways that return 404 for /legal/...; bundled .txt font notices stay static.
+  The MUDDL resource links to the inherited Michael Lawrie PDF on GitHub: the
+  requested Wayback snapshot returned 503 during the link audit. All 27 unique
+  modal/standalone legal-page destinations returned 200 after repair on 2026-09-20.
+  Outbound resource/licence links use a new tab with noopener. About credits
+  Tim Rogers's browser server version, built using OpenCode and GPT-6 Astra.
+  Browser tests cover exact link order, default/reset state, keyboard shortcuts,
+  narrow-screen layout, licence-loading recovery and preservation of Chat drafts.
+
 - Chat transcript copying serializes the selected visible DOM rows with explicit
   newlines, preserving blank rows, indentation and displayed wrapping. Keep native
   copying for input fields and selections extending outside the transcript.

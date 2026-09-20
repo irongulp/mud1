@@ -32,25 +32,67 @@
     </main>
     <dialog id="controls" aria-labelledby="controls-title">
         <h2 id="controls-title">Settings</h2>
-        <label for="terminal-style">Terminal style</label>
-        <select id="terminal-style" disabled>
-            <option value="original">Default</option>
-            <option value="vt220">Computer Centre on Square 2</option>
-            <option value="vt52">DEC VT52</option>
-            <option value="mda">IBM PC MDA</option>
-            <option value="cga">IBM PC CGA</option>
-            <option value="bbc0">BBC Micro Mode 0</option>
-            <option value="bbc40">BBC Micro Mode 7</option>
-        </select>
-        <label class="chat-toggle"><input id="chat-mode" type="checkbox" role="switch" disabled> Chat mode</label>
-        <label for="speed">Connection speed</label>
-        <select id="speed">
-            <option value="9600-9600">9600 — Terminal</option>
-            <option value="300-300">300/300 — dial-up</option>
-            <option value="1200-75">1200/75 — dial-up</option>
-        </select>
-        <p>Press Tab or Escape to return to the game.</p>
-        <p><a href="/legal" target="_blank" rel="noopener" style="color: inherit">Licences and source</a></p>
+        <div class="controls-tabs" role="tablist" aria-label="Settings sections">
+            <button type="button" id="tab-settings" role="tab" aria-selected="true" aria-controls="panel-settings">Settings</button>
+            <button type="button" id="tab-about" role="tab" aria-selected="false" aria-controls="panel-about" tabindex="-1">About</button>
+            <button type="button" id="tab-licences" role="tab" aria-selected="false" aria-controls="panel-licences" tabindex="-1">Licences</button>
+            <button type="button" id="tab-links" role="tab" aria-selected="false" aria-controls="panel-links" tabindex="-1">Links</button>
+        </div>
+        <div class="controls-content">
+            <section id="panel-settings" role="tabpanel" aria-labelledby="tab-settings">
+                <label for="terminal-style">Terminal style</label>
+                <select id="terminal-style" disabled>
+                    <option value="original">Default</option>
+                    <option value="vt220">Computer Centre on Square 2</option>
+                    <option value="vt52">DEC VT52</option>
+                    <option value="mda">IBM PC MDA</option>
+                    <option value="cga">IBM PC CGA</option>
+                    <option value="bbc0">BBC Micro Mode 0</option>
+                    <option value="bbc40">BBC Micro Mode 7</option>
+                </select>
+                <label class="chat-toggle"><input id="chat-mode" type="checkbox" role="switch" disabled> Chat mode</label>
+                <label for="speed">Connection speed</label>
+                <select id="speed">
+                    <option value="9600-9600">9600 — Terminal</option>
+                    <option value="300-300">300/300 — dial-up</option>
+                    <option value="1200-75">1200/75 — dial-up</option>
+                </select>
+            </section>
+            <section id="panel-about" role="tabpanel" aria-labelledby="tab-about" hidden>
+                <h3>The original multi-user dungeon</h3>
+                <p>MUD began at the University of Essex in 1978, created by Roy Trubshaw
+                   and developed further with Richard Bartle. It helped establish the
+                   multiplayer online worlds that followed.</p>
+                <p>This restoration runs the 1986 MUD engine, written in BCPL and
+                   MACRO-10, on TOPS-10 inside a SIMH PDP-10 emulator. A Python server
+                   connects the original game to your browser through a terminal
+                   interface. Gameplay is handled by the original engine.</p>
+                <p>Browser server version by Tim Rogers, built using
+                   OpenCode and GPT-6 Astra.</p>
+            </section>
+            <section id="panel-licences" role="tabpanel" aria-labelledby="tab-licences" hidden>
+                <div id="licence-notices" aria-live="polite">
+                    <p>Loading licence notices…</p>
+                </div>
+                <p id="licence-fallback" hidden><a href="/static/legal.html" target="_blank" rel="noopener">Open the licence page</a></p>
+            </section>
+            <section id="panel-links" role="tabpanel" aria-labelledby="tab-links" hidden>
+                <ul class="resource-links">
+                    <li><a href="https://mud.co.uk/richard/" target="_blank" rel="noopener">Richard Bartle’s website</a></li>
+                    <li><a href="https://github.com/irongulp/mud1" target="_blank" rel="noopener">The repository on GitHub</a></li>
+                    <li><a href="https://en.wikipedia.org/wiki/MUD1" target="_blank" rel="noopener">MUD1 on Wikipedia</a></li>
+                    <li><a href="https://en.wikipedia.org/wiki/PDP-10" target="_blank" rel="noopener">PDP-10 on Wikipedia</a></li>
+                    <li><a href="https://www.quentin.org.uk/2018/12/08/building-mud-86-from-source/" target="_blank" rel="noopener">Quentin’s Blog — Building MUD 86 from source</a></li>
+                    <li><a href="https://www.cl.cam.ac.uk/~mr10/bcpl4raspi.pdf" target="_blank" rel="noopener">Young Persons Guide to BCPL Programming</a></li>
+                    <li><a href="https://mud.co.uk/muse/speke.htm" target="_blank" rel="noopener">MUDspeke Dictionary</a></li>
+                    <li><a href="https://steubentech.com/~talon/pdp10/readme.txt" target="_blank" rel="noopener">How to create a PDP-10 emulator</a></li>
+                    <li><a href="https://www.filfre.net/misc/TOPS-10.txt" target="_blank" rel="noopener">TOPS-10 in a Box</a></li>
+                    <li><a href="https://avanthar.com/healyzh/decemulation/TOPS-10_tips.html" target="_blank" rel="noopener">TOPS-10 Tips and Tricks</a></li>
+                    <li><a href="https://github.com/irongulp/mud1/blob/main/MUDDL%20-%20Multi%20User%20Dungeon%20Definition%20Language.pdf" target="_blank" rel="noopener">Michael Lawrie’s MUDDL Manual — PDF</a></li>
+                </ul>
+            </section>
+        </div>
+        <p class="controls-hint">Press Tab or Escape to return to the game.</p>
         <div class="settings-actions"><button id="close-controls">Return to game</button><button id="send-tab">Send Tab to game</button></div>
     </dialog>
     <dialog id="confirm-style" aria-labelledby="confirm-style-title" aria-describedby="confirm-style-message">
