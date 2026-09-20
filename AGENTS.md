@@ -144,6 +144,10 @@
 ## Hosting / idle measurements
 
 - AlmaLinux deployment entry point: `setup.sh` → `tools/deploy.py`. Root-managed
+  `mud86ctl` lives in `/usr/local/bin` with an alias in `/usr/bin`: AlmaLinux's
+  sudo secure_path can omit `/usr/local/bin`. Existing hosts can add that symlink
+  without restarting the game. Keep both paths working on installer reruns.
+  Root-managed
   app snapshots live under `/opt/mud86`, persistent disks/journal under
   `/var/lib/mud86`, configuration under `/etc/mud86`. Existing disks are never
   replaced on setup reruns. `server/runtime.py` is the foreground systemd

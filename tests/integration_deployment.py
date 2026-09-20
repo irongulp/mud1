@@ -92,9 +92,9 @@ def main():
     assert invoke(args.container, 'sha256sum', '/var/lib/mud86/private/archwizard-credentials.json') == before
     sleeps.append(asyncio.run(saved_player(args.url, creating=False)))
     print('AlmaLinux: backup and restart', flush=True)
-    (output / 'backup.log').write_text(invoke(args.container, '/usr/local/bin/mud86ctl', 'backup'))
+    (output / 'backup.log').write_text(invoke(args.container, 'sudo', 'mud86ctl', 'backup'))
     sleeps.append(asyncio.run(saved_player(args.url, creating=False)))
-    (output / 'status.log').write_text(invoke(args.container, '/usr/local/bin/mud86ctl', 'status'))
+    (output / 'status.log').write_text(invoke(args.container, 'sudo', 'mud86ctl', 'status'))
     report = {'complete': True, 'platform': 'AlmaLinux 9 container, systemd',
               'architecture': invoke(args.container, 'uname', '-m').strip(),
               'sleep_wake_seconds': [round(value, 3) for value in sleeps],

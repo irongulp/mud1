@@ -20,6 +20,7 @@ APP = Path('/opt/mud86')
 STATE = Path('/var/lib/mud86')
 CONFIG = Path('/etc/mud86')
 ACME = Path('/var/www/mud86-acme')
+CONTROL_WRAPPER = '#!/bin/sh\nexec /opt/mud86/current/.venv/bin/python /opt/mud86/current/tools/deploy.py "$@"\n'
 
 
 def sha256(path):
@@ -211,6 +212,24 @@ def configure_proxy(domain, http_only, email):
         run('systemctl', 'enable', '--now', 'certbot-renew.timer')
 
 
+def install_control(control=Path('/usr/local/bin/mud86ctl'), alias=Path('/usr/bin/mud86ctl')):
+    """Keep the original path and expose it on AlmaLinux's sudo secure_path."""
+    if alias.is_symlink():
+        if alias.readlink() != control:
+            raise FileExistsError(f'Refusing to replace an unrelated command: {alias}')
+    elif alias.exists():
+        raise FileExistsError(f'Refusing to replace an unrelated command: {alias}')
+    if control.is_symlink() or (control.exists() and
+                               (not control.is_file() or control.read_text() != CONTROL_WRAPPER)):
+        raise FileExistsError(f'Refusing to replace an unrelated command: {control}')
+    control.parent.mkdir(parents=True, exist_ok=True)
+    alias.parent.mkdir(parents=True, exist_ok=True)
+    control.write_text(CONTROL_WRAPPER)
+    control.chmod(0o755)
+    if not alias.is_symlink():
+        alias.symlink_to(control)
+
+
 def install(args):
     domain = validate_domain(args.domain)
     manifest = json.loads((ROOT / 'deploy/runtime.json').read_text())
@@ -261,9 +280,7 @@ def install(args):
     run('systemctl', 'start', 'mud86-gateway.service')
     configure_proxy(domain, args.http_only, args.email)
     (CONFIG / 'deployment.json').write_text(json.dumps({'domain': domain, 'release': release.name}, indent=2) + '\n')
-    control = Path('/usr/local/bin/mud86ctl')
-    control.write_text('#!/bin/sh\nexec /opt/mud86/current/.venv/bin/python /opt/mud86/current/tools/deploy.py "$@"\n')
-    control.chmod(0o755)
+    install_control()
     print(f'MUD ready: {"http" if args.http_only else "https"}://{domain}')
     print('Management: sudo mud86ctl status | restart | backup')
 

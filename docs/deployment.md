@@ -98,6 +98,18 @@ its entries are explicitly labelled *initial* values.
 
 ## Operations and updates
 
+Setup installs `/usr/local/bin/mud86ctl` and a compatibility symlink at
+`/usr/bin/mud86ctl`, which is on AlmaLinux's default sudo search path.
+For an existing installation created before this fix, add the symlink once:
+
+```sh
+sudo ln -s /usr/local/bin/mud86ctl /usr/bin/mud86ctl
+sudo mud86ctl status
+```
+
+This path-only repair requires no game restart or setup rerun. The full
+`sudo /usr/local/bin/mud86ctl status` command also remains valid.
+
 ```sh
 sudo mud86ctl status
 sudo mud86ctl restart

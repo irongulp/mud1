@@ -2,12 +2,13 @@ import hashlib
 import io
 import json
 from pathlib import Path
+import shutil
 import tarfile
 import tempfile
 import unittest
 from unittest.mock import patch
 
-from tools.deploy import install_image, validate_domain, nginx_config, write_backup
+from tools.deploy import install_image, validate_domain, nginx_config, write_backup, install_control
 from server.runtime import Runtime, simulator_config
 
 
@@ -133,6 +134,26 @@ class DeploymentTests(unittest.TestCase):
         with patch.object(runtime, 'boot', side_effect=boot), patch('server.runtime.signal.signal'):
             with self.assertRaises(InterruptedError):
                 runtime.run()
+
+    def test_control_is_found_without_usr_local_bin_and_survives_rerun(self):
+        control = self.root / 'usr/local/bin/mud86ctl'
+        alias = self.root / 'usr/bin/mud86ctl'
+        for _ in range(2):
+            install_control(control, alias)
+            self.assertEqual(shutil.which('mud86ctl', path=str(alias.parent)), str(alias))
+            self.assertEqual(alias.resolve(), control.resolve())
+            self.assertEqual(control.stat().st_mode & 0o777, 0o755)
+            self.assertIn('/opt/mud86/current/tools/deploy.py "$@"', control.read_text())
+
+    def test_control_install_preserves_unrelated_existing_command(self):
+        control = self.root / 'usr/local/bin/mud86ctl'
+        alias = self.root / 'usr/bin/mud86ctl'
+        alias.parent.mkdir(parents=True)
+        alias.write_text('existing command')
+        with self.assertRaises(FileExistsError):
+            install_control(control, alias)
+        self.assertEqual(alias.read_text(), 'existing command')
+        self.assertFalse(control.exists())
 
 
 if __name__ == '__main__':
