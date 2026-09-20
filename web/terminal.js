@@ -76,8 +76,8 @@ const outgoing = new SerialPacer(data => {
     if (!restartRequested && socket && socket.readyState === WebSocket.OPEN) socket.send(data);
 }, 9600);
 const chat = new ChatView(terminal, data => {
-    if (!restartRequested && socket && socket.readyState === WebSocket.OPEN) outgoing.enqueue(data);
-}, toggleControls);
+    if (!restartRequested && socket && socket.readyState === WebSocket.OPEN) socket.send(data);
+}, toggleControls, outgoing.baud);
 
 function focusInput() {
     if (chat.active) chat.focus();
@@ -184,6 +184,7 @@ speed.addEventListener('change', () => {
     const [receive, send] = speed.value.split('-').map(Number);
     incoming.setBaud(receive);
     outgoing.setBaud(send);
+    chat.setBaud(send);
 });
 document.getElementById('send-tab').addEventListener('click', () => {
     if (!restartRequested && socket && socket.readyState === WebSocket.OPEN) {

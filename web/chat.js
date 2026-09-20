@@ -9,7 +9,7 @@ class ChatView {
     // Original MUD1.BCL prompt variants (including invisibility), plus TOPS-10.
     static LIVE_PROMPT = /^(?:(?:----)?[*>"]|\((?:----)?[*>"]\)|\.)$/;
 
-    constructor(terminal, send, settings) {
+    constructor(terminal, send, settings, sendBaud) {
         this.terminal = terminal;
         this.send = send;
         this.panel = document.getElementById('chat-panel');
@@ -22,6 +22,11 @@ class ChatView {
         this.active = false;
         this.recent = '';
         this.baseY = 0;
+        this.typing = new PacedChatInput(this.input, line => {
+            this.recent = '';
+            // The complete, already-paced draft is sent as one message.
+            this.send(line + '\r');
+        }, sendBaud);
         terminal.onWriteParsed(() => { if (this.active) this.render(); });
         window.addEventListener('scroll', () => this.layoutInput(), { passive: true });
         window.addEventListener('resize', () => this.layoutInput());
@@ -29,20 +34,21 @@ class ChatView {
         this.form.addEventListener('submit', event => {
             event.preventDefault();
             if (!this.active || this.input.disabled) return;
-            const line = this.input.value;
-            this.input.value = '';
-            this.recent = '';
             // No local echo or command history: only the engine echoes commands.
-            this.send(line + '\r');
+            this.typing.submit();
         });
         this.input.addEventListener('keydown', event => {
-            if (event.key === 'Enter' && (event.repeat || event.isComposing)) event.preventDefault();
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                if (!event.repeat && !event.isComposing) this.form.requestSubmit();
+            }
             if (event.key === 'Tab' && !event.ctrlKey && !event.altKey && !event.metaKey) {
                 event.preventDefault();
                 settings();
             }
             if (event.key.toLowerCase() === 'c' && event.ctrlKey && !this.input.value) {
                 event.preventDefault();
+                this.typing.reset();
                 this.send('\x03');
             }
         });
@@ -141,7 +147,7 @@ class ChatView {
     connection(ready) {
         this.input.disabled = !ready;
         if (!ready) {
-            this.input.value = '';
+            this.typing.reset();
             this.input.type = 'text';
             this.recent = '';
         }
@@ -149,12 +155,12 @@ class ChatView {
 
     focus() { this.input.focus(); }
 
+    setBaud(baud) { this.typing.setBaud(baud); }
+
     insertTab() {
         // Unlike a terminal, the draft has not yet been sent to the game.
-        const start = this.input.selectionStart;
-        const end = this.input.selectionEnd;
-        this.input.value = this.input.value.slice(0, start) + '\t' + this.input.value.slice(end);
-        this.input.setSelectionRange(start + 1, start + 1);
+        this.typing.syncSelection();
+        this.typing.insert('\t');
     }
 
     observe(data) {

@@ -223,9 +223,17 @@
   `web/chat.js` projects xterm's parsed buffer into text-only DOM rows, so CR,
   rubout and VT erase sequences retain their original meaning. The existing
   10,000-line scrollback limit still applies; there is no fixed-height viewport.
-  Input is edited locally and sent through the existing baud pacer on Enter.
+  `web/chat-input.js` applies the selected send baud to local typing/paste/edit
+  operations (10-bit framing). Enter queues behind pending edits, then sends the
+  complete line in one WebSocket message without a second upstream throttle.
+  Projected draft/selection state preserves typeahead, replacement and backspace
+  while the visible field catches up. Zero-cost Enter/selection operations retain
+  order with paced edits. Disconnect/restart clears both the visible draft and queue.
+  Regular terminal input still uses the original outgoing SerialPacer; receive
+  pacing is independent and unchanged. Tests selecting draft text must first wait
+  for the local edit queue to display it, even at 9600 baud (20ms clock ticks).
   Only the engine echoes commands. Known login and PASSWORD prompts mask the input;
-  no command history is stored. Disconnect/restart clears drafts and queued input.
+  no command history is stored.
   Send Tab inserts a tab into the unsent Chat draft; the terminal modes send it
   directly. Toggling Chat requires the existing session-restart confirmation even
   without a geometry change. Style changes preserve the Chat switch. Settings

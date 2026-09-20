@@ -56,11 +56,22 @@ async def main(style):
             await expect('Hello, ' + name)
             await wait_prompt(page)
             assert await command.get_attribute('type') == 'text'
+            await page.get_by_role('button', name='Settings (Tab)', exact=True).click()
+            await page.get_by_label('Connection speed').select_option('1200-75')
+            await page.keyboard.press('Escape')
+            await page.wait_for_function("document.activeElement.id === 'chat-command'")
+            await page.evaluate("""() => {
+                gameOutput = '';
+                window.commandMessages = [];
+                const send = socket.send.bind(socket);
+                socket.send = data => { commandMessages.push(data); send(data); };
+            }""")
             await command.fill('whox')
             await command.press('Backspace')
-            await page.evaluate("gameOutput = ''")
+            assert await page.evaluate('commandMessages') == []
             await command.press('Enter')
             await wait_prompt(page)
+            assert await page.evaluate('commandMessages') == ['who\r']
             await expect(name + ' is playing')
             for text in ('info', 'save'):
                 await page.evaluate("gameOutput = ''")
@@ -95,7 +106,7 @@ async def main(style):
             await page.wait_for_function("document.activeElement.id === 'chat-command'")
             await submit('quit')
             await page.wait_for_function('socket.readyState === WebSocket.CLOSED', timeout=30000)
-            print(f'PASS: {style} Chat login, editing, INFO, adaptive input, pinned header, saved-password reconnect and Settings ({name})')
+            print(f'PASS: {style} Chat login, paced editing/whole-line send, INFO, adaptive input, pinned header, saved-password reconnect and Settings ({name})')
         except Exception:
             if page is not None and not page.is_closed():
                 print('Latest raw game output:', await page.evaluate("(window.gameOutput || '').slice(-2000)"), flush=True)
