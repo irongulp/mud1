@@ -1,0 +1,21 @@
+xterm.js 5.5.0 source supplement
+
+Copyright notices and MIT permission text: LICENSE in this directory and in
+the enclosed upstream source archive. The project's GPL grant does not replace
+the upstream MIT notice.
+
+Bundled browser asset origin:
+https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.js
+The asset checksum is recorded in manifest.json in this directory.
+
+Corresponding upstream preferred-form TypeScript source and build files:
+https://github.com/xtermjs/xterm.js/tree/9ba6c00a195c95fcf8292a2b9084d91450e5daae
+Tag: 5.5.0
+Local archive: xterm-source-5.5.0.tar.gz
+Archive SHA-256: 30068bd04022e70e45090269fa27f6aa344762269c8d2d81f07940b41abee4a2
+Import URL:
+https://codeload.github.com/xtermjs/xterm.js/tar.gz/9ba6c00a195c95fcf8292a2b9084d91450e5daae
+
+This supplement preserves the source alongside the bundled minified library;
+it does not rely solely on the continued availability of an upstream link.
+The restoration does not modify the bundled xterm.js library.

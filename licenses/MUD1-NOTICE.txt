@@ -1,0 +1,36 @@
+MUD1: upstream copyright and permission notices
+=============================================
+
+Source revision: 8d2ce6ee5ca1ae3d835538de20aeb87acaae3df1
+https://github.com/PDP-10/MUD1/tree/8d2ce6ee5ca1ae3d835538de20aeb87acaae3df1
+
+The following text is from the header of MUDLIB.BCL at that revision.
+Original per-file notices and author credits must also be retained.
+
+Copyright (C) 1980 by
+Roy Trubshaw & Richard Bartle,
+Essex University, Colchester. CO4 3SQ.
+
+        This software is furnished on the understanding that
+it may be used and or copied only with the inclusion of this
+notice.  No title or ownership of this software is hereby
+transferred. The information in this software is subject to
+change without notice. No responsibility is assumed for the
+use or reliability of this software.
+
+Released by Richard Bartle exclusively for not for profit use
+18 May 2020
+
+The upstream README records:
+
+I have discussed with Richard Bartle the licence for this code which he has said on 18 May 2020 can be used for a not-for-profit purpose. This means you can do pretty well what you want with it except make money, and if you give it to other people they have to follow the same restrictions."
+
+Provenance note (not an additional licence term):
+The upstream commit dated 28 October 2024 removed earlier GPLv3 references. Its
+message says: "FSF said you could not stipulate not for profit under GPL3, so now
+it isn't licensed under GPL3." This document records the revision we inherited;
+it does not determine the legal effect of grants made for earlier versions.
+
+The preserved source/ archive predates that added release statement. Its bytes
+are intentionally unmodified; this accompanying notice records the later
+upstream terms without editing the historical archive.

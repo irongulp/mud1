@@ -1,0 +1,46 @@
+MUD86 restoration: licensing scope
+=================================
+
+Copyright (C) 2026 Tim Rogers and contributors
+
+The independently authored restoration software identified below is licensed
+under the GNU General Public License, version 3 only (GPL-3.0-only):
+
+* server/*.py and tools/*.py
+* tests/*.py
+* web/*.js, web/*.css and web/*.html, excluding web/vendor/
+* tools/fixtures/AUDPWD.BCL (the newly authored diagnostic SOURCE)
+* setup.sh, Makefile, .github/workflows/, config/, deploy/*.service and deploy/Dockerfile.*
+
+This software is free software: you can redistribute it and/or modify it under
+the terms of the GNU General Public License as published by the Free Software
+Foundation, version 3 of the License.
+
+This software is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with
+this software, in COPYING. If not, see https://www.gnu.org/licenses/gpl-3.0.html.
+
+The GPL grant is for our original contributions, not a blanket relicensing of
+this repository or its downloadable historical runtime. In particular:
+
+* Original MUD source/data at the repository root, the preserved source/
+  archive, historical text/code quotations and generated MUD derivatives retain
+  their original notices and upstream not-for-profit terms. See
+  licenses/MUD1-NOTICE.txt. No not-for-profit restriction is added to our GPL code.
+* web/vendor/ retains its per-component terms; see THIRD_PARTY.md.
+* TOPS-10, DEC utilities, the Essex BCPL toolchain and native libraries retain
+  their own terms. Permissions for our historical runtime redistribution remain
+  unverified. Licensing our diagnostic source does not clear its linked binary
+  or grant rights to the libraries it uses.
+* SIMH and downloaded Python/system dependencies retain their own licences.
+* Licence texts, quoted notices, provenance documents and third-party documents
+  are not relicensed by this grant. Project-authored explanatory documentation
+  may be redistributed with the restoration under GPL-3.0-only; incorporated
+  third-party material remains under its own terms.
+
+Source: https://github.com/irongulp/mud1
+Issues/contact: https://github.com/irongulp/mud1/issues
+See NOTICE, THIRD_PARTY.md and docs/licensing.md for scope and unresolved items.

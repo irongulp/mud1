@@ -4,6 +4,11 @@ Target: a fresh AlmaLinux 9 VPS with 1 vCore and 2 GB RAM, serving
 `https://mud.etimbo.com`. The installer downloads a pinned, persona-free runtime
 release and creates each installation's archwizard credentials locally.
 
+**Licensing status:** the maintainer is keeping runtime-v1 downloadable while
+historical-software redistribution permissions remain under review. Technical
+acceptance tests do not clear those permissions. Read
+[the licensing review](licensing.md) before redistributing the image.
+
 ## Install
 
 Point `mud.etimbo.com`'s DNS A record at the VPS's IPv4 address. Allow inbound TCP
@@ -173,7 +178,8 @@ copies; the published starter never contains test-created credentials.
 
 ```sh
 .venv/bin/python -m unittest discover -s tests -v
-.venv/bin/python -m tools.package_runtime --output runtime/new-release --tag runtime-v1
+# Local packaging only; permission review must be resolved before publication.
+.venv/bin/python -m tools.package_runtime --output runtime/new-release --tag runtime-v2
 .venv/bin/python -m tests.integration_runtime --state runtime/new-boot-check
 ```
 

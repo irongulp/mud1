@@ -170,6 +170,18 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response.status, 400)
         self.assertIn('Unknown terminal style', await response.text())
 
+    async def test_legal_notices_are_served_without_opening_game_sessions(self):
+        for path, expected in (('/legal', 'GPL-3.0-only'),
+                               ('/legal/gpl', 'GNU GENERAL PUBLIC LICENSE'),
+                               ('/legal/mud', 'exclusively for not for profit use'),
+                               ('/legal/notice', 'HISTORICAL RUNTIME REVIEW IS INCOMPLETE')):
+            response = await self.client.get(self.server.make_url(path))
+            self.assertEqual(response.status, 200)
+            self.assertIn(expected, await response.text())
+        response = await self.client.get(self.server.make_url('/legal/private'))
+        self.assertEqual(response.status, 404)
+        self.assertEqual(self.count, 0)
+
     async def test_vt52_mda_and_cga_use_80_column_upstream(self):
         for style in ('vt52', 'mda', 'cga'):
             socket = await self.client.ws_connect(self.server.make_url('/terminal?style=' + style))

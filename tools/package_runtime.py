@@ -4,14 +4,13 @@ Never accepts a live disk or an arbitrary audit image as input. The release
 image is never used for credential tests; acceptance tests extract fresh copies.
 """
 import argparse
-import gzip
 import json
 from pathlib import Path
-import tarfile
 
 from tools.audit_archwizards import MAX_BOOT_ATTEMPTS, checked_command, inspect, prepare_machine
 from tools.benchmark_idle import Emulator
 from tools.deploy import ROOT, sha256
+from tools.licensing import write_runtime_archive
 
 
 def build(output, tag):
@@ -53,23 +52,16 @@ def build(output, tag):
         machine = None
         inputs = {'guest.dsk': disk, 't10boot.tap': ROOT / 'runtime/media/t10boot.tap'}
         archive = output / 'mud86-runtime.tar.gz'
-        with archive.open('xb') as raw, gzip.GzipFile(fileobj=raw, mode='wb', mtime=0) as compressed:
-            with tarfile.open(fileobj=compressed, mode='w|') as bundle:
-                for name, path in inputs.items():
-                    member = tarfile.TarInfo(name)
-                    member.size = path.stat().st_size
-                    member.mode = 0o600
-                    with path.open('rb') as source:
-                        bundle.addfile(member, source)
+        records = write_runtime_archive(archive, inputs)
         manifest = {
-            'version': 1, 'release': tag, 'availability': 'always-open',
+            'version': 2, 'release': tag, 'availability': 'always-open',
+            'permission_review': 'incomplete; packaging does not authorize redistribution',
             'simh_revision': provenance['simh_revision'],
             'baseline_sha256': provenance['disk_sha256'],
             'persona_records': 0, 'shutdown': 'KSYS processing completed',
             'archive': {'url': f'https://github.com/irongulp/mud1/releases/download/{tag}/{archive.name}',
                         'sha256': sha256(archive), 'size': archive.stat().st_size},
-            'files': {name: {'sha256': sha256(path), 'size': path.stat().st_size}
-                      for name, path in inputs.items()},
+            'files': records,
         }
         (output / 'runtime.json').write_text(json.dumps(manifest, indent=2) + '\n')
         print(json.dumps(manifest, indent=2))
@@ -81,7 +73,7 @@ def build(output, tag):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output', type=Path, required=True)
-    parser.add_argument('--tag', default='runtime-v1')
+    parser.add_argument('--tag', default='runtime-v2')
     args = parser.parse_args()
     if not args.tag or any(char not in 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-' for char in args.tag):
         parser.error('Invalid release tag')

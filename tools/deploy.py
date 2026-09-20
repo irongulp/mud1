@@ -40,27 +40,40 @@ def validate_domain(domain):
     return domain
 
 
+def image_files(version):
+    if version == 1:
+        return IMAGE_FILES
+    if version == 2:
+        return IMAGE_FILES | {'NOTICES.txt'}
+    raise ValueError('Unsupported starter image version')
+
+
 def install_image(archive, manifest, destination):
     """Install atomically once. A mutable installed disk is never replaced."""
     destination = Path(destination)
     if destination.exists() or destination.is_symlink():
-        if destination.is_symlink() or not all((destination / name).is_file() and not (destination / name).is_symlink()
-                                               for name in IMAGE_FILES | {'installed.json'}):
+        marker = destination / 'installed.json'
+        if destination.is_symlink() or marker.is_symlink() or not marker.is_file():
             raise ValueError('Existing game directory is not a recognized installation; preserve it for recovery')
-        installed = json.loads((destination / 'installed.json').read_text())
-        if installed.get('version') != 1 or set(installed.get('files', {})) != IMAGE_FILES:
+        installed = json.loads(marker.read_text())
+        expected_files = image_files(installed.get('version'))
+        if set(installed.get('files', {})) != expected_files:
             raise ValueError('Unrecognized installed image metadata')
+        if not all((destination / name).is_file() and not (destination / name).is_symlink()
+                   for name in expected_files):
+            raise ValueError('Installed image has missing or symlinked files; preserve it for recovery')
         return False
-    if manifest['version'] != 1 or manifest['availability'] != 'always-open':
+    expected_files = image_files(manifest['version'])
+    if manifest['availability'] != 'always-open':
         raise ValueError('Unsupported starter image')
-    if set(manifest['files']) != IMAGE_FILES or sha256(archive) != manifest['archive']['sha256']:
+    if set(manifest['files']) != expected_files or sha256(archive) != manifest['archive']['sha256']:
         raise ValueError('Starter image checksum or manifest mismatch')
     temporary = Path(tempfile.mkdtemp(prefix='.game-', dir=destination.parent))
     try:
         seen = set()
         with tarfile.open(archive, 'r|gz') as bundle:
             for member in bundle:
-                if not member.isfile() or member.name not in IMAGE_FILES or member.name in seen:
+                if not member.isfile() or member.name not in expected_files or member.name in seen:
                     raise ValueError('Unexpected starter archive member')
                 expected = manifest['files'][member.name]
                 if member.size != expected['size']:
@@ -74,7 +87,7 @@ def install_image(archive, manifest, destination):
                 if sha256(target) != expected['sha256']:
                     raise ValueError('Starter member checksum mismatch')
                 seen.add(member.name)
-        if seen != IMAGE_FILES:
+        if seen != expected_files:
             raise ValueError('Incomplete starter archive')
         (temporary / 'installed.json').write_text(json.dumps(manifest, indent=2) + '\n')
         temporary.rename(destination)
@@ -104,8 +117,9 @@ def download(url, destination, expected):
 
 
 def application_release():
-    directories = ('server', 'tools', 'web', 'deploy', 'docs')
-    files = ('requirements.lock', 'requirements-deploy.txt', 'README.md')
+    directories = ('server', 'tools', 'web', 'deploy', 'docs', 'licenses')
+    files = ('requirements.lock', 'requirements-deploy.txt', 'README.md', 'setup.sh',
+             'LICENSE', 'COPYING', 'NOTICE', 'THIRD_PARTY.md')
     digest = hashlib.sha256()
     paths = [ROOT / name for name in files]
     for directory in directories:

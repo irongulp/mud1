@@ -4,6 +4,19 @@ A working local restoration of Essex MUD86. Gameplay runs in the original
 BCPL/MACRO-10 executable under SIMH and TOPS-10 7.04. The browser is an xterm.js
 terminal; the Python server only bridges WebSocket and Telnet connections.
 
+## Licensing
+
+The independently authored restoration software is **GPL-3.0-only**; see
+[LICENSE](LICENSE) for scope and [COPYING](COPYING) for the full terms. The
+original MUD source/world retains its **custom not-for-profit terms** and is
+not relicensed by that GPL grant. Vendor assets retain their own licences.
+
+**Historical runtime redistribution review is incomplete.** Runtime-v1 remains
+downloadable at the maintainer's direction with this notice, but the applicable
+permissions for the bundled TOPS-10/DEC and BCPL components have not been
+established by this review. See [THIRD_PARTY.md](THIRD_PARTY.md),
+[NOTICE](NOTICE) and [docs/licensing.md](docs/licensing.md).
+
 ## Repository and branch
 
 This is the `main` branch of

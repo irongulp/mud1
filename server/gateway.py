@@ -15,6 +15,12 @@ from server.password_input import PasswordInput
 
 ROOT = Path(__file__).resolve().parents[1]
 WEB = ROOT / "web"
+LEGAL_DOCUMENTS = {
+    'gpl': 'COPYING', 'scope': 'LICENSE', 'notice': 'NOTICE',
+    'mud': 'licenses/MUD1-NOTICE.txt', 'third-party': 'THIRD_PARTY.md',
+    'dec': 'licenses/DEC-HOBBYIST.txt', 'bcpl': 'licenses/BCPL-STATUS.md',
+    'simh': 'licenses/SIMH.txt',
+}
 CONNECT_TIMEOUT = 15
 TERMINAL_COLUMNS = 80
 TERMINAL_ROWS = 30
@@ -189,7 +195,19 @@ def create_app(upstream_host="127.0.0.1", upstream_port=2020):
     async def index(request):
         return web.FileResponse(WEB / "index.html")
 
+    async def legal_page(request):
+        return web.FileResponse(WEB / 'legal.html')
+
+    async def legal_document(request):
+        name = request.match_info['document']
+        if name not in LEGAL_DOCUMENTS:
+            raise web.HTTPNotFound()
+        return web.FileResponse(ROOT / LEGAL_DOCUMENTS[name],
+                                headers={'Content-Type': 'text/plain; charset=utf-8'})
+
     app.router.add_get("/", index)
+    app.router.add_get('/legal', legal_page)
+    app.router.add_get('/legal/{document}', legal_document)
     app.router.add_get("/terminal", terminal)
     app.router.add_static("/static/", WEB)
     return app

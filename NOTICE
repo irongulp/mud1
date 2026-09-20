@@ -1,0 +1,31 @@
+MUD86 restoration -- attribution and distribution status
+
+The original MUD is by Roy Trubshaw and Richard Bartle, Essex University,
+with further authors credited in its original files. Upstream base:
+PDP-10/MUD1, commit 8d2ce6ee5ca1ae3d835538de20aeb87acaae3df1.
+
+That revision carries custom not-for-profit terms, not a GPLv3 declaration.
+Its original notices remain in the inherited files. The separate source/
+archive is preserved byte-for-byte; licenses/MUD1-NOTICE.txt accompanies it.
+
+The restoration adds a browser terminal, transport gateway, build/deployment
+tools and tests. Its generated 24/7 MUD variant changes the availability gate;
+it is a modified restoration, not an original historical executable. The
+original engine/world are not relicensed by the GPL grant for the new software.
+
+Copyright (C) 2026 Tim Rogers and contributors, for the independently authored
+restoration software only. GPL-3.0-only; no warranty. Redistribution is permitted
+under the GPL terms in COPYING, subject to the scope in LICENSE. Preferred-form
+source is distributed in this repository and with the installed application.
+
+Third-party browser assets have separate notices in web/vendor/. Consult
+THIRD_PARTY.md rather than assuming that one licence covers the whole package.
+
+HISTORICAL RUNTIME REVIEW IS INCOMPLETE
+The public runtime-v1 disk/tape contains TOPS-10, DEC utilities and an Essex BCPL
+toolchain. Our right to redistribute this combination has not been established
+by the licensing review. Availability from an archive, retained notices,
+functional tests and a checksum do not establish redistribution permission.
+See licenses/DEC-HOBBYIST.txt and licenses/BCPL-STATUS.md. The maintainer has
+chosen to keep runtime-v1 downloadable with this review notice. No replacement
+historical binary release is cleared by the addition of these documents.

@@ -2,6 +2,20 @@
 
 ## Purpose and constraints
 
+- Licensing: independently authored restoration software is GPL-3.0-only, scoped
+  by root LICENSE; COPYING is verbatim pinned GNU text. Original MUD/source/data
+  retain upstream custom not-for-profit notices. Never add that restriction to
+  the GPL host/browser code or treat the whole historical image as GPL-licensed.
+  See THIRD_PARTY.md and docs/licensing.md. TOPS-10/DEC and Essex BCPL runtime
+  redistribution permissions remain unverified. The maintainer explicitly chose
+  to keep runtime-v1 public with a prominent review notice; do not publish a
+  replacement historical binary as though notices alone resolve permission.
+  Local format-2 runtime packages include checksummed NOTICES.txt; installers
+  retain format-1 compatibility and never replace existing mutable game disks.
+  Installed apps include licence files and setup source. Browser legal links
+  expose only whitelisted documents, and xterm 5.5.0 preferred-form source is
+  bundled under web/vendor/ with its MIT notice and pinned source provenance.
+
 - Serve the supplied original MUD86 BCPL/MACRO-10 engine with a browser terminal.
 - Preserve `source/` byte-for-byte. Generate into `build/`; use the original
   DBASE compiler for authoritative game data. Do not reimplement gameplay in JS.
