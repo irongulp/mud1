@@ -172,6 +172,10 @@
   container on native x86. After Docker restart, wait for systemd's D-Bus socket
   before issuing service commands; the first CI reboot failure was that test
   race, not a failed guest boot. Test output redacts archwizard credentials.
+  Run 35499541986 passed the complete native x86 workflow, including HTTPS/WSS
+  with a test certificate and the reboot browser check; original sleep timing
+  measured 5.980, 5.982 and 6.010 seconds. Public ACME issuance and enforcing
+  SELinux on the actual IONOS VPS remain target-host checks.
 
 - Read `docs/hosting.md` before selecting or promoting an idle configuration.
 - On Apple M5, isolated IDLE + DZ `SPEED=*8` tests used about 17–18% of one

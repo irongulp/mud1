@@ -144,6 +144,14 @@ the services and verify an existing saved login before reopening access.
 
 ## Release and validation
 
+Native x86 acceptance passed in
+[GitHub Actions run 35499541986](https://github.com/irongulp/mud1/actions/runs/35499541986):
+93 host tests, installation/rerun, saved-persona re-entry, private backup/restart,
+Chromium multiplayer over HTTP and HTTPS/WSS, and container reboot. The three
+measured original sleep/wake intervals were **5.980, 5.982 and 6.010 seconds**.
+HTTPS used a local test certificate; public ACME issuance and IONOS-specific
+network/SELinux behavior still require the target-host check described below.
+
 `deploy/runtime.json` pins the release archive URL, compressed checksum, each
 member's size/checksum, the SIMH revision and baseline provenance. The release
 builder accepts only the pinned stopped checkpoint, preserves original source
