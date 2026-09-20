@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "release": "runtime-v1",
+  "availability": "always-open",
+  "simh_revision": "47b7ddabbe5b548cfc32f2fd45f7bed238ff7921",
+  "baseline_sha256": "9697a34851e8b6857a0450b849c9484a9f3f4eea63766cb9aab7d8664f5f10a2",
+  "persona_records": 0,
+  "shutdown": "KSYS processing completed",
+  "archive": {
+    "url": "https://github.com/irongulp/mud1/releases/download/runtime-v1/mud86-runtime.tar.gz",
+    "sha256": "505708614b57fade39572dada365394a988433d637217ed041b17f79f38325bf",
+    "size": 82501845
+  },
+  "files": {
+    "guest.dsk": {"sha256": "23baaf1c2eeb0fe6633601d1e706e4835557def2410e87e2629c849de69a669c", "size": 317133312},
+    "t10boot.tap": {"sha256": "124f25810905c93a27ac0362205b79b98e4c10d3dd6431c928a46a84044d41fd", "size": 1289752}
+  }
+}

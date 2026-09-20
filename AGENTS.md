@@ -56,6 +56,48 @@
   not recovered historical data. Created with TOPS-10 COPY from TTY and verified
   with TYPE/DIRECTORY. `WIZARD MODE` consults this file to authorize wizard mode;
   adding an entry does not itself reset the world or change persona passwords.
+- Archwizard password audit: ordinary saved passwords authenticate Roy, Brian,
+  Ronan, Friday, Yawn and Debugger, but are rejected for Richard. This was tested
+  in historical and 24/7 private builds, via MUDGUEST and RICHARD OS accounts.
+  Richard's stored PSWD stays unchanged; the same password and identical stored
+  word work for an ordinary control persona. The exception in MUDLIB.BCL changes
+  the in-memory comparison value, not the stored word on a rejected login.
+  Do not advertise a generated Richard password as a verified direct-login credential.
+  See `docs/archwizard-password-audit.md` and `tools/audit_archwizards.py`.
+  `tools/fixtures/AUDPWD.BCL` is a separate read-only inspector; do not instrument
+  MUD itself, as changing its layout could affect the address-derived check.
+  The standalone BCPL library's DOFILE takes 15 arguments, unlike MUD's 11-arg wrapper.
+- Richard ATTACH is now verified on the private 24/7 audit image through MUDGUEST:
+  existing saved Roy login grants `maint`; different passwords prompt, wrong/Roy's
+  passwords are rejected, Richard's correct password succeeds. Matching password
+  values skip the prompt. ATTACH's password question has no following `*` because
+  it sets `pretend=true`. WHO and wizard-only GO WRDBE confirm the attached persona;
+  SCORE's Novice label is point-based and does not indicate missing wizard powers.
+  **Do not assume attached SAVE/QUIT is protected.** ATTACH sets ATTED, then loading
+  the saved STATES word clears it (MUD7.BCL:226,234; DUNGEN.GET:368–373). Session
+  `ps.word` stays Roy's. Native tests confirm SAVE as Richard succeeds and replaces
+  Richard's PSWD with Roy's; QUIT also does so if Roy was SAVEd earlier in that
+  session. QUIT alone preserved this zero-score/one-game fixture, but other normal
+  persistence conditions can trigger writes. The prior blanket no-SAVE/no-update
+  interpretation was wrong. `--richard-attach` in tools/audit_archwizards.py tests
+  six cases, restores the private AUTH0 fixtures, and stops its emulator. See
+  docs/archwizard-password-audit.md and the ignored attachment-report.json evidence.
+- `tools/provision_archwizards.py` is the standalone first-install step for all
+  seven names, including Richard. It takes an explicit loopback Telnet `--port`,
+  creates/SAVEs missing personas, and preserves existing nonzero passwords. Use
+  the same private `--state-dir` on reruns; its 0600 initial-credential journal is
+  written before creation, atomically updated and locked. `--show-credentials`
+  explicitly reveals only known matching values with a password-manager reminder.
+  Richard is labelled attachment-only; native password drift is reported, never
+  silently reset. Zero-password existing records and ambiguous interrupted SAVEs
+  stop for reconciliation. No authentication code is patched. The read-only
+  AUDPWD companion is compiled through a maintenance TTY, without transcript logs.
+  Pace COPY-from-TTY source transfers at 50 ms per line: echo can precede COPY's
+  consumption; unpaced reruns overflow typeahead (XOFF/BEL and a truncated line).
+  `tests.integration_provisioning` passed first creation, CLI rerun, all seven
+  login checks, Richard ATTACH and preservation/detection of attached SAVE's
+  password change on a disposable historical-baseline disk. See
+  `docs/archwizard-provisioning.md`; this is not the full installer/deployment stack.
 - Original DBASE produced 420 rooms, 482 object instances, 207 classes, 253
   vocabulary objects, 16 motion words and 25247 words of database space.
 - SETSRC changes the path, not the maintenance PPN. Initialize MUD under the

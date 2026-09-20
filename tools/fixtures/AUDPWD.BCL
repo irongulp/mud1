@@ -1,0 +1,45 @@
+// Read-only persona-file diagnostic, separate from the original MUD executable.
+// Layout constants are from source/DUNGEN.GET (persona records).
+get "bcl:acs"
+get "bcl:rfs"
+get "bcl:iolib"
+get "bcl:bits"
+get "bcl:kernel"
+
+$ldtext "/runame:audpwd"
+
+manifest
+$( HEADERWORDS = 256
+   RECORDWORDS = 12
+   NAMEOFFSET = 2
+   PASSWORDOFFSET = 8
+   MAXRECORDS = 10000
+$)
+
+let start() be
+$( let head = vec HEADERWORDS-1
+   and rec = vec RECORDWORDS-1
+   and stream, count = ?, ?
+   // The standalone BCPL library takes PROT,TIME,DATE,VERSION as well;
+   // MUD's private DOFILE wrapper omits those four arguments.
+   stream_dofile($6"dsk",$6"mud",$6".pm",0,label(missing),#14,2,0,0,0,0,lookup,rdb,0,closefile)
+   for i=0 to HEADERWORDS-1 readch(stream,head+i)
+   count_head!(HEADERWORDS-1) -> (head!(HEADERWORDS-1)-HEADERWORDS)/RECORDWORDS, 0
+   if count ls 0 \/ count gr MAXRECORDS
+   $( writes(tty,"PSAUDIT_BAD_HEADER*C*L")
+      close(stream)
+      finish
+   $)
+   write(tty,"PSAUDIT_TOTAL :N*C*L",count)
+   for n=1 to count
+   $( for i=0 to RECORDWORDS-1 readch(stream,rec+i)
+      test rec!NAMEOFFSET then
+         write(tty,"PSAUDIT :S :8 :N*C*L",rec+NAMEOFFSET,
+               rec!PASSWORDOFFSET,rec!1 bitand #777777)
+      or writes(tty,"PSAUDIT_DELETED*C*L")
+   $)
+   close(stream)
+   finish
+missing:
+   writes(tty,"PSAUDIT_OPEN_FAILED*C*L")
+$)

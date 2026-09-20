@@ -1,0 +1,4 @@
+FROM almalinux:9
+RUN dnf install -y systemd git gcc make python3.12 python3.12-pip nginx openssl-devel sudo tar gzip && dnf clean all
+STOPSIGNAL SIGRTMIN+3
+CMD ["/sbin/init"]

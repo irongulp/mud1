@@ -1,0 +1,112 @@
+import hashlib
+import io
+import json
+from pathlib import Path
+import tarfile
+import tempfile
+import unittest
+from unittest.mock import patch
+
+from tools.deploy import install_image, validate_domain, nginx_config
+from server.runtime import Runtime, simulator_config
+
+
+class DeploymentTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        self.archive = self.root / 'runtime.tar.gz'
+        self.files = {'guest.dsk': b'clean disk', 't10boot.tap': b'boot media'}
+
+    def bundle(self, extra=None):
+        with tarfile.open(self.archive, 'w:gz') as archive:
+            for name, data in {**self.files, **(extra or {})}.items():
+                member = tarfile.TarInfo(name)
+                member.size = len(data)
+                archive.addfile(member, io.BytesIO(data))
+        return {'version': 1, 'release': 'test', 'availability': 'always-open',
+                'archive': {'sha256': hashlib.sha256(self.archive.read_bytes()).hexdigest()},
+                'files': {name: {'size': len(data), 'sha256': hashlib.sha256(data).hexdigest()}
+                          for name, data in self.files.items()}}
+
+    def test_install_then_rerun_preserves_changed_disk(self):
+        manifest = self.bundle()
+        target = self.root / 'game'
+        self.assertTrue(install_image(self.archive, manifest, target))
+        (target / 'guest.dsk').write_bytes(b'saved players')
+        self.assertFalse(install_image(self.archive, manifest, target))
+        self.assertEqual((target / 'guest.dsk').read_bytes(), b'saved players')
+
+    def test_corrupt_archive_is_rejected_without_installing(self):
+        manifest = self.bundle()
+        self.archive.write_bytes(b'corrupt')
+        with self.assertRaises(ValueError):
+            install_image(self.archive, manifest, self.root / 'game')
+        self.assertFalse((self.root / 'game').exists())
+
+    def test_traversal_and_extra_members_are_rejected(self):
+        for name in ('../escape', '/escape', 'private/passwords.json'):
+            with self.subTest(name=name):
+                manifest = self.bundle({name: b'bad'})
+                with self.assertRaises(ValueError):
+                    install_image(self.archive, manifest, self.root / 'game')
+                self.assertFalse((self.root / 'game').exists())
+
+    def test_existing_unrecognized_directory_is_not_overwritten(self):
+        manifest = self.bundle()
+        target = self.root / 'game'
+        target.mkdir()
+        (target / 'guest.dsk').write_bytes(b'important')
+        with self.assertRaises(ValueError):
+            install_image(self.archive, manifest, target)
+        self.assertEqual((target / 'guest.dsk').read_bytes(), b'important')
+
+    def test_member_hash_mismatch_is_rejected_atomically(self):
+        manifest = self.bundle()
+        manifest['files']['guest.dsk']['sha256'] = '0' * 64
+        with self.assertRaises(ValueError):
+            install_image(self.archive, manifest, self.root / 'game')
+        self.assertFalse((self.root / 'game').exists())
+
+    def test_domain_cannot_inject_proxy_or_shell_configuration(self):
+        self.assertEqual(validate_domain('mud.etimbo.com'), 'mud.etimbo.com')
+        for domain in ('localhost', '*.example.com', 'mud.example.com; reboot',
+                       'mud.example.com\nserver {}', '-bad.example.com', 'https://example.com'):
+            with self.subTest(domain=domain), self.assertRaises(ValueError):
+                validate_domain(domain)
+
+    def test_runtime_uses_private_transport_and_original_tape_boot(self):
+        text = simulator_config(self.root, 3020, False)
+        self.assertIn('127.0.0.1:3020,SPEED=*8', text)
+        self.assertIn('boot tu0', text)
+        self.assertIn('set cpu noidle', text)
+        self.assertIn('set throttle 5M', text)
+        self.assertNotIn('boot rp0', text)
+        with self.assertRaises(ValueError):
+            simulator_config(Path('/tmp/bad\nquit'), 3020, False)
+
+    def test_https_bootstrap_only_exposes_acme_until_certificate_exists(self):
+        text = nginx_config('mud.etimbo.com', challenge_only=True)
+        self.assertIn('/.well-known/acme-challenge/', text)
+        self.assertIn('return 503', text)
+        self.assertNotIn('proxy_pass', text)
+        secure = nginx_config('mud.etimbo.com', tls=True)
+        self.assertIn('listen 443 ssl', secure)
+        self.assertIn('proxy_set_header Host $http_host', secure)
+        self.assertIn('return 301 https://mud.etimbo.com', secure)
+
+    def test_new_boot_invalidates_previous_clean_shutdown_marker(self):
+        (self.root / 'shutdown.json').write_text('{"clean": true}')
+        runtime = Runtime(self.root, '/nonexistent')
+        def boot():
+            runtime.stopping.set()
+            self.assertFalse(json.loads((self.root / 'shutdown.json').read_text())['clean'])
+            raise InterruptedError()
+        with patch.object(runtime, 'boot', side_effect=boot), patch('server.runtime.signal.signal'):
+            with self.assertRaises(InterruptedError):
+                runtime.run()
+
+
+if __name__ == '__main__':
+    unittest.main()

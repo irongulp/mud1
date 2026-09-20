@@ -1,0 +1,3 @@
+-r requirements.lock
+pexpect==4.9.0
+ptyprocess==0.7.0

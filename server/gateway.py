@@ -34,6 +34,8 @@ TERMINAL_STYLES = {
 READ_SIZE = 4096
 MAX_INPUT_SIZE = 8192
 LOGOUT_TIMEOUT = 3
+SAFE_CONTROLS = frozenset('\b\t\n\r\x12\x15\x17')
+GAME_PROMPT = re.compile(r'(?:^|[\r\n])\(?(?:----)?[*>"]\)?$')
 LOG = logging.getLogger(__name__)
 
 
@@ -73,6 +75,7 @@ def create_app(upstream_host="127.0.0.1", upstream_port=2020):
         monitor = False
         authenticated = False
         password_input = PasswordInput()
+        input_ready = asyncio.Event()
         try:
             reader, writer = await asyncio.wait_for(telnetlib3.open_connection(
                 host=upstream_host, port=upstream_port, term="vt100", encoding="ascii",
@@ -112,8 +115,11 @@ def create_app(upstream_host="127.0.0.1", upstream_port=2020):
                         password_input.observe(data)
                     monitor = recent.endswith("\n.")
                     await socket.send_str(data)
-                    if monitor and entered:
+                    if monitor:
                         return
+                    if GAME_PROMPT.search(recent) or recent.replace('\r', '').endswith(
+                            "What's the password for this persona?\n"):
+                        input_ready.set()
 
             async def to_game():
                 async for message in socket:
@@ -121,13 +127,23 @@ def create_app(upstream_host="127.0.0.1", upstream_port=2020):
                         if not message.data.isascii():
                             await socket.close(code=1007, message=b"MUD86 uses a 7-bit terminal")
                             return
+                        if any(ord(char) < 32 and char not in SAFE_CONTROLS for char in message.data):
+                            await socket.close(code=1008, message=b"Unsupported terminal control")
+                            return
                         try:
                             data = password_input.feed(message.data)
                         except ValueError:
                             await socket.close(code=1009, message=b"Password input line too long")
                             return
-                        writer.write(data)
-                        await writer.drain()
+                        # Never pipeline another line past a game exit or rejected
+                        # login into the operating-system monitor. Disconnects
+                        # cancel the blocked sender before QUIT/KJOB cleanup.
+                        for part in re.findall(r'[^\r\n]*[\r\n]|[^\r\n]+$', data):
+                            await input_ready.wait()
+                            writer.write(part)
+                            if part.endswith(('\r', '\n')):
+                                input_ready.clear()
+                            await writer.drain()
                     elif message.type == WSMsgType.BINARY:
                         # Reserved browser control frame; never forward to MUD.
                         # Returning runs QUIT/KJOB before finally closes the socket.

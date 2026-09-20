@@ -106,6 +106,24 @@ emulator interfaces are separate from the browser service.
 
 ## Fidelity and current boundaries
 
+### First-install archwizard protection
+
+Before opening a new installation to players, use
+[`tools/provision_archwizards.py`](docs/archwizard-provisioning.md) to create and
+SAVE all seven archwizard personas with private, compatible generated passwords.
+The standalone command takes an explicit private Telnet port and retains initial
+credentials in an owner-only journal. Reruns preserve existing personas and
+report changed credentials instead of resetting them. `--show-credentials`
+prints known matching passwords for copying to a password manager.
+
+Richard's credential is for **ATTACH**, not ordinary direct login. Attached
+SAVE or a qualifying QUIT can replace it with the originating persona's password;
+the provisioner detects that change on rerun. See the
+[provisioning guide](docs/archwizard-provisioning.md) and
+[native password audit](docs/archwizard-password-audit.md).
+
+### Restoration boundaries
+
 - `source/` remains the supplied archive. Its hashes are recorded in
   `docs/provenance.json` and were verified before checkpointing.
 - `build/mud86/` is a generated source tree. Archive delimiters were removed,

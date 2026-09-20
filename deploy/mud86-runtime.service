@@ -1,0 +1,29 @@
+[Unit]
+Description=MUD86 original TOPS-10 runtime
+After=network.target
+Wants=mud86-gateway.service
+StartLimitIntervalSec=900
+StartLimitBurst=3
+
+[Service]
+Type=notify
+NotifyAccess=main
+User=mud86
+Group=mud86
+WorkingDirectory=/opt/mud86/current
+EnvironmentFile=/etc/mud86/runtime.env
+ExecStart=/opt/mud86/current/.venv/bin/python -u -m server.runtime --state /var/lib/mud86 --simh ${SIMH_BIN}
+Restart=on-failure
+RestartSec=10
+TimeoutStartSec=600
+TimeoutStopSec=180
+KillMode=mixed
+UMask=0077
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/lib/mud86
+
+[Install]
+WantedBy=multi-user.target

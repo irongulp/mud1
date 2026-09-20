@@ -1,0 +1,61 @@
+name: AlmaLinux deployment
+on:
+  workflow_dispatch:
+permissions:
+  contents: write # Needed to download the draft runtime asset before publication.
+jobs:
+  alma9:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Host test environment
+        run: |
+          python3 -m venv .venv
+          .venv/bin/pip install -r requirements-dev.txt
+          PLAYWRIGHT_BROWSERS_PATH="$PWD/runtime/browsers" .venv/bin/python -m playwright install --with-deps chromium
+          .venv/bin/python -m unittest discover -s tests -v
+      - name: Fetch pinned candidate runtime
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p runtime/release-v1
+          gh release download runtime-v1 --pattern mud86-runtime.tar.gz --dir runtime/release-v1
+      - name: Start native x86 AlmaLinux with systemd
+        run: |
+          docker build -t mud86-alma9 -f deploy/Dockerfile.alma9 .
+          docker run -d --name mud86-install-test --privileged --cgroupns=host \
+            --cpus=1 --memory=2g --tmpfs /run --tmpfs /tmp \
+            -v /sys/fs/cgroup:/sys/fs/cgroup:rw \
+            -v "$PWD:/checkout:ro" -v "$PWD/runtime/release-v1:/artifacts:ro" \
+            -p 127.0.0.1:38080:80 mud86-alma9
+          for attempt in $(seq 1 30); do
+            docker exec mud86-install-test systemctl is-system-running && break
+            sleep 1
+          done
+      - name: Install, rerun, saved login, timing, backup and restart
+        run: .venv/bin/python -m tests.integration_deployment
+      - name: Chromium multiplayer through Nginx
+        run: |
+          .venv/bin/python -c "import asyncio; from tests.browser_smoke import main; asyncio.run(main('http://mud.etimbo.com:38080', launch_args=['--host-resolver-rules=MAP mud.etimbo.com 127.0.0.1']))"
+      - name: Reboot container and recheck browser
+        run: |
+          docker exec mud86-install-test systemctl stop mud86-runtime.service
+          docker restart --time 180 mud86-install-test
+          docker exec mud86-install-test systemctl start mud86-runtime.service mud86-gateway.service nginx
+          .venv/bin/python -c "import asyncio; from tests.browser_smoke import main; asyncio.run(main('http://mud.etimbo.com:38080', launch_args=['--host-resolver-rules=MAP mud.etimbo.com 127.0.0.1']))"
+          docker stats --no-stream mud86-install-test
+      - name: Service diagnostics
+        if: always()
+        run: |
+          mkdir -p runtime/deployment-ci
+          docker exec mud86-install-test journalctl -u mud86-runtime -u mud86-gateway --no-pager > runtime/deployment-ci/services.log || true
+          docker exec mud86-install-test systemctl stop mud86-runtime.service || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: deployment-results
+          path: |
+            runtime/deployment-*/**/*.log
+            runtime/deployment-*/**/report.json
+            runtime/browser.png

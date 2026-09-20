@@ -1,0 +1,24 @@
+[Unit]
+Description=MUD86 browser gateway
+After=mud86-runtime.service
+BindsTo=mud86-runtime.service
+PartOf=mud86-runtime.service
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=mud86
+Group=mud86
+WorkingDirectory=/opt/mud86/current
+ExecCondition=/usr/bin/test -f /etc/mud86/provisioned
+ExecStart=/opt/mud86/current/.venv/bin/python -u -m server.gateway --host 127.0.0.1 --port 8080
+ExecStartPost=/opt/mud86/current/.venv/bin/python -m tools.wait_gateway
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=45
+UMask=0077
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes

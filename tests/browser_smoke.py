@@ -88,9 +88,9 @@ async def check_editing_and_width(page, name):
     return failures
 
 
-async def main(url="http://127.0.0.1:8080", screenshot=ROOT / "runtime/browser.png", after_join=None):
+async def main(url="http://127.0.0.1:8080", screenshot=ROOT / "runtime/browser.png", after_join=None, launch_args=None):
     async with async_playwright() as playwright:
-        browser = await playwright.chromium.launch()
+        browser = await playwright.chromium.launch(args=launch_args or [])
         errors = []
         pages = []
         names = []

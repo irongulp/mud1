@@ -1,0 +1,9 @@
+.git
+.venv
+runtime
+upstream
+build
+__pycache__
+**/__pycache__
+.env*
+**/archwizard-credentials.json

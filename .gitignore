@@ -8,3 +8,6 @@ __pycache__/
 .env
 .env.*
 !.env.example
+archwizard-credentials.json
+.archwizard-credentials-*
+.archwizard-provision.lock

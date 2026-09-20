@@ -99,6 +99,27 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(message.data, 1007)
         await asyncio.wait_for(self.closed.get(), 5)
 
+    async def test_monitor_escape_controls_are_not_forwarded(self):
+        socket = await self.client.ws_connect(self.server.make_url('/terminal'))
+        await self.receive_until(socket, '*')
+        await socket.send_str('\x03login richard\r')
+        message = await asyncio.wait_for(socket.receive(), 5)
+        self.assertEqual(message.type, WSMsgType.CLOSE)
+        self.assertEqual(message.data, 1008)
+        await asyncio.wait_for(self.closed.get(), 5)
+        commands = ''.join(self.inputs.get_nowait() for _ in range(self.inputs.qsize()))
+        self.assertNotIn('login richard', commands)
+
+    async def test_pasted_commands_cannot_continue_after_quit(self):
+        socket = await self.client.ws_connect(self.server.make_url('/terminal'))
+        await self.receive_until(socket, '*')
+        await socket.send_str('quit\rlogin richard\r')
+        while (await asyncio.wait_for(socket.receive(), 5)).type == WSMsgType.TEXT:
+            pass
+        await asyncio.wait_for(self.closed.get(), 5)
+        commands = ''.join(self.inputs.get_nowait() for _ in range(self.inputs.qsize()))
+        self.assertNotIn('login richard', commands)
+
     async def test_restart_waits_for_logout_before_closing_browser(self):
         socket = await self.client.ws_connect(self.server.make_url('/terminal'))
         await self.receive_until(socket, '*')
