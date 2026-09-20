@@ -1,4 +1,4 @@
-"""Chromium tests for the browser transport, without an emulated game."""
+"""Browser transport tests; MUD86_TEST_BROWSER selects an engine (default chromium)."""
 import os
 import unittest
 from pathlib import Path
@@ -17,7 +17,8 @@ class TerminalTests(unittest.IsolatedAsyncioTestCase):
         self.server = TestServer(create_app())
         await self.server.start_server()
         self.playwright = await async_playwright().start()
-        self.browser = await self.playwright.chromium.launch()
+        browser_type = getattr(self.playwright, os.environ.get('MUD86_TEST_BROWSER', 'chromium'))
+        self.browser = await browser_type.launch()
         self.page = await self.browser.new_page()
         await self.page.clock.install()
         await self.page.add_init_script("""(() => {
@@ -519,9 +520,12 @@ class TerminalTests(unittest.IsolatedAsyncioTestCase):
                          ['Default', 'Computer Centre on Square 2', 'DEC VT52', 'IBM PC MDA',
                           'IBM PC CGA', 'BBC Micro Mode 0', 'BBC Micro Mode 7'])
         command = self.page.get_by_label('Command', exact=True)
+        self.assertEqual(await self.page.locator('#chat-form').get_attribute('autocomplete'), 'off')
+        self.assertEqual(await command.get_attribute('autocomplete'), 'new-password')
         await self.page.evaluate("socket.onmessage({data: 'Welcome! By what name shall I call you?\\r\\n*'})")
         await self.page.clock.run_for(200)
         await command.fill('lookx')
+        await self.page.clock.run_for(100)
         await command.press('Backspace')
         self.assertEqual(await self.page.evaluate('sent'), [])
         await command.press('Enter')
@@ -532,6 +536,7 @@ class TerminalTests(unittest.IsolatedAsyncioTestCase):
         await self.page.clock.run_for(200)
         self.assertEqual(await command.get_attribute('type'), 'password')
         await command.fill('secret')
+        self.assertEqual(await command.get_attribute('autocomplete'), 'new-password')
         await command.press('Enter')
         await self.page.clock.run_for(100)
         self.assertNotIn('secret', await self.page.locator('#chat-output').inner_text())
@@ -557,6 +562,9 @@ class TerminalTests(unittest.IsolatedAsyncioTestCase):
         await self.page.clock.run_for(200)
         self.assertIn('Welcome!', await self.page.locator('#chat-output').inner_text())
         self.assertIn('Fresh persona prompt*', await self.page.locator('#chat-output').inner_text())
+        await command.click()
+        self.assertEqual(await command.get_attribute('type'), 'text')
+        self.assertEqual(await command.get_attribute('autocomplete'), 'new-password')
         self.assertTrue((await self.page.evaluate('socket.url')).endswith('?style=original'))
 
     async def test_chat_expands_to_80_columns_and_preserves_scrolling(self):

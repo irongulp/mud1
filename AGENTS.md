@@ -240,6 +240,16 @@
   `tests/test_terminal.py` covers partial/backwards selections, Mode 7 wrapping,
   draft exclusion and an actual Chromium keyboard-to-clipboard copy.
 
+- The shared Chat command/password input uses `autocomplete="new-password"`
+  with form-level `autocomplete="off"` to discourage website-login autofill;
+  Firefox can ignore input-level `off` after recognizing a login field. These
+  are hints, not a guaranteed suppression of password-manager UI (including
+  generated-password suggestions). The user confirmed the updated Chat input
+  looks good in Firefox on 2026-09-20. `MUD86_TEST_BROWSER=firefox` or `webkit` selects
+  another engine for `tests.test_terminal` (default Chromium). The Chat
+  login/editing/reconnect test passed Chromium and WebKit; local Playwright
+  Firefox 141 failed to finish launching with sandbox/graphics errors.
+  Wait for paced text to appear before testing native Backspace in WebKit.
 - Chat mode is a separate Settings switch, stored in `mud86-chat-mode`, alongside
   the independent `mud86-terminal-style` preference. The old `chat` style migrates
   to Default + Chat enabled. Chat inherits the chosen style's font, colours and

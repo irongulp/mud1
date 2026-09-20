@@ -22,10 +22,12 @@
         <div id="terminal" aria-label="MUD terminal"></div>
         <div id="chat-panel" hidden>
             <div id="chat-output" role="log" aria-label="Game transcript" aria-live="polite"></div>
-            <form id="chat-form" class="chat-command-form">
+            <form id="chat-form" class="chat-command-form" autocomplete="off">
                 <div class="chat-command-line">
                     <span id="chat-prompt" aria-hidden="true"></span>
-                    <input id="chat-command" aria-label="Command" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" disabled>
+                    <!-- This shared command/password field must not autofill website logins.
+                         Firefox can ignore "off" once it recognizes a login field. -->
+                    <input id="chat-command" aria-label="Command" type="text" autocomplete="new-password" autocapitalize="off" spellcheck="false" disabled>
                 </div>
             </form>
         </div>
