@@ -1,5 +1,7 @@
 name: AlmaLinux deployment
 on:
+  push:
+    branches: [setup-almalinux9]
   workflow_dispatch:
 permissions:
   contents: write # Needed to download the draft runtime asset before publication.
