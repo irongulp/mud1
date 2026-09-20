@@ -53,6 +53,9 @@ const terminalReady = Promise.all([
     document.fonts.load('16px "IBMCGA"').catch(() => [])
 ]).then(() => {
     terminal.open(document.getElementById('terminal'));
+    // xterm creates a separate input from Chat; discourage saved website logins
+    // here too, before focus. Firefox can ignore autocomplete="off".
+    terminal.textarea.setAttribute('autocomplete', 'new-password');
     styleSelect.disabled = false;
     chatToggle.disabled = false;
     settingsButton.disabled = false;

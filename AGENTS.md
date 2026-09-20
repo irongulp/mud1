@@ -250,6 +250,10 @@
   login/editing/reconnect test passed Chromium and WebKit; local Playwright
   Firefox 141 failed to finish launching with sandbox/graphics errors.
   Wait for paced text to appear before testing native Backspace in WebKit.
+  Non-Chat mode uses xterm's separate textarea: set the same `new-password`
+  hint via `terminal.textarea` immediately after `terminal.open`, before focus.
+  Its typing/reconnect regression passed Chromium and WebKit; the non-Chat
+  Firefox saved-login popup still needs user verification.
 - Chat mode is a separate Settings switch, stored in `mud86-chat-mode`, alongside
   the independent `mud86-terminal-style` preference. The old `chat` style migrates
   to Default + Chat enabled. Chat inherits the chosen style's font, colours and

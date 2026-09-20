@@ -56,6 +56,25 @@ class TerminalTests(unittest.IsolatedAsyncioTestCase):
         await self.page.evaluate("localStorage.setItem('mud86-chat-mode', 'true')")
         await self.initial_style(style)
 
+    async def test_terminal_input_discourages_login_autofill_across_reconnect(self):
+        await self.connect()
+        entry = self.page.locator('.xterm-helper-textarea')
+        self.assertEqual(await entry.get_attribute('autocomplete'), 'new-password')
+        await self.page.locator('#terminal').click()
+        await self.page.keyboard.type('look')
+        await self.page.keyboard.press('Enter')
+        await self.page.clock.run_for(100)
+        self.assertEqual(await self.page.evaluate("sent.join('')"), 'look\r')
+        await self.page.evaluate('socket.close()')
+        await self.page.clock.run_for(1500)
+        await self.page.evaluate('socket.onopen(); sent = []')
+        self.assertEqual(await entry.get_attribute('autocomplete'), 'new-password')
+        await self.page.locator('#terminal').click()
+        await self.page.keyboard.type('who')
+        await self.page.keyboard.press('Enter')
+        await self.page.clock.run_for(100)
+        self.assertEqual(await self.page.evaluate("sent.join('')"), 'who\r')
+
     async def test_controls_tabs_default_content_and_session_preservation(self):
         await self.connect()
         await self.open_controls()
