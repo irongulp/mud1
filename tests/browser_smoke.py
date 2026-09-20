@@ -88,7 +88,8 @@ async def check_editing_and_width(page, name):
     return failures
 
 
-async def main(url="http://127.0.0.1:8080", screenshot=ROOT / "runtime/browser.png", after_join=None, launch_args=None):
+async def main(url="http://127.0.0.1:8080", screenshot=ROOT / "runtime/browser.png", after_join=None,
+               launch_args=None, ignore_https_errors=False):
     async with async_playwright() as playwright:
         browser = await playwright.chromium.launch(args=launch_args or [])
         errors = []
@@ -96,7 +97,8 @@ async def main(url="http://127.0.0.1:8080", screenshot=ROOT / "runtime/browser.p
         names = []
         try:
             for _ in range(2):
-                page = await browser.new_page(viewport={"width": 1100, "height": 850})
+                page = await browser.new_page(viewport={"width": 1100, "height": 850},
+                                              ignore_https_errors=ignore_https_errors)
                 page.on("pageerror", lambda error: errors.append(str(error)))
                 await page.add_init_script("""(() => {
                     window.gameOutput = '';

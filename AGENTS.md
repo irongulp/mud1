@@ -143,6 +143,36 @@
 
 ## Hosting / idle measurements
 
+- AlmaLinux deployment entry point: `setup.sh` → `tools/deploy.py`. Root-managed
+  app snapshots live under `/opt/mud86`, persistent disks/journal under
+  `/var/lib/mud86`, configuration under `/etc/mud86`. Existing disks are never
+  replaced on setup reruns. `server/runtime.py` is the foreground systemd
+  supervisor, with a state lock, original tape boot, UTC boot clock, actual MUD
+  readiness probe, bounded retries and KSYS shutdown. The gateway has an HTTP
+  readiness post-check; management commands must wait for both services after
+  a restart. A new boot invalidates the prior clean-shutdown marker. Backups
+  require confirmed shutdown and the runtime lock, and publish atomically.
+- `tools/package_runtime.py` builds only from the pinned stopped first-playable
+  checkpoint. It rebuilt the 24/7 executable using original DBASE, found zero
+  personas and completed KSYS before packaging. `deploy/runtime.json` pins the
+  archive and both members. Never publish a disk used for provisioning tests.
+- Deployment uses a separate NOIDLE / 5M throttle / DZ SPEED=*8 profile. Native
+  x86 AlmaLinux CI has passed initial install, rerun, saved-player re-entry,
+  sleep timing, backup/restart and Chromium multiplayer. Docker x86 translation
+  on the M5 was unreliable at boot, including with throttle; do not treat its
+  failures or occasional successes as native x86 acceptance. Native ARM Linux
+  and macOS boot/reboot controls also ran. See the deployment workflow and
+  docs/deployment.md for final checks and public ACME/SELinux/IONOS limitations.
+- Gateway deployment checks reproduced pasted commands escaping past QUIT and
+  abort controls reaching the monitor. The gateway now rejects unsupported C0
+  controls, serializes submitted lines until a game prompt (including ATTACH's
+  unstarred password question), and closes on a monitor return even before a
+  persona greeting. Tests cover QUIT, rejected entry and control-character cases.
+- `.github/workflows/deployment.yml` tests a one-CPU/2-GB AlmaLinux systemd
+  container on native x86. After Docker restart, wait for systemd's D-Bus socket
+  before issuing service commands; the first CI reboot failure was that test
+  race, not a failed guest boot. Test output redacts archwizard credentials.
+
 - Read `docs/hosting.md` before selecting or promoting an idle configuration.
 - On Apple M5, isolated IDLE + DZ `SPEED=*8` tests used about 17–18% of one
   core versus about 99.5% without IDLE. Eight paced WebSocket players had

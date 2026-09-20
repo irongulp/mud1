@@ -69,6 +69,7 @@ async def saved_player(url, creating):
             await player.expect('\n*')
             await player.send('quit')
             await player.expect('\n.')
+            return elapsed
         finally:
             await socket.close()
 
@@ -84,18 +85,19 @@ def main():
                '--image', '/artifacts/mud86-runtime.tar.gz']
     print('AlmaLinux: install', flush=True)
     (output / 'install.log').write_text(invoke(args.container, *command))
-    asyncio.run(saved_player(args.url, creating=True))
+    sleeps = [asyncio.run(saved_player(args.url, creating=True))]
     print('AlmaLinux: saved player created through Nginx/WebSocket; rerun setup', flush=True)
     before = invoke(args.container, 'sha256sum', '/var/lib/mud86/private/archwizard-credentials.json')
     (output / 'rerun.log').write_text(invoke(args.container, *command))
     assert invoke(args.container, 'sha256sum', '/var/lib/mud86/private/archwizard-credentials.json') == before
-    asyncio.run(saved_player(args.url, creating=False))
+    sleeps.append(asyncio.run(saved_player(args.url, creating=False)))
     print('AlmaLinux: backup and restart', flush=True)
     (output / 'backup.log').write_text(invoke(args.container, '/usr/local/bin/mud86ctl', 'backup'))
-    asyncio.run(saved_player(args.url, creating=False))
+    sleeps.append(asyncio.run(saved_player(args.url, creating=False)))
     (output / 'status.log').write_text(invoke(args.container, '/usr/local/bin/mud86ctl', 'status'))
     report = {'complete': True, 'platform': 'AlmaLinux 9 container, systemd',
               'architecture': invoke(args.container, 'uname', '-m').strip(),
+              'sleep_wake_seconds': [round(value, 3) for value in sleeps],
               'checks': ['install', 'HTTP/WebSocket via Nginx', 'saved persona', 'setup rerun',
                          'credential preservation', 'clean shutdown backup', 'restart and persona re-entry'],
               'not_exercised': ['public ACME issuance', 'SELinux enforcing kernel', 'IONOS host reboot']}

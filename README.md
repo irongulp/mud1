@@ -16,11 +16,27 @@ The fork's `laravel` branch retains the earlier migration work.
 
 A fresh clone includes the source, browser assets and licences, gateway, tests,
 and restoration tools. The restored guest disk, personas, local logs, downloaded
-media, build outputs and Python environment are **not** in Git. The playing and
-restart instructions below assume the restored development runtime described
-in [docs/restoration.md](docs/restoration.md). A one-command server installer
-and packaged starter runtime are planned separately; this branch does not yet
-provide them.
+media, build outputs and Python environment are **not** in Git. The AlmaLinux
+installer downloads a checksum-pinned starter runtime and generates credentials
+locally. The local playing instructions further below use the restored development
+runtime described in [docs/restoration.md](docs/restoration.md).
+
+## Install on AlmaLinux 9
+
+On a fresh VPS, point `mud.etimbo.com` at the server and allow TCP 80/443 in the
+provider firewall. From the checkout, run:
+
+```sh
+sudo ./setup.sh --domain mud.etimbo.com
+```
+
+Setup installs the original 24/7 game, provisions all seven archwizards, configures
+Nginx/HTTPS and installs boot-persistent systemd services. Copy the displayed
+credentials into a password manager. Reruns preserve existing game data and
+passwords. Use `sudo mud86ctl status`, `restart` or `backup` afterward.
+
+Read [docs/deployment.md](docs/deployment.md) for DNS, certificate email, persistence,
+backup behavior and the exact validation scope.
 
 ## Play on this checkout
 

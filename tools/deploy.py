@@ -42,10 +42,13 @@ def validate_domain(domain):
 def install_image(archive, manifest, destination):
     """Install atomically once. A mutable installed disk is never replaced."""
     destination = Path(destination)
-    if destination.exists():
-        if destination.is_symlink() or not all((destination / name).is_file()
+    if destination.exists() or destination.is_symlink():
+        if destination.is_symlink() or not all((destination / name).is_file() and not (destination / name).is_symlink()
                                                for name in IMAGE_FILES | {'installed.json'}):
             raise ValueError('Existing game directory is not a recognized installation; preserve it for recovery')
+        installed = json.loads((destination / 'installed.json').read_text())
+        if installed.get('version') != 1 or set(installed.get('files', {})) != IMAGE_FILES:
+            raise ValueError('Unrecognized installed image metadata')
         return False
     if manifest['version'] != 1 or manifest['availability'] != 'always-open':
         raise ValueError('Unsupported starter image')
@@ -63,6 +66,7 @@ def install_image(archive, manifest, destination):
                     raise ValueError('Starter member size mismatch')
                 target = temporary / member.name
                 with bundle.extractfile(member) as source, target.open('xb') as output:
+                    os.fchmod(output.fileno(), 0o600)
                     shutil.copyfileobj(source, output)
                     output.flush()
                     os.fsync(output.fileno())
@@ -118,6 +122,8 @@ def application_release():
                             ignore=shutil.ignore_patterns('__pycache__', '*.pyc'))
         for name in files:
             shutil.copyfile(ROOT / name, temporary / name)
+        for path in temporary.rglob('*'):
+            path.chmod(0o755 if path.is_dir() or path.stat().st_mode & 0o111 else 0o644)
         temporary.chmod(0o755)
         temporary.rename(release)
     python = release / '.venv/bin/python'
@@ -159,12 +165,12 @@ def nginx_config(domain, tls=False, challenge_only=False):
     }'''
     header = 'map $http_upgrade $mud86_upgrade { default upgrade; "" close; }\n'
     if challenge_only:
-        return header + f'server {{ listen 80; server_name {domain}; {acme}\nlocation / {{ return 503; }} }}\n'
+        return header + f'server {{ listen 80; listen [::]:80; server_name {domain}; {acme}\nlocation / {{ return 503; }} }}\n'
     if not tls:
-        return header + f'server {{ listen 80; server_name {domain}; {acme}\n{proxy}\n}}\n'
-    return (header + f'server {{ listen 80; server_name {domain}; {acme}\n'
+        return header + f'server {{ listen 80; listen [::]:80; server_name {domain}; {acme}\n{proxy}\n}}\n'
+    return (header + f'server {{ listen 80; listen [::]:80; server_name {domain}; {acme}\n'
             f'location / {{ return 301 https://{domain}$request_uri; }} }}\n'
-            f'server {{ listen 443 ssl; server_name {domain};\n'
+            f'server {{ listen 443 ssl; listen [::]:443 ssl; server_name {domain};\n'
             f'ssl_certificate /etc/letsencrypt/live/{domain}/fullchain.pem;\n'
             f'ssl_certificate_key /etc/letsencrypt/live/{domain}/privkey.pem;\n'
             f'ssl_protocols TLSv1.2 TLSv1.3;\n{proxy}\n}}\n')
@@ -172,6 +178,7 @@ def nginx_config(domain, tls=False, challenge_only=False):
 
 def configure_proxy(domain, http_only, email):
     ACME.mkdir(parents=True, exist_ok=True)
+    ACME.chmod(0o755)
     site = Path('/etc/nginx/conf.d/mud86.conf')
     # A rerun must not downgrade an existing HTTPS site during certificate renewal.
     existing_certificate = Path(f'/etc/letsencrypt/live/{domain}/fullchain.pem').is_file()
@@ -261,6 +268,26 @@ def install(args):
     print('Management: sudo mud86ctl status | restart | backup')
 
 
+def write_backup(state, directory):
+    """Caller must hold the runtime lock and have confirmed a clean shutdown."""
+    directory.mkdir(mode=0o700, parents=True, exist_ok=True)
+    directory.chmod(0o700)
+    path = directory / (datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S.%fZ') + '.tar.gz')
+    temporary = path.with_suffix('.part')
+    try:
+        with temporary.open('xb') as stream:
+            os.fchmod(stream.fileno(), 0o600)
+            with tarfile.open(fileobj=stream, mode='w:gz') as archive:
+                for name in ('game', 'private'):
+                    archive.add(state / name, arcname=name)
+            stream.flush()
+            os.fsync(stream.fileno())
+        temporary.rename(path)
+    finally:
+        temporary.unlink(missing_ok=True)
+    return path
+
+
 def backup():
     active = subprocess.run(['systemctl', 'is-active', '--quiet', 'mud86-runtime.service']).returncode == 0
     run('systemctl', 'stop', 'mud86-runtime.service')
@@ -269,14 +296,7 @@ def backup():
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
             if not json.loads((STATE / 'shutdown.json').read_text())['clean']:
                 raise RuntimeError('Guest shutdown was not confirmed clean; recover and stop it before backing up')
-            directory = Path('/var/backups/mud86')
-            directory.mkdir(mode=0o700, parents=True, exist_ok=True)
-            path = directory / (datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S.%fZ') + '.tar.gz')
-            with path.open('xb') as stream:
-                os.fchmod(stream.fileno(), 0o600)
-                with tarfile.open(fileobj=stream, mode='w:gz') as archive:
-                    for name in ('game', 'private'):
-                        archive.add(STATE / name, arcname=name)
+            path = write_backup(STATE, Path('/var/backups/mud86'))
             print('Private backup:', path)
     finally:
         if active:
@@ -293,18 +313,22 @@ def main():
     args = parser.parse_args()
     if os.geteuid() != 0:
         parser.error('Run this command with sudo')
-    if args.action == 'install':
-        with Path('/run/mud86-setup.lock').open('a') as lock:
-            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            install(args)
-    elif args.action == 'backup':
-        backup()
-    elif args.action == 'status':
+    # Public application snapshots must remain readable by the service account
+    # even if the operator uses a restrictive umask. Private data uses explicit modes.
+    os.umask(0o022)
+    if args.action == 'status':
         run('systemctl', 'status', '--no-pager', 'mud86-runtime', 'mud86-gateway', 'nginx')
-    else:
-        run('systemctl', args.action, 'mud86-runtime.service')
-        if args.action in ('start', 'restart'):
-            run('systemctl', 'start', 'mud86-gateway.service')
+        return
+    with Path('/run/mud86-setup.lock').open('a') as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        if args.action == 'install':
+            install(args)
+        elif args.action == 'backup':
+            backup()
+        else:
+            run('systemctl', args.action, 'mud86-runtime.service')
+            if args.action in ('start', 'restart'):
+                run('systemctl', 'start', 'mud86-gateway.service')
 
 
 if __name__ == '__main__':

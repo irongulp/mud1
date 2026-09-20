@@ -2,8 +2,9 @@
 
 `tools/provision_archwizards.py` reserves **Richard, Roy, Brian, Ronan, Friday,
 Yawn and Debugger** using the original game's persona creation and SAVE commands.
-It is a standalone first-install step that a future installer can call after
-booting the restored guest and before opening browser access.
+It is the standalone first-install step called by the
+[AlmaLinux installer](deployment.md) after booting the restored guest and before
+opening browser access.
 
 ## Run
 

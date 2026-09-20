@@ -13,6 +13,7 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
         self.inputs = asyncio.Queue()
         self.closed = asyncio.Queue()
         self.count = 0
+        self.reject_entry = False
         self.terminal_setups = []
         self.allow_logout = asyncio.Event()
         self.allow_logout.set()
@@ -29,13 +30,16 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
                     writer.write("\r\n.")
                     login = (await reader.readuntil(b"\r")).decode("ascii")
                 await self.inputs.put(login)
-                writer.write(f"By what name shall I call you?\r\nHello, test!\r\nSESSION {identifier}\r\n*")
+                greeting = '' if self.reject_entry else 'Hello, test!\r\n'
+                writer.write(f"By what name shall I call you?\r\n{greeting}SESSION {identifier}\r\n*")
                 while True:
                     data = await reader.read(100)
                     if not data:
                         break
                     await self.inputs.put(data)
-                    if "quit\r" in data:
+                    if self.reject_entry and data.startswith('bad'):
+                        writer.write('\r\nNo!\r\n.')
+                    elif "quit\r" in data:
                         writer.write("\r\n.")
                     elif "kjob\r" in data:
                         await self.allow_logout.wait()
@@ -114,6 +118,17 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
         socket = await self.client.ws_connect(self.server.make_url('/terminal'))
         await self.receive_until(socket, '*')
         await socket.send_str('quit\rlogin richard\r')
+        while (await asyncio.wait_for(socket.receive(), 5)).type == WSMsgType.TEXT:
+            pass
+        await asyncio.wait_for(self.closed.get(), 5)
+        commands = ''.join(self.inputs.get_nowait() for _ in range(self.inputs.qsize()))
+        self.assertNotIn('login richard', commands)
+
+    async def test_pasted_commands_cannot_continue_after_rejected_entry(self):
+        self.reject_entry = True
+        socket = await self.client.ws_connect(self.server.make_url('/terminal'))
+        await self.receive_until(socket, '*')
+        await socket.send_str('bad\rlogin richard\r')
         while (await asyncio.wait_for(socket.receive(), 5)).type == WSMsgType.TEXT:
             pass
         await asyncio.wait_for(self.closed.get(), 5)

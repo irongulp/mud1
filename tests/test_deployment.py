@@ -7,7 +7,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from tools.deploy import install_image, validate_domain, nginx_config
+from tools.deploy import install_image, validate_domain, nginx_config, write_backup
 from server.runtime import Runtime, simulator_config
 
 
@@ -34,6 +34,7 @@ class DeploymentTests(unittest.TestCase):
         manifest = self.bundle()
         target = self.root / 'game'
         self.assertTrue(install_image(self.archive, manifest, target))
+        self.assertEqual((target / 'guest.dsk').stat().st_mode & 0o777, 0o600)
         (target / 'guest.dsk').write_bytes(b'saved players')
         self.assertFalse(install_image(self.archive, manifest, target))
         self.assertEqual((target / 'guest.dsk').read_bytes(), b'saved players')
@@ -68,6 +69,32 @@ class DeploymentTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             install_image(self.archive, manifest, self.root / 'game')
         self.assertFalse((self.root / 'game').exists())
+
+    def test_existing_disk_symlink_is_rejected(self):
+        manifest = self.bundle()
+        target = self.root / 'game'
+        install_image(self.archive, manifest, target)
+        disk = target / 'guest.dsk'
+        disk.unlink()
+        disk.symlink_to(self.archive)
+        with self.assertRaises(ValueError):
+            install_image(self.archive, manifest, target)
+
+    def test_backup_is_private_and_partial_archive_is_not_published(self):
+        for name in ('game', 'private'):
+            (self.root / name).mkdir()
+            (self.root / name / 'fixture').write_text(name)
+        directory = self.root / 'backups'
+        archive = write_backup(self.root, directory)
+        self.assertEqual(archive.stat().st_mode & 0o777, 0o600)
+        with tarfile.open(archive) as backup:
+            self.assertEqual(backup.extractfile('game/fixture').read(), b'game')
+            self.assertEqual(backup.extractfile('private/fixture').read(), b'private')
+        before = set(directory.iterdir())
+        with patch('tools.deploy.tarfile.TarFile.add', side_effect=OSError('interrupted')):
+            with self.assertRaises(OSError):
+                write_backup(self.root, directory)
+        self.assertEqual(set(directory.iterdir()), before)
 
     def test_domain_cannot_inject_proxy_or_shell_configuration(self):
         self.assertEqual(validate_domain('mud.etimbo.com'), 'mud.etimbo.com')
