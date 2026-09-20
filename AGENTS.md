@@ -262,8 +262,8 @@
   `PacedChatInput.bindInput` rebinds the existing editor without resetting its
   queue; Chat key handling is delegated to the form. Draft, selection and focus
   survive, and replacement must not steal focus from Settings. Docking/resizing
-  still uses the same element. The regression passed Chromium and WebKit; native
-  Firefox popup suppression after this follow-up still requires verification.
+  still uses the same element. The regression passed Chromium and WebKit; the user
+  confirmed the follow-up fixes the Firefox popup on 2026-09-20.
   See Mozilla's `toolkit/components/passwordmgr/LoginManagerChild.sys.mjs`,
   especially `isLoginManagerField` and `_getPasswordFields`.
 - Chat mode is a separate Settings switch, stored in `mud86-chat-mode`, alongside
