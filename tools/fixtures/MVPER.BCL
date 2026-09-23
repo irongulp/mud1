@@ -1,0 +1,71 @@
+// Standalone read-only saved-persona snapshot. Original MUD is not linked here.
+get "bcl:acs"
+get "bcl:rfs"
+get "bcl:iolib"
+get "bcl:bits"
+get "bcl:kernel"
+$ldtext "/runame:mvper"
+manifest
+$( HEADERWORDS=256; RECORDWORDS=12; MAXRECORDS=2048 $)
+
+let start() be
+$( let head=vec HEADERWORDS-1
+   and records=newvec(MAXRECORDS*RECORDWORDS-1)
+   and stream,count,length=?,?,?
+   writes(tty,"MVPER 1*C*L")
+   stream_dofile($6"dsk",$6"mud",$6".pm",0,label(missing),#14,2,0,0,0,0,lookup,rdb,0,closefile)
+   unless lock(SC.CHANNEL^stream)
+   $( close(stream); writes(tty,"BUSY*C*L"); finish $)
+   for i=0 to HEADERWORDS-1 readch(stream,head+i)
+   length_head!(HEADERWORDS-1)
+   count_length -> (length-HEADERWORDS)/RECORDWORDS, 0
+   if count ls 0 \/ count gr MAXRECORDS \/
+      (length ne 0 /\ (length-HEADERWORDS) rem RECORDWORDS ne 0)
+   $( unlock(); close(stream); writes(tty,"BAD_HEADER*C*L"); finish $)
+   for i=0 to count*RECORDWORDS-1 readch(stream,records+i)
+   // Release explicitly before terminal output, just as the game's Deq().
+   unlock()
+   close(stream)
+   write(tty,"TOTAL :N*C*L",count)
+   for n=0 to count-1
+   $( let rec=records+n*RECORDWORDS
+      test rec!2 then
+      $( let length=(rec!2>>29) bitand #177
+         unless 1 le length le 9
+         $( writes(tty,"BAD_RECORD*C*L"); finish $)
+         write(tty,"PERSON :S :N :N :N :N :N :N :N :N :N :N :N*C*L",
+            rec+2,rec!1 bitand #777777,rec!4,
+            (rec!5>>27) bitand #777,(rec!5>>18) bitand #777,
+            (rec!5>>9) bitand #777,rec!5 bitand #777,
+            (rec!6>>18) bitand #777777,rec!6 bitand #777777,
+            rec!7,rec!8 -> 1,0,rec!2 bitand 1)
+      $) or writes(tty,"DELETED*C*L")
+   $)
+   write(tty,"END :N*C*L",count)
+   finish
+missing:
+   writes(tty,"MISSING*C*L")
+$)
+
+and unlock() be
+$( let addr=vec 1
+   !addr_#1000005; 1!addr_142857
+   $[ $move 1,addr
+      $hrli 1,1
+      $deq. 1,0
+      $trn
+   $]
+$)
+
+// Same file-associated ENQ resource as original MUDLIB.BCL's Enq().
+and lock(chan)=valof
+$( let addr=vec 4
+   !addr_#1000005; 1!addr_142857; 2!addr_chan
+   3!addr_$az"mud"+(-1<<18); 4!addr_0
+   resultis valof
+   $[ $move 1,addr
+      $enq. 1,0
+      $tdza 1,1
+      $seto 1,0
+   $]
+$)

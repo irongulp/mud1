@@ -86,6 +86,15 @@ def main():
     print('AlmaLinux: install', flush=True)
     (output / 'install.log').write_text(invoke(args.container, *command))
     sleeps = [asyncio.run(saved_player(args.url, creating=True))]
+    print('AlmaLinux: read-only inspection', flush=True)
+    personas = json.loads(invoke(args.container, 'sudo', 'mud86ctl', 'personas', '--json'))
+    assert any(row['name'].lower() == PLAYER_NAME.lower() for row in personas['personas'])
+    assert all('password_word' not in row for row in personas['personas'])
+    files = json.loads(invoke(args.container, 'sudo', 'mud86ctl', 'files', '--json'))
+    assert any(row['name'] == 'MUD..PM' for row in files['files'])
+    errors = json.loads(invoke(args.container, 'sudo', 'mud86ctl', 'errors', '--json'))
+    assert errors['entries_scanned'] > 0
+    assert errors['coverage']['requested_sources']
     print('AlmaLinux: saved player created through Nginx/WebSocket; rerun setup', flush=True)
     before = invoke(args.container, 'sha256sum', '/var/lib/mud86/private/archwizard-credentials.json')
     (output / 'rerun.log').write_text(invoke(args.container, *command))
@@ -99,7 +108,8 @@ def main():
               'architecture': invoke(args.container, 'uname', '-m').strip(),
               'sleep_wake_seconds': [round(value, 3) for value in sleeps],
               'checks': ['install', 'HTTP/WebSocket via Nginx', 'saved persona', 'setup rerun',
-                         'credential preservation', 'clean shutdown backup', 'restart and persona re-entry'],
+                          'credential preservation', 'clean shutdown backup', 'restart and persona re-entry',
+                          'read-only persona/file inspection', 'journal error scan'],
               'not_exercised': ['public ACME issuance', 'SELinux enforcing kernel', 'IONOS host reboot']}
     (output / 'report.json').write_text(json.dumps(report, indent=2) + '\n')
     print(json.dumps(report, indent=2))

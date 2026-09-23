@@ -1,0 +1,47 @@
+// Read-only text tail from this account; octal SIXBIT file/extension request.
+get "bcl:acs"
+get "bcl:rfs"
+get "bcl:iolib"
+get "bcl:bits"
+get "bcl:kernel"
+$ldtext "/runame:mvtxt"
+manifest $( RETAIN=65536; SCANLIMIT=4194304 $)
+let number()=valof
+$( let n,ch=0,0
+   readch(tty,@ch)
+   while '0' le ch le '7'
+   $( n_(n<<3) bitor (ch-'0'); readch(tty,@ch) $)
+   resultis n
+$)
+and start() be
+$( let buffer=newvec(RETAIN-1)
+   and file,ext,ppn,stream,ch,count,begin=?,?,?,?,?,0,0
+   writes(tty,"MVTXT READY*C*L")
+   file_number(); ext_number(); ppn_number()
+   writes(tty,"MVTXT 1*C*L")
+   stream_dofile($6"dskb",file,ext,ppn,label(missing),0,2,0,0,0,0,lookup,rda,0,closefile)
+   readch(stream,@ch)
+   while ch ne '*E'
+   $( if count ge SCANLIMIT
+      $( close(stream); writes(tty,"LIMIT*C*L"); finish $)
+      buffer!(count rem RETAIN)_ch
+      count+_1
+      readch(stream,@ch)
+   $)
+   close(stream)
+   if count gr RETAIN
+   $( writes(tty,"TRUNCATED*C*L"); begin_count-RETAIN $)
+   for i=begin to count-1 by 5
+   $( let word,n=0,0
+      for j=0 to 4
+      $( word_word<<7
+         if i+j ls count
+         $( word_word bitor buffer!((i+j) rem RETAIN); n+_1 $)
+      $)
+      write(tty,"DATA :8 :N*C*L",word,n)
+   $)
+   writes(tty,"END*C*L")
+   finish
+missing:
+   writes(tty,"MISSING*C*L")
+$)

@@ -123,6 +123,24 @@ sudo mud86ctl start
 sudo journalctl -u mud86-runtime -u mud86-gateway -f
 ```
 
+Read-only inspection and error summaries are available after updating:
+
+```sh
+sudo mud86ctl personas
+sudo mud86ctl persona Grobble
+sudo mud86ctl files
+sudo mud86ctl file MUD.WIZ
+sudo mud86ctl logs runtime --follow
+sudo mud86ctl errors --since "24 hours ago" --context 3
+sudo mud86ctl errors --json
+```
+
+Setup installs separate native readers without modifying the game executable.
+See [remote inspection](inspection.md) for JSON output, saved-state semantics,
+limits, and the separate historical log directory. `logs game` reports a missing
+or inaccessible historical log as a query failure; the tested starter baseline
+does not have a readable log there. Host journals are independent.
+
 Update from the Git checkout:
 
 ```sh

@@ -157,6 +157,27 @@
 
 ## Hosting / idle measurements
 
+- Read-only SSH inspection: `tools/inspect_game.py`, dispatched by `mud86ctl`
+  through `tools/deploy.py`. Commands: personas/persona, files/file, logs, errors;
+  explicit `inspection-install` compiles independent MVPER/MVTXT companions.
+  Setup installs/verifies them after provisioning. Queries never recompile or
+  enter MUD. MVPER uses original file-associated ENQ resource 142857 and explicit
+  DEQ before output; contention **waits**, verified with an independent holder.
+  Host responses are bounded at 90 seconds/4 MiB, with interrupt/KJOB cleanup.
+  Persona snapshots cap at 2048 records and never emit PSWD values. Large vectors
+  must use NEWVEC: a stack VEC for the snapshot caused an illegal-memory-reference
+  fault. SIXBIT requests use octal shifts: decimal multiplication lost bit 35.
+  MVTXT retains a 64-KiB tail with an explicit truncation flag, scans at most 4 MiB,
+  and transmits framed octal character groups instead of raw monitor-like text.
+  Original MPPN `#2600002776` means **[2600,2776]**, separate from [2011,2776].
+  The baseline MUD.LOG there is missing/inaccessible; readers report this rather
+  than creating it. Error scans cover host journals/guest console, not private
+  player TTYs. Native inspection integration passed lock contention, concurrent
+  SAVE, FILCOM /B byte preservation, CLI, text tails, password preservation and
+  original source hashes; evidence runtime/inspection-check-final. Real AlmaLinux
+  ARM journal integration passed. Full new x86 deployment/remote update remains
+  unrun. See docs/inspection.md for operation and coverage semantics.
+
 - AlmaLinux deployment entry point: `setup.sh` → `tools/deploy.py`. Root-managed
   `mud86ctl` lives in `/usr/local/bin` with an alias in `/usr/bin`: AlmaLinux's
   sudo secure_path can omit `/usr/local/bin`. Existing hosts can add that symlink

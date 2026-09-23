@@ -290,13 +290,15 @@ def install(args):
     # This stdout is the operator's terminal, not a systemd service transcript.
     run('runuser', '-u', 'mud86', '--', release / '.venv/bin/python', '-m', 'tools.provision_archwizards',
         '--port', '2020', '--state-dir', STATE / 'private', '--show-credentials', cwd=release)
+    run('runuser', '-u', 'mud86', '--', release / '.venv/bin/python', '-m', 'tools.inspect_game',
+        'inspection-install', cwd=release)
     (CONFIG / 'provisioned').write_text('All seven archwizard records verified nonzero.\n')
     run('systemctl', 'start', 'mud86-gateway.service')
     configure_proxy(domain, args.http_only, args.email)
     (CONFIG / 'deployment.json').write_text(json.dumps({'domain': domain, 'release': release.name}, indent=2) + '\n')
     install_control()
     print(f'MUD ready: {"http" if args.http_only else "https"}://{domain}')
-    print('Management: sudo mud86ctl status | restart | backup')
+    print('Management: sudo mud86ctl status | restart | backup | personas | files | errors')
 
 
 def write_backup(state, directory):
@@ -335,7 +337,26 @@ def backup():
 
 
 def main():
-    parser = argparse.ArgumentParser(description=__doc__)
+    # The installed wrapper executes this file directly, so make sibling tools
+    # importable without depending on the operator's working directory.
+    if str(ROOT) not in sys.path:
+        sys.path.insert(0, str(ROOT))
+    from tools import inspect_game
+    if len(sys.argv) > 1 and sys.argv[1] in inspect_game.ACTIONS:
+        if os.geteuid() != 0:
+            raise SystemExit('Run this command with sudo')
+        # Journal followers must not hold the installer/guest maintenance lock.
+        if sys.argv[1] == 'errors' or (sys.argv[1] == 'logs' and 'game' not in sys.argv[2:]):
+            raise SystemExit(inspect_game.main(sys.argv[1:]))
+        with Path('/run/mud86-setup.lock').open('a') as lock:
+            try:
+                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                raise SystemExit('Another maintenance operation is running; try again shortly')
+            raise SystemExit(inspect_game.main(sys.argv[1:]))
+    parser = argparse.ArgumentParser(description=__doc__,
+        epilog='Inspection commands: personas, persona NAME, files, file NAME, logs SOURCE, errors, inspection-install. '
+               'Use mud86ctl COMMAND --help for inspection options.')
     parser.add_argument('action', nargs='?', choices=('install', 'status', 'restart', 'stop', 'start', 'backup'), default='install')
     parser.add_argument('--domain', default='mud.etimbo.com')
     parser.add_argument('--email')
