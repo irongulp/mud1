@@ -1,8 +1,10 @@
 import asyncio
 import unittest
+from unittest.mock import patch
 
 import telnetlib3
-from aiohttp import ClientSession, WSMsgType
+from aiohttp import ClientSession, WSMsgType, web
+from aiohttp.client_exceptions import ClientConnectionResetError
 from aiohttp.test_utils import TestServer
 
 from server.gateway import create_app
@@ -17,6 +19,7 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
         self.terminal_setups = []
         self.allow_logout = asyncio.Event()
         self.allow_logout.set()
+        self.handler_errors = []
 
         async def shell(reader, writer):
             self.count += 1
@@ -39,7 +42,7 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
                     await self.inputs.put(data)
                     if self.reject_entry and data.startswith('bad'):
                         writer.write('\r\nNo!\r\n.')
-                    elif "quit\r" in data:
+                    elif "quit\r" in data or '\x03' in data:
                         writer.write("\r\n.")
                     elif "kjob\r" in data:
                         await self.allow_logout.wait()
@@ -54,7 +57,16 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
         self.backend = await telnetlib3.create_server(host="127.0.0.1", port=0, shell=shell,
                                                      encoding="ascii", connect_maxwait=0.2)
         port = self.backend.sockets[0].getsockname()[1]
-        self.server = TestServer(create_app(upstream_port=port))
+        @web.middleware
+        async def record_errors(request, handler):
+            try:
+                return await handler(request)
+            except Exception as error:
+                self.handler_errors.append(error)
+                raise
+        app = create_app(upstream_port=port)
+        app.middlewares.append(record_errors)
+        self.server = TestServer(app)
         await self.server.start_server()
         self.client = ClientSession()
 
@@ -102,6 +114,66 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(message.type, WSMsgType.CLOSE)
         self.assertEqual(message.data, 1007)
         await asyncio.wait_for(self.closed.get(), 5)
+
+    async def check_browser_send_failure(self, stage):
+        """Make a browser send fail while socket.closed still reports False."""
+        original_send = web.WebSocketResponse.send_str
+        original_connect = telnetlib3.open_connection
+        attempted, failures = [], []
+
+        async def send(socket, data, *args, **kwargs):
+            attempted.append(data)
+            fail = (stage == 'introduction' or
+                    stage == 'gameplay' and 'look' in data or
+                    stage == 'notification' and 'unavailable' in data)
+            if fail:
+                failures.append(socket.closed)
+                raise ClientConnectionResetError('Cannot write to closing transport')
+            return await original_send(socket, data, *args, **kwargs)
+
+        async def connect(*args, **kwargs):
+            reader, writer = await original_connect(*args, **kwargs)
+            original_read = reader.read
+            async def read(size):
+                data = await original_read(size)
+                if stage == 'notification' and 'look' in data:
+                    raise OSError('upstream read failed')
+                return data
+            reader.read = read
+            return reader, writer
+
+        with patch.object(web.WebSocketResponse, 'send_str', send), \
+                patch('server.gateway.telnetlib3.open_connection', connect), \
+                patch('server.gateway.LOG.warning') as warnings:
+            socket = await self.client.ws_connect(self.server.make_url('/terminal'))
+            try:
+                if stage != 'introduction':
+                    await self.receive_until(socket, '*')
+                    await socket.send_str('look\r')
+                self.assertEqual((await asyncio.wait_for(socket.receive(), 5)).type, WSMsgType.CLOSE)
+                await asyncio.wait_for(self.closed.get(), 5)
+                await self.server.close()  # Wait for the entire request handler.
+                self.assertEqual(self.handler_errors, [])
+                self.assertEqual(failures, [False], 'The failed browser send must not be retried')
+                if stage == 'notification':
+                    warnings.assert_called_once()
+                else:
+                    warnings.assert_not_called()
+                    self.assertFalse(any('unavailable' in data for data in attempted))
+                commands = ''.join(self.inputs.get_nowait() for _ in range(self.inputs.qsize()))
+                self.assertIn('kjob\r', commands)
+                self.assertIn('\x03' if stage == 'introduction' else 'quit\r', commands)
+            finally:
+                await socket.close()
+
+    async def test_browser_disconnect_during_introduction_still_logs_out(self):
+        await self.check_browser_send_failure('introduction')
+
+    async def test_browser_disconnect_during_gameplay_still_logs_out(self):
+        await self.check_browser_send_failure('gameplay')
+
+    async def test_browser_disconnect_during_failure_notification_is_best_effort(self):
+        await self.check_browser_send_failure('notification')
 
     async def test_monitor_escape_controls_are_not_forwarded(self):
         socket = await self.client.ws_connect(self.server.make_url('/terminal'))
@@ -157,6 +229,60 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
             self.allow_logout.set()
             closing.cancel()
             await asyncio.gather(closing, return_exceptions=True)
+            await socket.close()
+
+    async def test_server_shutdown_logs_out_connected_browsers_promptly(self):
+        sockets, readers = [], []
+        async def read_close(socket):
+            while True:
+                message = await socket.receive()
+                if message.type != WSMsgType.TEXT:
+                    return message
+        try:
+            for _ in range(2):
+                socket = await self.client.ws_connect(self.server.make_url('/terminal'))
+                sockets.append(socket)
+                await self.receive_until(socket, '*')
+                readers.append(asyncio.create_task(read_close(socket)))
+            await asyncio.wait_for(self.server.close(), 3)
+            messages = await asyncio.gather(*readers)
+            self.assertTrue(all(message.type == WSMsgType.CLOSE for message in messages))
+            self.assertEqual({await asyncio.wait_for(self.closed.get(), 1),
+                              await asyncio.wait_for(self.closed.get(), 1)}, {1, 2})
+            commands = ''.join(self.inputs.get_nowait() for _ in range(self.inputs.qsize()))
+            self.assertEqual(commands.count('quit\r'), 2)
+            self.assertEqual(commands.count('kjob\r'), 2)
+        finally:
+            for socket in sockets:
+                await socket.close()
+            for task in readers:
+                task.cancel()
+            await asyncio.gather(*readers, return_exceptions=True)
+
+    async def test_server_shutdown_preserves_logout_already_in_progress(self):
+        socket = await self.client.ws_connect(self.server.make_url('/terminal'))
+        await self.receive_until(socket, '*')
+        self.allow_logout.clear()
+        await socket.send_bytes(b'restart')
+        reader = asyncio.create_task(socket.receive())
+        shutdown = None
+        try:
+            while 'kjob\r' not in await asyncio.wait_for(self.inputs.get(), 2):
+                pass
+            shutdown = asyncio.create_task(self.server.close())
+            await asyncio.sleep(0.1)
+            self.assertFalse(shutdown.done())
+            self.assertFalse(reader.done(), 'Shutdown interrupted the existing logout')
+            self.allow_logout.set()
+            await asyncio.wait_for(shutdown, 3)
+            self.assertEqual((await reader).type, WSMsgType.CLOSE)
+            self.assertEqual(await asyncio.wait_for(self.closed.get(), 1), 1)
+        finally:
+            self.allow_logout.set()
+            reader.cancel()
+            if shutdown is not None:
+                shutdown.cancel()
+            await asyncio.gather(reader, *([shutdown] if shutdown is not None else []), return_exceptions=True)
             await socket.close()
 
     async def test_bbc40_preserves_words_for_browser_wrapping(self):

@@ -127,14 +127,22 @@ journal priorities with specific message signatures:
 
 - Unexpected emulator exit and incomplete guest shutdown: **error**.
 - Python traceback and systemd service failures: **error**.
+- Explicit Python `ERROR:`/`CRITICAL:` messages: **error**, even when the
+  journal records their stdout/stderr stream at a lower severity. Other explicit
+  Python `WARNING:` messages are **warning**, rather than unknown diagnostics.
 - The verified TOPS-10 illegal-memory-reference diagnostic: **error**.
 - Boot retries, incomplete logout and unexpected terminal connection endings:
   **warning**. An isolated disconnect can be transient.
 - Unknown diagnostic-looking native messages: **review**, not an asserted fault.
 
 It does not classify arbitrary occurrences of the word “error” as faults.
+Normal `%SIM-INFO:` startup lines (such as the Telnet listener and tape-format
+messages) are not review findings. Other diagnostics in the same journal entry
+and explicit warning/error journal priorities are still considered.
 Reports group known repeated conditions per service and show occurrence counts,
 first/last host timestamps, an example message and an inspection suggestion.
+Counts are matching journal messages, not necessarily separate incidents: one
+forced stop can produce both “Main process exited” and “Failed with result”.
 `--context N` adds up to N preceding journal entries. In follow mode findings
 are emitted individually with preceding context; use a finite scan for grouped
 counts. For tracebacks split over multiple journal entries, use `logs runtime`
@@ -151,6 +159,60 @@ player's private TTY output, and the error scanner does not inspect MUD.LOG.
 No automatic repair, reset, persona edit or service restart is performed by
 inspection commands. Future write actions should have distinct handlers and
 native coordination; they can reuse the maintenance transport.
+
+### Gateway shutdown timeout
+
+`State 'stop-sigterm' timed out. Killing.` followed by `status=9/KILL` means
+systemd forcibly stopped the browser gateway after its 45-second shutdown
+deadline. These are real shutdown failures, but historical messages do not
+establish that the service is currently unhealthy. Check current status with
+`sudo mud86ctl status`, and read nearby gateway journal entries for context.
+
+Older gateway versions had no application shutdown hook for active WebSocket
+sessions. aiohttp could wait 60 seconds for them, exceeding the unit's deadline.
+The gateway now ends active handlers in its shutdown hook so they run the normal
+QUIT/KJOB cleanup concurrently. A logout already in progress is allowed to finish.
+Regression tests cover two connected browsers and shutdown during an existing
+logout. This is a host gateway fix; no original engine changes are involved.
+
+### Connection-close exceptions
+
+The September 20–22 remote logs identified two separate gateway-side problems:
+
+- `telnetlib3.BaseClient._process_rx` could try to deliver queued data after
+  `feed_eof`, raising `AssertionError: feed_data after feed_eof`. The adapter in
+  `server/gateway.py` now stops the pending receive task and parses queued bytes
+  before forwarding connection loss to the pinned library. This preserves final
+  output and `Logged-off` acknowledgements. It also handles Telnet commands split
+  across chunks, ignores callbacks after closure and prevents negotiation from
+  starting after an early close. Normal upstream reset errors remain visible.
+- A failed browser send could enter the upstream-error handler, which then tried
+  to send an unavailable message through the same closing WebSocket. Browser-send
+  failures now have a separate handling path, with normal guest cleanup and an
+  informational log message. A genuine upstream failure still produces a warning;
+  notification to the browser is best-effort if it disconnects at that point.
+
+Upstream warnings now include the exception type, so a `TimeoutError` with an
+empty message is identifiable. The fixes do not retroactively establish the
+cause of every historical connection warning. To check recurrence after an
+update, choose a `--since` time after that update rather than rescanning the
+same older failures.
+
+The adapter deliberately targets pinned telnetlib3 2.0.8; review its receive-task
+and parser overrides if upgrading that dependency. The upstream implementation
+inspected during this fix clears queued bytes on closure, which is insufficient
+for the final-output preservation checked here. No dependency version changed.
+
+```sh
+.venv/bin/python -m unittest tests.test_simh_client tests.test_gateway tests.test_inspect_game tests.test_deployment -v
+```
+
+All 58 tests passed on macOS/Python 3.9 and in a disposable AlmaLinux ARM container
+with Python 3.12 and the deployment dependency pins. They include deterministic
+EOF ordering, fragmented commands, final-output preservation, browser send
+failures during introduction/gameplay/error notification, guest cleanup, session
+restart, and shutdown with connected browsers. These checks use controlled
+Telnet peers; this follow-up has not yet been deployed or verified on the VPS.
 
 ## Validation
 

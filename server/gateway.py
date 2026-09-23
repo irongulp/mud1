@@ -3,6 +3,7 @@ import argparse
 import asyncio
 import logging
 import re
+import sys
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -59,11 +60,96 @@ class SimhWriter(TelnetWriterUnicode):
 class SimhClient(telnetlib3.TelnetClient):
     _writer_factory_encoding = SimhWriter
 
+    def begin_negotiation(self):
+        if not self._closing:
+            super().begin_negotiation()
+
+    def data_received(self, data):
+        if not self._closing:
+            super().data_received(data)
+
+    def _process_chunk(self, data):
+        # 2.0.8's chunk scanner starts in text mode, even when the preceding
+        # chunk ended inside an IAC command. Complete that command first.
+        offset = 0
+        while offset < len(data) and self.writer.is_oob:
+            byte = data[offset:offset + 1]
+            try:
+                inband = self.writer.feed_byte(byte)
+            except Exception:
+                self._log_exception(self.log.warning, *sys.exc_info())
+            else:
+                if inband:
+                    self.reader.feed_data(byte)
+            offset += 1
+        return super()._process_chunk(data[offset:]) or bool(offset)
+
+    def connection_lost(self, exc):
+        if self._closing:
+            return
+        # telnetlib3 2.0.8 signals EOF before its queued receive task has run.
+        # Finish already-received bytes synchronously, while the Telnet parser
+        # and writer callbacks still exist, so final output/Logged-off survives.
+        # The event loop cannot run _process_rx concurrently with this callback.
+        if self._rx_task is not None:
+            self._rx_task.cancel()
+            self._rx_task = None
+        try:
+            while self._rx_queue:
+                chunk = self._rx_queue.popleft()
+                self._rx_bytes -= len(chunk)
+                self._process_chunk(chunk)
+        except Exception as error:
+            # A parser failure is a real read error, not a successful EOF.
+            exc = exc or error
+        finally:
+            self._rx_queue.clear()
+            self._rx_bytes = 0
+            super().connection_lost(exc)
+
+
+class BrowserDisconnected(Exception):
+    """Browser-side send failure; the guest still needs its normal cleanup."""
+
+
+async def send_browser(socket, data):
+    try:
+        await socket.send_str(data)
+    except OSError as error:
+        # WebSocket.closed can still be False while its transport is closing.
+        # Keep this distinct from upstream OSErrors handled by the gateway.
+        raise BrowserDisconnected() from error
+
 
 def create_app(upstream_host="127.0.0.1", upstream_port=2020):
     app = web.Application()
+    terminal_handlers = set()
+    terminal_cleanups = set()
+    shutting_down = False
 
     async def terminal(request):
+        if shutting_down:
+            raise web.HTTPServiceUnavailable(text="Gateway is shutting down")
+        handler = asyncio.current_task()
+        terminal_handlers.add(handler)
+        try:
+            return await terminal_session(request)
+        finally:
+            terminal_handlers.discard(handler)
+            terminal_cleanups.discard(handler)
+
+    async def shutdown_terminals(app):
+        nonlocal shutting_down
+        shutting_down = True
+        handlers = tuple(terminal_handlers)
+        for handler in handlers:
+            # Cancel active transport/setup, which enters its normal finally
+            # block. Never interrupt a QUIT/KJOB already underway.
+            if handler not in terminal_cleanups:
+                handler.cancel()
+        await asyncio.gather(*handlers, return_exceptions=True)
+
+    async def terminal_session(request):
         style = request.query.get("style", "original")
         if style not in TERMINAL_STYLES:
             raise web.HTTPBadRequest(text="Unknown terminal style")
@@ -104,7 +190,7 @@ def create_app(upstream_host="127.0.0.1", upstream_port=2020):
             introduction = await asyncio.wait_for(
                 reader.readuntil(b"By what name shall I call you?"), CONNECT_TIMEOUT)
             authenticated = True
-            await socket.send_str(introduction.decode("ascii"))
+            await send_browser(socket, introduction.decode("ascii"))
 
             async def to_browser():
                 nonlocal entered, monitor
@@ -120,7 +206,7 @@ def create_app(upstream_host="127.0.0.1", upstream_port=2020):
                     if not entered:
                         password_input.observe(data)
                     monitor = recent.endswith("\n.")
-                    await socket.send_str(data)
+                    await send_browser(socket, data)
                     if monitor:
                         return
                     if GAME_PROMPT.search(recent) or recent.replace('\r', '').endswith(
@@ -164,13 +250,20 @@ def create_app(upstream_host="127.0.0.1", upstream_port=2020):
             done, _ = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
             for task in done:
                 task.result()
+        except BrowserDisconnected:
+            LOG.info("Browser terminal disconnected during output")
         except (OSError, EOFError, asyncio.TimeoutError, asyncio.IncompleteReadError,
                 asyncio.LimitOverrunError) as error:
-            LOG.warning("Terminal connection ended: %s", error)
+            LOG.warning("Terminal connection ended: upstream %s: %s", type(error).__name__, error)
             if not socket.closed:
-                await socket.send_str("\r\n[The original MUD server is unavailable. Please reconnect.]\r\n")
-                await socket.close(code=1013)
+                try:
+                    await send_browser(socket, "\r\n[The original MUD server is unavailable. Please reconnect.]\r\n")
+                except BrowserDisconnected:
+                    pass  # Best-effort notification; guest cleanup must still run.
+                else:
+                    await socket.close(code=1013)
         finally:
+            terminal_cleanups.add(asyncio.current_task())
             password_input.clear()
             for task in tasks:
                 task.cancel()
@@ -205,6 +298,7 @@ def create_app(upstream_host="127.0.0.1", upstream_port=2020):
         return web.FileResponse(ROOT / LEGAL_DOCUMENTS[name],
                                 headers={'Content-Type': 'text/plain; charset=utf-8'})
 
+    app.on_shutdown.append(shutdown_terminals)
     app.router.add_get("/", index)
     app.router.add_get('/legal', legal_page)
     app.router.add_get('/legal/{document}', legal_document)

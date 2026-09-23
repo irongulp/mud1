@@ -164,6 +164,28 @@ class DiagnosticTests(unittest.TestCase):
         self.assertEqual(report['findings'][0]['severity'], 'error')
         self.assertEqual(report['findings'][0]['code'], 'native-memory-fault')
 
+    def test_explicit_python_log_severity_is_not_an_unknown_diagnostic(self):
+        for message, severity in (
+                ('ERROR:asyncio:Task exception was never retrieved', 'error'),
+                ('ERROR:aiohttp.server:Error handling request from 127.0.0.1', 'error'),
+                ('CRITICAL:server.gateway:Unexpected failure', 'error'),
+                ('WARNING:server.gateway:Unknown warning', 'warning')):
+            with self.subTest(message=message):
+                finding = inspect.diagnose([self.entry(message)])['findings'][0]
+                self.assertEqual(finding['severity'], severity)
+                self.assertNotEqual(finding['code'], 'unrecognised-diagnostic')
+        self.assertEqual(inspect.diagnose([self.entry('ERROR:asyncio:Failure', priority='4')])
+                         ['findings'][0]['severity'], 'error')
+
+    def test_simh_info_is_normal_but_other_diagnostics_in_same_entry_are_kept(self):
+        listening = '%SIM-INFO: Listening on port 127.0.0.1:2020'
+        tape = '%SIM-INFO: TU0: Tape Image t10boot.tap scanned as SIMH format'
+        self.assertFalse(inspect.diagnose([self.entry(listening), self.entry(tape)])['findings'])
+        for message in (listening + '\n?Unexpected diagnostic', '%SIM-WARN: Unknown condition'):
+            with self.subTest(message=message):
+                self.assertEqual(inspect.diagnose([self.entry(message)])['findings'][0]['severity'], 'review')
+        self.assertEqual(inspect.diagnose([self.entry(listening, priority='3')])['findings'][0]['severity'], 'error')
+
     def test_binary_journal_message_and_bad_metadata_do_not_crash(self):
         result = inspect.diagnose([self.entry(list(b'?Unknown'), stamp='bad', priority='bad')])
         self.assertEqual(result['findings'][0]['severity'], 'review')

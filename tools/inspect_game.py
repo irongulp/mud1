@@ -335,9 +335,15 @@ def classify(entry):
         priority = int(entry.get('PRIORITY', 6))
     except (ValueError, TypeError):
         priority = 6
-    if 0 <= priority <= 4:
-        return 'journal-priority', 'error' if priority <= 3 else 'warning', 'Inspect adjacent journal entries.'
-    if re.search(r'(?m)^(?:\?[A-Z]|%[A-Z]|(?:ERROR|CRITICAL|WARNING):)', message):
+    if 0 <= priority <= 3:
+        return 'journal-priority', 'error', 'Inspect adjacent journal entries.'
+    if re.search(r'(?m)^(?:ERROR|CRITICAL):', message):
+        return 'python-log-error', 'error', 'Inspect the full exception and adjacent journal entries.'
+    if priority == 4:
+        return 'journal-priority', 'warning', 'Inspect adjacent journal entries.'
+    if re.search(r'(?m)^WARNING:', message):
+        return 'python-log-warning', 'warning', 'Inspect adjacent journal entries.'
+    if re.search(r'(?m)^(?:\?[A-Z]|%(?!SIM-INFO:)[A-Z])', message):
         return 'unrecognised-diagnostic', 'review', 'Review this diagnostic in context; its severity is not established.'
     return None
 
@@ -354,7 +360,8 @@ def diagnose(entries, context=0):
             code, severity, suggestion = classified
             message = message_text(entry)
             # Group known recurring conditions; retain distinct unknown messages.
-            key = (source, code, message if code in ('journal-priority', 'unrecognised-diagnostic', 'traceback') else '')
+            key = (source, code, message if code in ('journal-priority', 'unrecognised-diagnostic', 'traceback',
+                                                   'python-log-error', 'python-log-warning') else '')
             if key not in groups:
                 groups[key] = dict(source=source, code=code, severity=severity, count=0,
                                    first_seen=timestamp(entry), last_seen=None, message=message,

@@ -178,6 +178,31 @@
   ARM journal integration passed. Full new x86 deployment/remote update remains
   unrun. See docs/inspection.md for operation and coverage semantics.
 
+- `%SIM-INFO:` listener/tape startup lines are normal, not diagnostic-review
+  findings; keep detection for other lines in the same journal entry and explicit
+  warning/error priorities. Finding counts are messages, not distinct incidents.
+  Gateway stop timeout report exposed missing active-WebSocket shutdown handling:
+  aiohttp can wait 60 seconds, exceeding systemd TimeoutStopSec=45. The gateway
+  now tracks request handlers and uses on_shutdown to cancel active transport so
+  its existing QUIT/KJOB finally block runs; handlers already cleaning up are
+  awaited without a second cancellation. Tests cover multiple connected browsers
+  and a logout in progress. The remote server still needs this follow-up update.
+
+- Remote gateway close tracebacks (September 20–22) reproduced with pinned
+  telnetlib3 2.0.8: BaseClient.connection_lost feeds EOF before queued _process_rx.
+  SimhClient now cancels the pending task and synchronously drains queued bytes
+  before forwarding closure; final output/Logged-off is preserved. Its parser
+  override completes fragmented IAC commands before using the base chunk scanner,
+  which otherwise starts in text mode. Late data and pre-negotiation closure are
+  guarded. Review these private-library hooks before any dependency upgrade.
+  Browser send OSErrors become BrowserDisconnected, not upstream failures;
+  unavailable notifications are best-effort, and original QUIT/KJOB cleanup runs.
+  Upstream warnings include exception type to make blank TimeoutErrors useful.
+  Explicit Python ERROR/CRITICAL/WARNING messages now retain their severity in
+  inspection reports. 58 transport/gateway/inspection/deployment tests passed
+  macOS Python 3.9 and disposable AlmaLinux ARM Python 3.12. Follow-up VPS update
+  remains pending; do not infer that every historical warning had these causes.
+
 - AlmaLinux deployment entry point: `setup.sh` → `tools/deploy.py`. Root-managed
   `mud86ctl` lives in `/usr/local/bin` with an alias in `/usr/bin`: AlmaLinux's
   sudo secure_path can omit `/usr/local/bin`. Existing hosts can add that symlink
