@@ -214,6 +214,74 @@ failures during introduction/gameplay/error notification, guest cleanup, session
 restart, and shutdown with connected browsers. These checks use controlled
 Telnet peers; this follow-up has not yet been deployed or verified on the VPS.
 
+### Cleanup while the game is asking a question
+
+After ATTACH starts creating a missing persona, the game asks for its sex. At
+that point `QUIT` is an answer to the question, not a game command. The previous
+gateway could time out waiting for the monitor, close TCP, and leave a guest job.
+This failure was reproduced on a disposable original runtime before the fix.
+
+The gateway now isolates cleanup in `logout_guest()`:
+
+1. For a session that entered the game, attempt the normal QUIT first.
+2. If that wait times out, send a controlled TOPS-10 interrupt sequence and wait
+   for the monitor prompt. Pre-game sessions use the interrupt path directly.
+3. Send KJOB only after reaching the monitor, and wait for `Logged-off`.
+
+Each wait is bounded at three seconds (at most nine seconds across these three
+stages). An EOF or failed interrupt reports incomplete cleanup; it never causes
+KJOB to be sent into an unconfirmed game context. The gateway also attempts
+cleanup when LOGIN was sent but the game's introduction timed out, since the
+operating-system job may already exist. Upstream-failure WebSocket closure is
+deferred until this cleanup completes. Forced interruption may lose unsaved
+progress, which is why ordinary QUIT remains the first attempt.
+
+Browser Ctrl-C is still rejected rather than forwarded to the original game.
+The interrupt sequence belongs to server-side cleanup only. Successful fallback
+produces informational `Terminal cleanup recovery` and `Terminal logout complete`
+messages; it is not classified as an unresolved logout failure.
+
+Session starts and diagnostics now carry a random `connection=` identifier.
+Setup failures identify `stage=connect`, `monitor`, `terminal-type`,
+`terminal-width`, `login`, or `transport`. Failed cleanup identifies `stage=quit`,
+`interrupt`, or `logout`, and the exception type. These logs contain no submitted
+commands, persona names, passwords, raw game output or exception payloads.
+They narrow future incidents but do not prove the cause of older stage-less
+timeouts. Failures before LOGIN is sent still close the upstream transport;
+this fix does not claim to repair every possible pre-existing stale terminal.
+
+Validation:
+
+```sh
+.venv/bin/python -m unittest tests.test_gateway tests.test_simh_client tests.test_inspect_game tests.test_deployment -v
+.venv/bin/python -m tests.integration_gateway_cleanup
+```
+
+All 64 host tests passed on macOS/Python 3.9 and disposable AlmaLinux ARM/Python
+3.12. The native test creates only disposable fixtures on a private baseline disk,
+using archwizard Roy to exercise the ordinary ATTACH branch. It verifies Ctrl-C,
+browser close, width-restart control and gateway shutdown while the creation
+question is pending. Native KJOB completes; SYSTAT confirms no MUDGUEST OS job
+after a bounded settling interval; FILCOM /B finds no persona-file differences;
+the password audit and subsequent ordinary logins confirm saved credentials.
+Original source hashes remain unchanged. The final test passed with deployment
+speed settings (NOIDLE / 5M / DZ SPEED=*8), selected before SIMH starts. Evidence
+is in ignored `runtime/gateway-cleanup-deployment-speed/`; the pre-fix failure is
+retained in `runtime/gateway-cleanup-red/`. The remote server still needs this
+cleanup update.
+
+This is distinct from ATTACH's original gameplay behaviour: it can leave its
+originating persona dormant and a subsequent SAVE or qualifying QUIT can change
+the target's saved password. The operator reproduced that password behaviour on
+the VPS and confirmed EXORCISE from another archwizard removes an abandoned live
+presence. The gateway does not automatically EXORCISE dormant personas or change
+the game's persistence logic. See [the attachment audit](archwizard-password-audit.md).
+
+For disposable persona experiments, use letters-only names of at most nine
+characters. The login parser stops at a digit (`test1` selects `test`), while
+the command parser accepts digits (`ATTACH TEST1` looks for a different name).
+See `source/MUDLIB.BCL:1033–1057` and `source/MUD1.BCL:396–405`.
+
 ## Validation
 
 ```sh

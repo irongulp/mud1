@@ -6,6 +6,7 @@ import re
 import sys
 from pathlib import Path
 from urllib.parse import urlsplit
+from uuid import uuid4
 
 import telnetlib3
 from telnetlib3.stream_writer import TelnetWriterUnicode
@@ -41,6 +42,7 @@ TERMINAL_STYLES = {
 READ_SIZE = 4096
 MAX_INPUT_SIZE = 8192
 LOGOUT_TIMEOUT = 3
+INTERRUPT_SEQUENCE = "\x03" * 4  # Controlled TOPS-10 monitor recovery, never browser input.
 SAFE_CONTROLS = frozenset('\b\t\n\r\x12\x15\x17')
 GAME_PROMPT = re.compile(r'(?:^|[\r\n])\(?(?:----)?[*>"]\)?$')
 LOG = logging.getLogger(__name__)
@@ -121,6 +123,35 @@ async def send_browser(socket, data):
         raise BrowserDisconnected() from error
 
 
+async def logout_guest(reader, writer, *, entered, monitor, connection_id):
+    """Bounded QUIT -> monitor recovery -> KJOB; callers own the TTY until done."""
+    stage = 'quit' if entered else 'interrupt'
+    recovered = False
+    try:
+        if not monitor and entered:
+            writer.write("\x15quit\r")
+            try:
+                await asyncio.wait_for(reader.readuntil(b"\n."), LOGOUT_TIMEOUT)
+                monitor = True
+            except asyncio.TimeoutError:
+                # QUIT can be an answer to a question rather than a command.
+                # Do not send any OS command until interrupt reaches a monitor.
+                recovered = True
+                LOG.info("Terminal cleanup recovery: connection=%s stage=quit error=TimeoutError", connection_id)
+        if not monitor:
+            stage = 'interrupt'
+            writer.write(INTERRUPT_SEQUENCE)
+            await asyncio.wait_for(reader.readuntil(b"\n."), LOGOUT_TIMEOUT)
+        stage = 'logout'
+        writer.write("kjob\r")
+        await asyncio.wait_for(reader.readuntil(b"Logged-off"), LOGOUT_TIMEOUT)
+        LOG.info("Terminal logout complete: connection=%s recovered=%s", connection_id, recovered)
+    except (OSError, EOFError, asyncio.TimeoutError, asyncio.IncompleteReadError, asyncio.LimitOverrunError) as error:
+        # No raw terminal output, persona names, or exception payloads here.
+        LOG.warning("Terminal logout did not complete; check the guest job: connection=%s stage=%s error=%s",
+                    connection_id, stage, type(error).__name__)
+
+
 def create_app(upstream_host="127.0.0.1", upstream_port=2020):
     app = web.Application()
     terminal_handlers = set()
@@ -162,10 +193,14 @@ def create_app(upstream_host="127.0.0.1", upstream_port=2020):
         socket = web.WebSocketResponse(heartbeat=30, max_msg_size=MAX_INPUT_SIZE)
         await socket.prepare(request)
         writer = None
+        close_code = 1000
         tasks = []
         entered = False
         monitor = False
-        authenticated = False
+        login_started = False
+        connection_id = uuid4().hex
+        stage = 'connect'
+        LOG.info("Terminal session started: connection=%s style=%s", connection_id, style)
         password_input = PasswordInput()
         input_ready = asyncio.Event()
         try:
@@ -176,21 +211,26 @@ def create_app(upstream_host="127.0.0.1", upstream_port=2020):
                 connect_minwait=0.1, connect_maxwait=1), CONNECT_TIMEOUT)
             # TOPS-10 treats CR and LF as separate input terminators. A trailing
             # LF after LOGIN reaches MUD as an empty name and repeats its prompt.
+            stage = 'monitor'
             writer.write("\r")
             await asyncio.wait_for(reader.readuntil(b"."), CONNECT_TIMEOUT)
             # Telnet's terminal name does not configure TOPS-10's local DZ TTY.
             # Select display editing rather than printing-terminal rubout echo.
+            stage = 'terminal-type'
             writer.write("set tty type vt100\r")
             await asyncio.wait_for(reader.readuntil(b"."), CONNECT_TIMEOUT)
             # NAWS alone does not configure the emulated local DZ terminal.
             # Always restore width: a reused line may have served word-wrap mode.
+            stage = 'terminal-width'
             writer.write(f"set tty width {columns}\r")
             await asyncio.wait_for(reader.readuntil(b"."), CONNECT_TIMEOUT)
+            stage = 'login'
+            login_started = True
             writer.write("login mudguest\r")
             introduction = await asyncio.wait_for(
                 reader.readuntil(b"By what name shall I call you?"), CONNECT_TIMEOUT)
-            authenticated = True
             await send_browser(socket, introduction.decode("ascii"))
+            stage = 'transport'
 
             async def to_browser():
                 nonlocal entered, monitor
@@ -251,17 +291,18 @@ def create_app(upstream_host="127.0.0.1", upstream_port=2020):
             for task in done:
                 task.result()
         except BrowserDisconnected:
-            LOG.info("Browser terminal disconnected during output")
+            LOG.info("Browser terminal disconnected during output: connection=%s stage=%s", connection_id, stage)
         except (OSError, EOFError, asyncio.TimeoutError, asyncio.IncompleteReadError,
                 asyncio.LimitOverrunError) as error:
-            LOG.warning("Terminal connection ended: upstream %s: %s", type(error).__name__, error)
+            LOG.warning("Terminal connection ended: connection=%s stage=%s upstream %s",
+                        connection_id, stage, type(error).__name__)
             if not socket.closed:
                 try:
                     await send_browser(socket, "\r\n[The original MUD server is unavailable. Please reconnect.]\r\n")
                 except BrowserDisconnected:
                     pass  # Best-effort notification; guest cleanup must still run.
                 else:
-                    await socket.close(code=1013)
+                    close_code = 1013
         finally:
             terminal_cleanups.add(asyncio.current_task())
             password_input.clear()
@@ -271,18 +312,14 @@ def create_app(upstream_host="127.0.0.1", upstream_port=2020):
             if writer is not None:
                 # Keep the physical line occupied until QUIT and the TOPS-10
                 # logout finish. Closing TCP alone leaves local TTY jobs alive.
-                try:
-                    if authenticated and not monitor:
-                        writer.write("\x15quit\r" if entered else "\x03" * 4)
-                        await asyncio.wait_for(reader.readuntil(b"\n."), LOGOUT_TIMEOUT)
-                    if authenticated:
-                        writer.write("kjob\r")
-                        await asyncio.wait_for(reader.readuntil(b"Logged-off"), LOGOUT_TIMEOUT)
-                except (OSError, EOFError, asyncio.TimeoutError, asyncio.IncompleteReadError):
-                    LOG.warning("Terminal logout did not complete; check the guest job")
+                if login_started:
+                    # LOGIN may have allocated a job even if its game prompt
+                    # timed out, so successful introduction is not a prerequisite.
+                    await logout_guest(reader, writer, entered=entered, monitor=monitor,
+                                       connection_id=connection_id)
                 writer.close()
                 await writer.wait_closed()
-            await socket.close()
+            await socket.close(code=close_code)
         return socket
 
     async def index(request):

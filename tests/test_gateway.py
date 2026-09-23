@@ -16,6 +16,8 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
         self.closed = asyncio.Queue()
         self.count = 0
         self.reject_entry = False
+        self.ignore_interrupt = False
+        self.silent_login = False
         self.terminal_setups = []
         self.allow_logout = asyncio.Event()
         self.allow_logout.set()
@@ -24,6 +26,7 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
         async def shell(reader, writer):
             self.count += 1
             identifier = self.count
+            question = False
             try:
                 await reader.readuntil(b"\r")
                 writer.write("\r\n.")
@@ -34,7 +37,8 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
                     login = (await reader.readuntil(b"\r")).decode("ascii")
                 await self.inputs.put(login)
                 greeting = '' if self.reject_entry else 'Hello, test!\r\n'
-                writer.write(f"By what name shall I call you?\r\n{greeting}SESSION {identifier}\r\n*")
+                if not self.silent_login:
+                    writer.write(f"By what name shall I call you?\r\n{greeting}SESSION {identifier}\r\n*")
                 while True:
                     data = await reader.read(100)
                     if not data:
@@ -42,7 +46,16 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
                     await self.inputs.put(data)
                     if self.reject_entry and data.startswith('bad'):
                         writer.write('\r\nNo!\r\n.')
-                    elif "quit\r" in data or '\x03' in data:
+                    elif data.startswith('attach ghost'):
+                        question = True
+                        writer.write('\r\nCreating new persona:\r\nWhat sex do you wish to be?\r\n*')
+                    elif '\x03' in data:
+                        if not self.ignore_interrupt:
+                            question = False
+                            writer.write('\r\n.')
+                    elif "quit\r" in data and question:
+                        writer.write('\r\nEh? M for male, F for female\r\n*')
+                    elif "quit\r" in data:
                         writer.write("\r\n.")
                     elif "kjob\r" in data:
                         await self.allow_logout.wait()
@@ -114,6 +127,85 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(message.type, WSMsgType.CLOSE)
         self.assertEqual(message.data, 1007)
         await asyncio.wait_for(self.closed.get(), 5)
+
+    async def check_question_cleanup(self, trigger, recover=True):
+        socket = await self.client.ws_connect(self.server.make_url('/terminal'))
+        await self.receive_until(socket, '*')
+        await socket.send_str('attach ghost\r')
+        await self.receive_until(socket, 'What sex do you wish to be?\r\n*')
+        self.ignore_interrupt = not recover
+        with patch('server.gateway.LOGOUT_TIMEOUT', 0.05), \
+                patch('server.gateway.LOG.warning') as warnings:
+            if trigger == 'ctrl-c':
+                await socket.send_str('\x03')
+                message = await asyncio.wait_for(socket.receive(), 2)
+                self.assertEqual(message.type, WSMsgType.CLOSE)
+                self.assertEqual(message.data, 1008)
+            elif trigger == 'restart':
+                await socket.send_bytes(b'restart')
+                self.assertEqual((await asyncio.wait_for(socket.receive(), 2)).type, WSMsgType.CLOSE)
+            elif trigger == 'shutdown':
+                closing = asyncio.create_task(socket.receive())
+                await asyncio.wait_for(self.server.close(), 2)
+                self.assertEqual((await closing).type, WSMsgType.CLOSE)
+            else:
+                await socket.close()
+            await asyncio.wait_for(self.closed.get(), 2)
+            await self.server.close()
+            commands = ''.join(self.inputs.get_nowait() for _ in range(self.inputs.qsize()))
+            self.assertIn('quit\r', commands)
+            self.assertIn('\x03', commands)
+            self.assertLess(commands.index('quit\r'), commands.index('\x03'),
+                            'Browser Ctrl-C must not be forwarded before server cleanup')
+            if recover:
+                self.assertIn('kjob\r', commands)
+                self.assertLess(commands.index('\x03'), commands.index('kjob\r'))
+                warnings.assert_not_called()
+            else:
+                self.assertNotIn('kjob\r', commands, 'Never send KJOB before confirming the monitor')
+                warnings.assert_called_once()
+                format_string, *args = warnings.call_args.args
+                message = format_string % tuple(args)
+                self.assertIn('stage=interrupt', message)
+                self.assertIn('TimeoutError', message)
+                self.assertIn('connection=', message)
+                self.assertNotIn('ghost', message)
+            self.assertEqual(self.handler_errors, [])
+
+    async def test_creation_question_ctrl_c_recovers_monitor_and_logs_out(self):
+        await self.check_question_cleanup('ctrl-c')
+
+    async def test_creation_question_disconnect_recovers_monitor_and_logs_out(self):
+        await self.check_question_cleanup('disconnect')
+
+    async def test_creation_question_restart_recovers_monitor_and_logs_out(self):
+        await self.check_question_cleanup('restart')
+
+    async def test_failed_interrupt_does_not_send_kjob_into_game(self):
+        await self.check_question_cleanup('restart', recover=False)
+
+    async def test_creation_question_shutdown_recovers_monitor_and_logs_out(self):
+        await self.check_question_cleanup('shutdown')
+
+    async def test_login_prompt_timeout_reports_stage_and_cleans_up_uncertain_login(self):
+        self.silent_login = True
+        with patch('server.gateway.CONNECT_TIMEOUT', 1), \
+                patch('server.gateway.LOG.warning') as warnings:
+            socket = await self.client.ws_connect(self.server.make_url('/terminal'))
+            await self.receive_until(socket, 'unavailable')
+            await socket.close()
+            await self.server.close()
+            self.assertEqual(self.handler_errors, [])
+            commands = ''.join(self.inputs.get_nowait() for _ in range(self.inputs.qsize()))
+            self.assertIn('\x03', commands)
+            self.assertIn('kjob\r', commands)
+            await asyncio.wait_for(self.closed.get(), 2)
+            warnings.assert_called_once()
+            format_string, *args = warnings.call_args.args
+            message = format_string % tuple(args)
+            self.assertIn('stage=login', message)
+            self.assertIn('TimeoutError', message)
+            self.assertIn('connection=', message)
 
     async def check_browser_send_failure(self, stage):
         """Make a browser send fail while socket.closed still reports False."""

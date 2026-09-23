@@ -203,6 +203,28 @@
   macOS Python 3.9 and disposable AlmaLinux ARM Python 3.12. Follow-up VPS update
   remains pending; do not infer that every historical warning had these causes.
 
+- ATTACH creation-question cleanup is now reproduced and fixed in the gateway.
+  `logout_guest()` tries QUIT, then on timeout uses server-controlled Ctrl-C,
+  confirms the monitor, and KJOBs; each wait is bounded at three seconds. No KJOB
+  without a monitor, no automatic EXORCISE. LOGIN-sent/intro-timeout sessions also
+  need cleanup. Defer upstream-error browser closure until cleanup: closing first
+  let cancellation interrupt cleanup in the regression. Logs include connection
+  IDs, setup/cleanup stages and exception types, never raw terminal payloads.
+  64 host tests passed macOS 3.9 and AlmaLinux ARM 3.12. The disposable native
+  `tests.integration_gateway_cleanup` passed Ctrl-C, disconnect, restart and
+  shutdown at ATTACH's sex question, using Roy and missing letter-only targets.
+  SYSTAT confirmed guest-job removal, FILCOM /B byte-identical saved personas,
+  password preservation and normal re-entry. Final evidence is under
+  runtime/gateway-cleanup-deployment-speed (NOIDLE / 5M / SPEED=*8); red failure
+  is retained under runtime/gateway-cleanup-red. SYSTAT emits PPNs without brackets;
+  Logged-off can precede job disappearance briefly, so poll with a deadline.
+  Select throttle before spawning SIMH: an exploratory mid-run reconfiguration
+  stalled. Remote deployment of this cleanup follow-up is still pending.
+  User also confirmed ordinary-persona ATTACH/QUIT password overwrite and EXORCISE
+  from another archwizard removing the abandoned live presence. Neither original
+  behaviour is patched. Login readusername accepts letters only (test1 -> test),
+  whereas ATTACH's read.name accepts digits, so test names must be alphabetic.
+
 - AlmaLinux deployment entry point: `setup.sh` → `tools/deploy.py`. Root-managed
   `mud86ctl` lives in `/usr/local/bin` with an alias in `/usr/bin`: AlmaLinux's
   sudo secure_path can omit `/usr/local/bin`. Existing hosts can add that symlink
