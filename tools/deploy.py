@@ -1,5 +1,7 @@
 """Verified first-install assets and AlmaLinux deployment orchestration."""
 import hashlib
+import http.client
+from http import HTTPStatus
 import argparse
 from datetime import datetime, timezone
 import fcntl
@@ -12,6 +14,7 @@ import subprocess
 import sys
 import tarfile
 import tempfile
+import time
 import urllib.request
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -21,6 +24,9 @@ STATE = Path('/var/lib/mud86')
 CONFIG = Path('/etc/mud86')
 ACME = Path('/var/www/mud86-acme')
 CONTROL_WRAPPER = '#!/bin/sh\nexec /opt/mud86/current/.venv/bin/python /opt/mud86/current/tools/deploy.py "$@"\n'
+PROXY_READY_TIMEOUT = 10
+PROXY_REQUEST_TIMEOUT = 1
+PROXY_POLL_INTERVAL = .1
 
 
 def selected_backend(requested,previous):
@@ -207,6 +213,26 @@ def nginx_config(domain, tls=False, challenge_only=False):
             f'ssl_protocols TLSv1.2 TLSv1.3;\n{proxy}\n}}\n')
 
 
+def wait_proxy(domain,tls,timeout=PROXY_READY_TIMEOUT):
+    """Wait for the reloaded local vhost; never follow an HTTP redirect."""
+    deadline=time.monotonic()+timeout
+    expected_status=HTTPStatus.MOVED_PERMANENTLY if tls else HTTPStatus.OK
+    while time.monotonic()<deadline:
+        connection=http.client.HTTPConnection('127.0.0.1',timeout=PROXY_REQUEST_TIMEOUT)
+        try:
+            connection.request('GET','/',headers={'Host':domain})
+            response=connection.getresponse()
+            ready=(response.status==expected_status
+                   and (not tls or response.getheader('Location')=='https://'+domain+'/'))
+            if ready: return
+        except (OSError,http.client.HTTPException):
+            pass
+        finally:
+            connection.close()
+        time.sleep(PROXY_POLL_INTERVAL)
+    raise TimeoutError('Nginx did not expose the configured proxy mode after reload')
+
+
 def configure_proxy(domain, http_only, email):
     ACME.mkdir(parents=True, exist_ok=True)
     ACME.chmod(0o755)
@@ -240,6 +266,7 @@ def configure_proxy(domain, http_only, email):
         hook.write_text('#!/bin/sh\n/usr/sbin/nginx -t && /usr/bin/systemctl reload nginx\n')
         hook.chmod(0o755)
         run('systemctl', 'enable', '--now', 'certbot-renew.timer')
+    wait_proxy(domain,tls=not http_only)
 
 
 def install_control(control=Path('/usr/local/bin/mud86ctl'), alias=Path('/usr/bin/mud86ctl')):
