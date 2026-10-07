@@ -5,9 +5,29 @@ from unittest.mock import Mock
 
 from server.runtime import simulator_config
 from tools.deploy import selected_backend, external_dropins
+from tools.build_external_guest import read_back
 
 
 class ExternalDeploymentTests(unittest.TestCase):
+    def test_repeated_closing_lines_require_unique_source_suffix(self):
+        class Native:
+            def send(self,text): pass
+            def receive(self,marker):
+                if marker==b'unique final routine\r\n$]\r\n':
+                    return 'type mudlib.bcl\r\nfirst routine\r\n$]\r\nunique final routine\r\n$]\r\n'
+                if marker==b'.': return '\r\n.'
+                raise AssertionError('Source suffix was not unique')
+        self.assertIn('first routine',read_back(Native(),'mudlib.bcl','first routine\n$]\nunique final routine\n$]\n'))
+    def test_macro_labels_do_not_terminate_type_verification(self):
+        class Native:
+            def send(self,text): self.sent=text
+            def receive(self,marker):
+                if marker==b'        END ..BCPL\r\n':
+                    return 'type mboots.mac\r\n        TITLE BCPL\r\n..BCPL:: TDZA 1,1\r\n        END ..BCPL\r\n'
+                if marker==b'.': return '\r\n.'
+                raise AssertionError('Unsafe monitor marker during source TYPE')
+        native=Native(); expected='\tTITLE BCPL\n..BCPL:: TDZA 1,1\n\tEND ..BCPL\n'
+        self.assertIn('..BCPL:: TDZA',read_back(native,'mboots.mac',expected))
     def test_native_configuration_keeps_no_raw_lines(self):
         self.assertNotIn('Line=',simulator_config(Path('/private/state'),2020,False))
     def test_external_raw_lines_reserved_before_boot(self):

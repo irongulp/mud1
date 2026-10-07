@@ -12,6 +12,24 @@ COPY_DELAY=.1
 def rendered(text): return '\n'.join(line.expandtabs(8).rstrip() for line in text.splitlines()).strip()
 
 
+def read_back(native,filename,expected):
+    # MACRO source contains column-zero dotted labels (..BCPL). A generic
+    # readuntil('\n.') would mistake those for the interactive monitor prompt.
+    lines=[line.expandtabs(8).rstrip() for line in expected.splitlines()]
+    while lines and not lines[-1]: lines.pop()
+    last=lines[-1]
+    source='\n'.join(lines)
+    count=1
+    while source.count(last)!=1:
+        count+=1
+        if count>len(lines): raise RuntimeError('No unambiguous source end marker')
+        last='\n'.join(lines[-count:])
+    native.send('type '+filename)
+    output=native.receive((last.replace('\n','\r\n')+'\r\n').encode('ascii'))
+    tail=native.receive(b'.'); native.at_monitor=True
+    return (output+tail).replace('\r','').split('\n',1)[1].rsplit('\n.',1)[0]
+
+
 def transfer(native,filename,text):
     native.connection.get_socket().setsockopt(socket.IPPROTO_TCP,socket.TCP_NODELAY,1)
     native.send('copy '+filename+'=tty:'); native.receive(('copy '+filename+'=tty:\r\n').encode())
@@ -20,7 +38,7 @@ def transfer(native,filename,text):
         if not native.connection.read_until(b'\n',10).endswith(b'\n'): raise RuntimeError('Paced guest transfer stalled')
         time.sleep(COPY_DELAY)
     native.connection.write(b'\x1a'); native.receive(b'\n.'); native.at_monitor=True
-    actual=native.command('type '+filename).replace('\r','').split('\n',1)[1].rsplit('\n.',1)[0]
+    actual=read_back(native,filename,text)
     if rendered(actual)!=rendered(text): raise RuntimeError('Guest source verification failed: '+filename)
 
 
