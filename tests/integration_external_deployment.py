@@ -24,7 +24,7 @@ def invoke(container,*command):
 
 async def login(url,name,password,creating=False):
     async with ClientSession(headers={'Host':'mud.etimbo.com'}) as client:
-        socket=await client.ws_connect(url+'/terminal'); player=Browser(socket,name,io.StringIO())
+        socket=await client.ws_connect(url+'/terminal'); transcript=io.StringIO(); player=Browser(socket,name,transcript)
         try:
             await player.expect('By what name shall I call you?'); await player.expect('*'); await player.send(name)
             if creating:
@@ -35,6 +35,10 @@ async def login(url,name,password,creating=False):
                 await player.send('save'); await player.expect('saved.'); await player.expect('\n*')
             await player.send('score'); await player.expect('Score to date:'); await player.expect('\n*')
             await player.send('quit'); await player.expect('\n.')
+        except Exception as error:
+            # This fixture has one declared disposable password. Capture the
+            # native admission result for diagnosis, never an operator password.
+            raise AssertionError('Browser fixture failed: '+transcript.getvalue().replace(password,'[redacted]')) from error
         finally: await socket.close()
 
 
@@ -42,7 +46,7 @@ def run(container,url,fresh):
     output=ROOT/'runtime'/('external-deployment-'+container); output.mkdir(mode=0o700,exist_ok=True)
     report={'complete':False,'fresh_external':fresh}
     try:
-        name='Freshsql' if fresh else 'Beforecut'
+        name='Freshsql' if fresh else 'Precut'
         if not fresh: asyncio.run(login(url,name,'testpass',True))
         command=['bash','/checkout/setup.sh','--domain','mud.etimbo.com','--http-only','--image','/artifacts/mud86-runtime.tar.gz','--persona-storage','mariadb']
         (output/'install.log').write_text(invoke(container,*command))
