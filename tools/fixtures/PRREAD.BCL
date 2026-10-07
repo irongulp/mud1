@@ -1,0 +1,216 @@
+// Standalone synthetic-record R1 reader. Never opens MUD or persona files.
+get "bcl:acs"
+get "bcl:rfs"
+get "bcl:iolib"
+get "bcl:bits"
+get "bcl:kernel"
+$ldtext "/runame:prread"
+manifest
+$( LIMIT=79; WORDS=11; WAITMS=5000; DAYMS=86400000; STALELIMIT=16
+   FIRSTLINE=6; LASTLINE=7; SENTINEL=#123456701234
+   TOINPUT=1; TOCLEAR=3; TOOUTPUT=5; TOREAD=#20; TOECHO=#2074
+$)
+static
+$( udx=0; trmval=0; leased=-1; started=0
+   challenge0=0; challenge1=0; epoch0=0; epoch1=0; key0=0; key1=0
+   incoming=vec LIMIT; received=0; cursor=0
+   outgoing=vec LIMIT; used=0; scratch=vec WORDS; committed=vec WORDS
+$)
+
+let start() be
+$( for i=0 to WORDS committed!i_SENTINEL
+   writes(tty,"R1RD READY*C*L")
+   // Fresh 72-bit challenge and canonical name words from private controller.
+   challenge0_controlword(); challenge1_controlword(); controlspace()
+   key0_controlword(); controlspace(); key1_controlword()
+   if challenge0=0 /\ challenge1=0 fail("CONFIG")
+   $( let own=valof $[ $seto ac,0; $trmno. ac,0; $trn $]
+      for candidate=FIRSTLINE to LASTLINE
+         if candidate ne (own bitand #777) if claim(candidate)
+         $( leased_candidate; break $)
+      if leased=-1 fail("NO_CHANNEL")
+      udx_(own bitand ~#777) bitor leased
+   $)
+   write(tty,"R1RD LEASE :N :8 :N*C*L",
+      valof $[ $pjob ac,0 $],valof $[ $getppn ac,0; $trn $],leased)
+   unless trm(TOECHO,0) /\ trm(TOCLEAR,0) fail("SETUP")
+   started_millis()
+   build("H1 HELLO "); putoct(challenge0,12); putoct(challenge1,12); emit()
+   handover("H1 OFFER ",true)
+   build("H1 ACCEPT "); putoct(challenge0,12); putoct(challenge1,12)
+   put('*S'); putoct(epoch0,12); putoct(epoch1,12); emit()
+   handover("H1 READY ",false)
+   writes(tty,"R1RD BOUND*C*L")
+   started_millis()
+   identity("R1 GET "); put('*S'); putoct(key0,12); put('*S'); putoct(key1,12); emit()
+   readline()
+   status("R1 NOT_FOUND ","NOT_FOUND")
+   status("R1 UNAVAILABLE ","UNAVAILABLE")
+   status("R1 INVALID_RECORD ","INVALID_RECORD")
+   readidentity("R1 FOUND "); need(" 001 013"); endline(); credit(0)
+   $( let check=1 neqv WORDS
+      for index=1 to WORDS
+      $( let value=?
+         readline(); readidentity("R1 WORD "); need(" ")
+         unless number(2)=index fail("PROTOCOL")
+         need(" "); value_number(12); endline()
+         scratch!index_value; check_check neqv value
+         credit(index)
+      $)
+      readline(); readidentity("R1 END "); need(" ")
+      unless number(12)=check fail("PROTOCOL")
+      endline()
+   $)
+   unless (scratch!2 bitand ~1)=key0 /\ (scratch!3 bitand ~1)=key1 fail("PROTOCOL")
+   credit(WORDS+1)
+   committed!0_0
+   for i=1 to WORDS committed!i_scratch!i
+   // This executable is a synthetic fixture verifier, not a persona inspector.
+   for i=1 to WORDS unless committed!i=expected(i)
+      writes(tty,"R1RD FIXTURE_MISMATCH*C*L")<>releasechannel()<>finish
+   writes(tty,"R1RD FOUND 11 VERIFIED*C*L")
+   releasechannel()
+$)
+and expected(i)= i=1->#2653000007, i=2->key0 bitor 1, i=3->key1 bitor 1,
+   i=4->1<<35, i=5->-1, i=6->SENTINEL, i=7->#377777777777,
+   i=8->#400000000123, i=9->0, i=10->1<<35,-1
+and fail(reason) be
+$( for i=0 to WORDS unless committed!i=SENTINEL
+      writes(tty,"R1RD PARTIAL_COMMIT*C*L")<>releasechannel()<>finish
+   write(tty,"R1RD :S UNPUBLISHED*C*L",reason)
+   releasechannel()
+   finish
+$)
+and controlword()=valof
+$( let word,ch=0,?
+   for i=1 to 12
+   $( readch(tty,@ch)
+      unless '0' le ch le '7' fail("CONFIG")
+      word_(word<<3) bitor (ch-'0')
+   $)
+   resultis word
+$)
+and controlspace() be
+$( let ch=?; readch(tty,@ch); unless ch='*S' fail("CONFIG") $)
+and claim(line)=valof
+$( let args=vec 2
+   // Channel 17 is fixture-only, not a choice for the future MUD adapter.
+   args!0_0; args!1_$6"tty6"+((line-FIRSTLINE)<<12); args!2_0
+   resultis valof $[ $move ac,args; $open #17,0(ac); $tdza ac,ac; $seto ac,0 $]
+$)
+and releasechannel() be if leased ne -1
+$( $[ $release #17,0 $]
+   write(tty,"R1RD RELEASED :N*C*L",leased)
+   leased_-1
+$)
+and millis()=valof $[ $mstime ac,0 $]
+and nextchar()=valof
+$( while (millis()-started+DAYMS) rem DAYMS ls WAITMS
+   $( test trm(TOINPUT,0) then
+      $( unless trm(TOREAD,0) fail("IO")
+         resultis trmval
+      $) or $[ $movei ac,10; $hiber ac,0; $trn $]
+   $)
+   fail("TIMEOUT")
+$)
+and readline() be
+$( let first=true
+   received_0; cursor_0
+   $( let ch=nextchar()
+      if first /\ ch='*L' ch_nextchar()
+      first_false
+      if ch='*C' break
+      unless '*S' le ch le '~' /\ received ls LIMIT fail("PROTOCOL")
+      incoming!received_ch; received+_1
+   $) repeat
+   unless received fail("PROTOCOL")
+$)
+and begins(str)=valof
+$( let chars=vec 20
+   unpackstring(str,chars)
+   if received ls !chars resultis false
+   for i=1 to !chars unless incoming!(i-1)=chars!i resultis false
+   resultis true
+$)
+and need(str) be
+$( let chars=vec 20
+   unpackstring(str,chars)
+   for i=1 to !chars
+   $( unless cursor ls received fail("PROTOCOL")
+      unless incoming!cursor=chars!i fail("PROTOCOL")
+      cursor+_1
+   $)
+$)
+and number(digits)=valof
+$( let word=0
+   for i=1 to digits
+   $( let ch=?
+      unless cursor ls received fail("PROTOCOL")
+      ch_incoming!cursor; cursor+_1
+      unless '0' le ch le '7' fail("PROTOCOL")
+      word_(word<<3) bitor (ch-'0')
+   $)
+   resultis word
+$)
+and endline() be unless cursor=received fail("PROTOCOL")
+and handover(prefix,offering) be
+$( for attempt=1 to STALELIMIT
+   $( readline()
+      if begins(prefix)
+      $( let c0,c1,e0,e1=?,?,?,?
+         need(prefix); c0_number(12); c1_number(12); need(" ")
+         e0_number(12); e1_number(12); endline()
+         if c0=challenge0 /\ c1=challenge1
+         $( if e0=0 /\ e1=0 fail("PROTOCOL")
+            test offering then epoch0_e0<>epoch1_e1
+            or unless e0=epoch0 /\ e1=epoch1 fail("PROTOCOL")
+            return
+         $)
+      $)
+   $)
+   fail("HANDOVER")
+$)
+and readidentity(prefix) be
+$( need(prefix)
+   unless number(12)=epoch0 fail("PROTOCOL")
+   unless number(12)=epoch1 fail("PROTOCOL")
+   need(" "); unless number(12)=1 fail("PROTOCOL")
+$)
+and status(prefix,reason) be if begins(prefix)
+$( readidentity(prefix); endline(); credit(0); fail(reason) $)
+and build(prefix) be used_0<>text(prefix)
+and identity(prefix) be
+$( build(prefix); putoct(epoch0,12); putoct(epoch1,12); put('*S'); putoct(1,12) $)
+and credit(index) be
+$( identity("R1 ACK "); put('*S'); putoct(index,2); emit() $)
+and put(ch) be
+$( if used ge LIMIT fail("OUTPUT")
+   outgoing!used_ch; used+_1
+$)
+and text(str) be
+$( let chars=vec 20
+   unpackstring(str,chars)
+   for i=1 to !chars put(chars!i)
+$)
+and putoct(word,digits) be for i=0 to digits-1
+   put('0'+((word>>(3*(digits-i-1))) bitand 7))
+and emit() be
+$( for i=0 to used-1 unless trm(TOOUTPUT,outgoing!i) fail("IO")
+   unless trm(TOOUTPUT,'*C') /\ trm(TOOUTPUT,'*L') fail("IO")
+$)
+and trm(function,value)=valof
+$( let args=vec 2
+   args!0_function; args!1_udx; args!2_value
+   resultis valof
+   $[ $move ac,args
+      $hrli ac,3
+      $trmop. ac,0
+      $jrst failed
+      $movem ac,trmval
+      $seto ac,0
+      $jrst done
+failed: $movem ac,trmval
+      $setz ac,0
+done:
+   $]
+$)

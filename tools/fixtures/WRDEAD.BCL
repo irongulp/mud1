@@ -1,0 +1,21 @@
+// Return-only death persistence, after native eligibility and pending-SAVE recovery.
+and xd.delete(nam) be
+$( xw.name!0_!nam; xw.name!1_1!nam
+   xw.op0_0; xw.op1_0; xw.last_6; xw.mode_3
+   rec_xr.lookup(nam)
+   xw.mode_0
+   unless rec
+   $( if xw.last=4 return
+      writes(tty,"External deletion not confirmed; saved persona may remain.*C*L")
+      return
+   $)
+   xr.escape_label(failed)
+   save.pending_true
+   xw.ident("W1 DELETE "); xr.emit(); xw.readresult()
+failed: xr.releasechannel()
+   if xw.last=6 \/ xw.last=8 xw.resolve()
+   if xw.last=1 \/ xw.last=4 $( save.pending_false; return $)
+   if xw.last=6 \/ xw.last=8 $( xw.exitunknown(); return $)
+   save.pending_false
+   writes(tty,"External deletion not confirmed; saved persona may remain.*C*L")
+$)

@@ -2,6 +2,7 @@
 import argparse
 import asyncio
 import logging
+import os
 import re
 import sys
 from pathlib import Path
@@ -152,7 +153,7 @@ async def logout_guest(reader, writer, *, entered, monitor, connection_id):
                     connection_id, stage, type(error).__name__)
 
 
-def create_app(upstream_host="127.0.0.1", upstream_port=2020):
+def create_app(upstream_host="127.0.0.1", upstream_port=2020, *, session_bootstrap=None):
     app = web.Application()
     terminal_handlers = set()
     terminal_cleanups = set()
@@ -227,8 +228,12 @@ def create_app(upstream_host="127.0.0.1", upstream_port=2020):
             stage = 'login'
             login_started = True
             writer.write("login mudguest\r")
-            introduction = await asyncio.wait_for(
-                reader.readuntil(b"By what name shall I call you?"), CONNECT_TIMEOUT)
+            if session_bootstrap is None:
+                introduction = await asyncio.wait_for(
+                    reader.readuntil(b"By what name shall I call you?"), CONNECT_TIMEOUT)
+            else:
+                stage = 'external-bootstrap'
+                introduction = await session_bootstrap(reader, writer)
             await send_browser(socket, introduction.decode("ascii"))
             stage = 'transport'
 
@@ -250,7 +255,7 @@ def create_app(upstream_host="127.0.0.1", upstream_port=2020):
                     if monitor:
                         return
                     if GAME_PROMPT.search(recent) or recent.replace('\r', '').endswith(
-                            "What's the password for this persona?\n"):
+                            ("What's the password for this persona?\n", "Save, delete or finish? ")):
                         input_ready.set()
 
             async def to_game():
@@ -350,9 +355,16 @@ def main():
     parser.add_argument("--port", type=int, default=8080)
     parser.add_argument("--upstream-host", default="127.0.0.1")
     parser.add_argument("--upstream-port", type=int, default=2020)
+    parser.add_argument('--persona-config',default=os.environ.get('MUD86_PERSONA_CONFIG'))
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO)
-    web.run_app(create_app(args.upstream_host, args.upstream_port), host=args.host, port=args.port)
+    bootstrap=None
+    if args.persona_config:
+        from tools.persona_migrate import load_config
+        load_config(args.persona_config)
+        from server.external_bootstrap import ExternalBootstrap
+        bootstrap=ExternalBootstrap()
+    web.run_app(create_app(args.upstream_host,args.upstream_port,session_bootstrap=bootstrap),host=args.host,port=args.port)
 
 
 if __name__ == "__main__":

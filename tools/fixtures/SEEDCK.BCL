@@ -1,0 +1,17 @@
+// Private acceptance check: TMPCOR seed survives GET/START and is read once.
+get "bcl:acs"
+get "bcl:rfs"
+get "bcl:iolib"
+get "bcl:bits"
+get "bcl:kernel"
+$ldtext "/runame:seedck"
+let start() be
+$( let seed=vec 1 and args=vec 1 and count=?
+   args!0_$6"rse"; args!1_(-2<<18) bitor (seed-1)
+   count_valof $[ $move ac,args; $hrli ac,2; $tmpcor ac,0; $setz ac,0 $]
+   write(tty,"SEEDCK COUNT :N*C*L",count)
+   test count=2 /\ seed!0=-1 /\ seed!1=-1 then writes(tty,"SEEDCK MATCH*C*L")
+   or writes(tty,"SEEDCK BAD*C*L")
+   count_valof $[ $move ac,args; $hrli ac,2; $tmpcor ac,0; $setz ac,0 $]
+   test count=0 then writes(tty,"SEEDCK CONSUMED*C*L") or writes(tty,"SEEDCK REUSED*C*L")
+$)

@@ -1,0 +1,24 @@
+// Exit has already torn down the live player. Never jump back to mainloop here.
+and xw.exitready()=valof
+$( unless save.pending resultis true
+   xw.resolve()
+   if xw.last=1
+   $( save.pending_false; savedp+_1; savescr_xw.savedscore
+      resultis true
+   $)
+   if xw.last=2 \/ xw.last=3
+   $( save.pending_false
+      resultis true
+   $)
+   xw.exitunknown()
+   resultis false
+$)
+and xw.exitsave() be
+$( let result=saverec(profile+14)
+   if result ls 0 test save.pending then xw.exitunknown()
+   or writes(tty,"External exit checkpoint not confirmed. Session will close.*C*L")
+$)
+and xw.exitunknown() be
+$( write(tty,"External exit outcome UNKNOWN. Operation :8 :8.*C*L",xw.op0,xw.op1)
+   writes(tty,"Session will close without another write; resolve this operation before assuming its outcome.*C*L")
+$)

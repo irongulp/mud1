@@ -19,6 +19,13 @@
 - Serve the supplied original MUD86 BCPL/MACRO-10 engine with a browser terminal.
 - Preserve `source/` byte-for-byte. Generate into `build/`; use the original
   DBASE compiler for authoritative game data. Do not reimplement gameplay in JS.
+- A fully native build must remain supported, including `--always-open` alone:
+  original TOPS-10 persistence with only the schedule change. MariaDB and all
+  later external persistence are opt-in, never dependencies of native builds.
+- Supported migration is one-way native -> external. External -> native conversion
+  is deliberately unsupported; retain native snapshots as historical recovery
+  points, not rollback preserving external progress. External recovery uses whole
+  database backups, including journals/additional data, and fresh guest sessions.
 - Use plan/red/green/blue for nontrivial changes. Host unit tests use unittest.
 - No delegation/subagents unless the user explicitly asks.
 
@@ -43,6 +50,382 @@
 - Read `docs/restoration.md` for media hashes, build commands and limitations.
 
 ## Important findings
+
+- External persona storage remains a proposal; its source-analysis milestone is
+  in `docs/persona-storage-analysis.md`. The recommended boundary is a guest-side
+  logical-record adapter, not generic disk I/O. Startup `access()` opens/creates
+  `.PM`, PURGE scans blocks, and embedded POWER has independent readers/writers;
+  changing `searchrec`/`saverec` alone is insufficient. PN is the TOPS-10 programmer
+  number, not the player slot. Native `addrec` retains recycled-slot contents and
+  ends with the header loaded; `saverec` checks SCRE through that buffer before
+  reloading the record. Creation equivalence needs a native edge-case experiment.
+  No backend implementation or native storage-equivalence tests were performed
+  for that analysis. The later transport-only probe is described below.
+
+- `tests.integration_storage_bridge` now verifies a standalone BCPL secondary-TTY
+  PING/PONG probe on disposable disks (NOIDLE / 5M / SPEED=*8). BRGP uses TRMOP
+  against an assigned SLAVE line, separate from its controlling TTY. Per-line
+  raw loopback listeners reserve DZ 6/7 outside the ordinary pool; this PDP-10
+  target has 32 DZ lines, not eight. Bootstrap with a CR/echoed CRLF, then force
+  monitor-level NO ECHO: program echo suppression alone leaked partial replies.
+  Host responses use a single CR; CRLF introduces an extra input terminator.
+  Native decoding passed all 36 bits, malformed/stale/wrong-word rejection,
+  ~5-second partial/silent/disconnect timeouts, reconnect and two simultaneous
+  jobs on separate lines. FILCOM verified persona bytes unchanged. Final evidence
+  is runtime/storage-bridge-decode-green; earlier red runs remain. Ten host tests
+  cover framing/identity/deadlines. See docs/storage-bridge-probe.md. This initial
+  probe predates the MUDGUEST pool/read-protocol work below; neither milestone
+  implements a persona adapter or database service.
+
+- `tests.integration_storage_channels` verifies MUDGUEST [2653,2653] can claim
+  SLAVE terminals with native OPEN, use TRMOP and explicitly RELEASE them. A
+  two-member pool on DZ 6/7 gives prompt NO_CHANNEL on exhaustion; same-PPN jobs
+  cannot read/write/set another job's terminal (TRMOP error 1). Concurrent claims,
+  fallback, timeout release and Ctrl-C/KJOB recovery passed. Final evidence:
+  runtime/storage-channels-permissions-green; the original twelve bridge cases
+  also passed under runtime/storage-channels-bridge-regression. OPEN's argument
+  vector needs `$move ac,args; $open #17,0(ac)`, not the stack slot `args`.
+  BRGP diagnostic modes 8/9/10 are auto/hold/foreign-access; its fixed channel 17
+  is fixture-only, not suitable for MUD's already-open file channels. Operator
+  socket bootstrap is still needed; OPEN/RELEASE does not fence old host replies.
+  See docs/storage-channels.md. `tools/persona_protocol.py` defines host-only R1
+  GET/FOUND/NOT_FOUND/UNAVAILABLE/INVALID_RECORD framing for native offsets 1–11,
+  with a 72-bit epoch, 36-bit sequence, ordered words and final XOR check. Eighteen
+  R1 plus ten B1 tests passed at that milestone. See docs/persona-read-protocol.md;
+  the later native R1 transport proof is below. No actual MUD/database adapter or
+  external persona lookup has been claimed.
+
+- `tests.integration_persona_read` verifies PRREAD's H1/R1 synthetic-record reader
+  under MUDGUEST. A fresh 72-bit controller challenge binds a fresh host epoch;
+  HELLO/OFFER/ACCEPT/READY precede one GET. One response frame per ACK avoids an
+  ~800-byte typeahead burst. Native code stages all 11 words, checks identity,
+  order, checksum and packed name, then publishes; errors assert UNPUBLISHED.
+  23 completed native cases passed, including two jobs, killed-owner same-socket
+  handover with old OFFER/READY/WORD injection, responder restart, clean KSYS and
+  same-disk reboot with old-handshake replay. FILCOM passed before/after reboot;
+  source hashes stayed unchanged. Evidence: runtime/persona-read-verified.
+  42 host tests cover B1/R1/H1 and sockets. See docs/persona-read-native.md.
+  Fast fault-test reconnects exposed SIMH busy responses and a brief NO_CHANNEL;
+  the harness bounds only those pre-protocol retries, never failed-read retries.
+  All final calls claimed on the first attempt. Challenge provisioning is still
+  via the private controller, channel 17 is fixture-only, and the getter is an
+  in-memory fixture at that milestone. The later database getter is below;
+  actual MUD integration remains pending.
+
+- `tests.integration_persona_mariadb --native` verifies actual MariaDB records
+  through unchanged PRREAD under MUDGUEST. Evidence: runtime/persona-mariadb-verified
+  (MariaDB 12.2.2, PyMySQL 1.2.3, Python 3.9): 16 native calls and 59 host tests
+  passed. Stored malformed/oversized/null/wrong-name/unknown-format rows return
+  INVALID_RECORD; lock, pause, revoked SELECT and stopped DB return UNAVAILABLE,
+  never NOT_FOUND. Restart and two concurrent reads passed. Persona-table rows
+  including metadata, native .PM bytes and original source hashes stayed unchanged.
+  `isolated_mariadb()` uses a SELECT-only adapter in one subprocess per lookup:
+  1.5s parent deadline, 0.25s reap allowance, two slots, bounded pipes; un-reaped
+  workers retain slots. Check closure/deadline again before publication, even
+  after successful worker exit. Driver/socket timeouts alone are insufficient.
+  SQL bounds payloads to 512 bytes and two rows; namespace + canonical 9-byte
+  packed name is the key, JSON holds native offsets 1–11. Revision is metadata,
+  not implemented write concurrency. Optional requirements-storage.txt pins the
+  MIT PyMySQL wheel/source hashes. Tests own a 0700, Unix-socket-only MariaDB
+  directory and process, never a system service. See docs/persona-mariadb.md.
+  Actual game integration is described below; external SAVE remains pending.
+  The first native attempt's three OPR boot stalls are retained.
+
+- `tools.prepare --external-readonly` generates a real MUD login/ATTACH adapter;
+  the default stays native and `source/` is unchanged. `tests.integration_external_login`
+  passed with MUD..PM renamed out of reach: 16 native-vs-external password
+  comparisons across all archwizards plus Extguest, Richard's known direct-login
+  rejection, wrong/Roy/correct ATTACH passwords, INFO/world access, movement,
+  original scoring (777 -> 788), two players sharing WHO, re-entry restoring 777,
+  missing persona/token and database outage/recovery. SAVE/PASSWORD/PURGE,
+  exit-time persistence and outbound chaining are explicitly gated. SQL rows and
+  retained native persona bytes stayed unchanged. Evidence: runtime/external-login-verified;
+  generated diff/provenance: build/external-login-verified. See docs/external-login-readonly.md.
+  The reader uses MUD's FINDCHANNEL/HOPEN/RELEASE and a detached record buffer.
+  ROSEED supplies two full words through job-local in-core TMPCOR RSE; the game
+  atomically reads/deletes them, derives per-lookup challenges with a bounded
+  XOR counter, and resets private seed state at initialise(). SEEDCK verified
+  all 72 bits across GET/START and second-read absence. No persistent token file.
+  The private controller verifies ROBOOT at low 140 (linked first), then runs
+  ROSEED, GETs the image and STARTs it. Monitor DEPOSIT did not read back the
+  requested value in the discarded experiment; do not use that bootstrap path.
+  Game code ended at 503120; game and original DBASE were relinked with DBADAT
+  at 510000, and original DBASE regenerated 25247 words. MUDNAT.EXE alone is not
+  a rollback on the new-address world files. Serial 100ms-per-line COPY plus full
+  TYPE comparison passed; whole-file TECO line editing failed due partial buffers.
+  Treat BCPL W-numbered diagnostics as build failures. In code generation `_`
+  is assignment, not an identifier character; append AND routines before the
+  library's final top-level assembler block. Native ROEXP is a private quiescent
+  fixture export containing password words, never a logged/public inspector.
+  Browser/bootstrap deployment, writes, creation equivalence and migration remain.
+
+- `tools.prepare --external-save-existing` is a separate explicit-SAVE-only
+  variant. `tests.integration_external_save` passed original-game SAVE/re-entry
+  (score 11), native field comparisons except time, 16 authentication comparisons,
+  unchanged-score/score-guard rejection and native-equivalent attached Richard
+  SAVE (including its password overwrite). Evidence: runtime/external-save-verified;
+  prepared code: build/external-save-verified. Code ended 504421; DBADAT/DBASE were
+  linked at 520000. Automatic QUIT persistence, creation/deletion, PASSWORD,
+  PURGE and outbound chaining remain gated. See docs/external-save-existing.md.
+  W1 snapshots a fresh save-time record; BCPL checks SCRE >= savescr and uses
+  unchanged dumpersona(). SQL compares generation/revision/all old words, with
+  up to three native re-read/recheck retries on CONFLICT. Generation must be
+  freshly assigned on recreation. Operation ids are independent of transport
+  epochs. The proposal is durably bound before the persona transaction; mutation
+  and terminal outcome commit together. RESOLVE locks the journal identity and
+  aborts/fences OPEN or absent operations; it is NOT a passive status query.
+  Lost reply plus DB restart resolved without a second update; an outage retained
+  UNKNOWN and blocked new saves/ATTACH until recovery. Recovery bookkeeping uses
+  the serialized checkpoint score, not later gameplay. W1 COMMIT checks an upload
+  XOR checksum before reaching the store. Bounded workers carry no bridge socket.
+  tests.integration_persona_writes passed replay, stale/generation conflict,
+  immutable-intent and commit/resolve races at runtime/persona-writes-verified.
+  The native write harness has a 0600 private-fixtures.json containing disposable
+  credentials/control records; never publish it as an operator report. Native
+  persona bytes and source hashes remain unchanged by external saves.
+
+- `tools.prepare --external-exit-existing` adds eligible alive-persona updates
+  from original writeprofile(), leaving the native predicate/promotion prefix
+  intact. Explicit-SAVE-only and read-only modes retain their prior gates.
+  tests.integration_external_exit passed 13 scenarios and 16 auth comparisons:
+  ordinary/idle QUIT matched native fields except time; Gali and zero-score
+  one-game Richard ATTACH skipped, while a prior Roy SAVE qualified attached
+  QUIT with native password/PN effects. Lost exit replies resolved once; new or
+  prior UNKNOWN outcomes closed at the monitor without another write. Aborted
+  pending SAVE did not invent savedp; confirmed pending SAVE used its frozen
+  score before persisting later gameplay. Score guard and ISWIZ promotion passed.
+  WREXIT helpers never call error()/quit() or jump to mainloop after teardown;
+  output is restored to TTY before storage. Deletion is still gated, not a dead
+  profile update. Evidence: runtime/external-exit-verified; build likewise named.
+  Code ended 504712; DBADAT/DBASE remain at 520000. Native persona bytes/source
+  hashes stayed unchanged. See docs/external-exit-existing.md. Arbitrary
+  disconnect/recovery paths, death/deletion, creation and deployment remain.
+
+- `tools.prepare --external-death-existing` adds eligible STAMINA<=0 deletion.
+  `tests.integration_external_death` passed twelve cases, four native FOD controls
+  and sixteen auth comparisons at runtime/external-death-acceptance. Ordinary
+  death deletes; Gali and unsaved one-game ATTACH skip; prior/confirmed SAVE
+  qualifies attached death, aborted pending SAVE does not. Lost replies resolve
+  once; unresolved SAVE blocks deletion; outages report unconfirmed/UNKNOWN and
+  close without deferred writes. Missing row is a no-op; changed generation is
+  CONFLICT without retry. W1 DSTART/credited snapshot/DELETE is explicitly opt-in.
+  Journal kind binds UPDATE vs DELETE; deletion plus outcome is atomic, fenced
+  by generation captured at operation start (not login), without SAVE score or
+  revision guard. Real SQL races/replay/restart passed at runtime/persona-deletes-acceptance;
+  SAVE regression passed at runtime/persona-writes-delete-regression; 96 host tests
+  passed. Source and retained native .PM bytes unchanged. Code ends 505053;
+  DBADAT remains 520000. See docs/external-death-existing.md. The new journal kind
+  is in the fresh fixture schema, not a deployed-database migration. Creation,
+  PURGE, PASSWORD and deployment remain gated/pending. A.DEATH/F.DEAD narration
+  need not mean STAMINA<=0: FOD against an ordinary player is the verified path.
+  Native GAMES is RH of logical word 1, not a full word at offset 5. The audit
+  Guest.attach helper expects an archwizard prompt; ordinary ATTACH uses `\n*`.
+  Earlier extended harness failures remain under external-death-verified/final.
+
+- `--external-creation` now enables logical new-persona creation through original
+  BCPL, verified at runtime/external-creation-reboot (11 cases, 16 auth comparisons,
+  four native control scenarios, FILCOM/source preservation, clean KSYS/reboot).
+  SQL creation/races/replay/restart/failed-intent passed at runtime/persona-creates-final;
+  UPDATE/DELETE regressions are persona-writes-creation-regression and
+  persona-deletes-creation-regression. 105 host tests passed. See
+  docs/external-persona-creation.md. Code ends 505253; DBADAT stays 520000.
+  Character creation remains in BCPL; login alone does not persist. W1 CSTART
+  returns a credited zeroed logical template, then original dumpersona()/PUT/
+  checksummed COMMIT inserts if absent, with a fresh generation and immutable
+  CREATE journal intent. No upsert or conflict-to-UPDATE fallback. Job-local
+  WRCREATE tracks new admissions; committed SAVE/recovery retires that authority,
+  so a missing saved record is not implicitly recreated. New ATTACH retains ATTED:
+  native SAVE rejects it and QUIT skips. Cross-job unsaved-live ATTACH creation
+  authority remains outside this milestone. PASSWORD/PURGE/deployment still pending.
+  Native allocation characterization at runtime/native-creation-guard proved
+  retained recycled opaque words and the header-buffer score bug: a saved first-game
+  persona purged mid-session failed recreation with header 0 but succeeded when
+  an unrelated hash entry made it 304. Following the relational-storage discussion,
+  external creation deliberately does not emulate those physical artifacts: new
+  opaque words zero, no header score check; existing opaque words remain preserved.
+  Earlier build/TTY/debug failures remain. The final harness removes unnecessary
+  world resets and cleanly reboots after compiling; exact causes of earlier
+  pre-LOGIN/GET stalls are not established. PMEDGE is a destructive disposable-test
+  fixture, never a live inspector. Its report excludes passwords.
+
+- `--external-admin` adds in-game PASSWORD and PURGE. Native acceptance at
+  runtime/external-admin-final passed 14 scenarios and 16 auth comparisons,
+  original PASSWORD/PURGE controls, FILCOM/source preservation and clean KSYS/reboot.
+  115 host tests passed; SQL admin evidence is persona-admin-verified, and existing
+  UPDATE/DELETE/CREATE regressions are persona-{writes,deletes,creates}-admin-regression.
+  See docs/external-persona-admin.md. Code ends 506445; DBADAT stays 520000.
+  PASSWORD retains its original once-per-game attempt rule and changes ps.word
+  only; normal SAVE/eligible QUIT persists it. Pending SAVE/PURGE blocks new
+  password transitions. PURGE retains original password/us(me)/WIZARD policy
+  and Save (keep)/Delete/Finish menu. PSTART binds a view; NSTART/NEXT/NAME/FETCH
+  performs live canonical-key traversal, not a frozen whole-table snapshot.
+  The 2048-record bound reports incomplete listing; admin challenge budget is
+  8192. Views release the bridge before human input; a six-second menu delay passed.
+  PDELETE confirms the original journal operation on a fresh transport, comparing
+  generation/revision/all displayed words. Changed records conflict without retry.
+  Journal kinds PURGE/PNEXT and cursor_key require the fresh fixture schema, not
+  a deployed migration. Never route these through generation-only death DELETE.
+  PURGE pending state is separate from SAVE; resolution does not invent savedp.
+  A recovery-only PURGE return must flush() or MUD reprocesses the same command.
+  A known abort/conflict clears uncertainty and must permit own eligible QUIT;
+  UNKNOWN closes without another write. Native regressions caught both mistakes.
+  Original PURGE sex display uses rec!1's low bit (games), not the name's sex bit;
+  it remains unchanged. POWER is standalone (/RUNAME:power in MBOOTS.MAC:209)
+  and explicitly outside this milestone, as are external SSH inspectors and
+  deployment/migration. Earlier failures and private admin-debug evidence remain.
+
+- `--external-lifecycle` replaces job-local creation names with shared lifetime
+  state (`WRLIFE.BCL`, `XLSTATE.MAC`, 36 seven-word slots outside DBADAT). Compile
+  MUD3 as well as MUDLIB/7/5 and link XLSTATE before DBADAT. Fresh allocation and
+  retirement tag/invalidate slots; live ATTACH selects the shared lifetime.
+  Password/savedp/savescr remain job-local. First CREATE's operation id is shared;
+  another job can resolve a stopped creator without crediting its SAVE as its own.
+  Metadata locks hold no bridge round trip. Normal pending-create wait is 12s,
+  total preparation bound 15s. Native cross-job controls: native-crossjob-first.
+  The game command is DET, not DETACH. DET/CONT, EXORCISE and slot-reuse guards
+  prevent stale sessions from persisting a replacement profile.
+  `--chain-target mud --chain-target valley` explicitly enables compatible-image,
+  same-namespace handover. It uses a 13-word read-delete in-core TMPCOR XCH packet,
+  preserving context and the bridge seed/counter across RUN; no legacy ASCII
+  handover compatibility is claimed. Source checkpoint failure blocks destination
+  launch. Original native chaining controls rejected handover; independent CHAINCK
+  validated the outgoing frame, and the VEC-alias suspicion was disproved.
+  Opted-in MBOOTS normalizes RUN lookup pointer 77 (device at 77, PPN at 101),
+  retaining its old 75/77 path. New world data need read protection <055>.
+  Valley in this test is a DBASE-compiled MUD clone, not recovered historical data.
+  Final evidence external-lifecycle-green: 15 cases, 16 auth comparisons, 102
+  unique HELLO challenges, FILCOM/source preservation; 142 host tests passed.
+  Real gateway cleanup passed ordinary/lost-reply/PASSWORD/PURGE/creation-question
+  states via its existing cleanup function. SIGKILL guest loss restored confirmed
+  score 0, not unsaved 11, on a fresh stopped-image copy against the same DB.
+  New private ports avoid SIGKILL TIME_WAIT; production bootstrap/restart remains.
+  Code/shared state end 510047, DBADAT stays 520000 and DBASE total 25247.
+  See docs/external-persona-lifecycle.md. Rare native lock/memory failure callbacks
+  and exhaustive cross-job/interruption combinations remain unverified. Keep
+  earlier native-chain/lifecycle failures and private debug evidence. Narrow TECO
+  N/EX edits worked for the world headers/portal with complete rendered comparison;
+  RUN DBASE -valley selects VALLEY.TXT. Do not revive the failed live tape swap.
+
+- One-way migration tooling: tools.capture_personas / PMSNAP.BCL captures full
+  native header/slots under original file-associated ENQ 142857, DEQs before output.
+  Capture includes password words: never transcript it. NativeSnapshot validates
+  canonical hash reachability, free chains, cycles/duplicates/unreferenced slots,
+  all 36 bits; max 8192 slots. Private checksum archives publish atomically at 0600.
+  tools.persona_migrate imports only active logical words into an unused namespace,
+  assigning fresh generations/revision 1; all rows and read-back-verified receipt
+  commit together. Identical retry consults receipt only, never resurrects deleted
+  personas; explicit verify compares current records before admission. init-schema
+  requires empty DB, is DDL/nontransactional, not an upgrade/repair command.
+  tools.persona_backup captures entire selected MariaDB DB including extra tables,
+  views/routines/triggers/events; not server users/grants/config/disks. Private SQL
+  bundle, bounded dumper, schema/row fingerprints. Stop writers/DDL for cutover;
+  backup also holds table/view READ locks. Restore to same DB name on isolated
+  recovery instance with scheduler off; no overwrite of changed/occupied targets.
+  Fingerprint verification then fences INIT/OPEN journals to ABORTED under WRITE
+  locks; fresh guests only. Trusted SQL archives only; checksum is not a signature.
+  SQL restore/DDL can be partial on failure: use fresh empty target, no auto repair.
+  Evidence migration-final, backup-acceptance, migration-native-final: 129 host
+  tests; eight native personas/one deleted slot, 16 imported plus 16 restored auth
+  comparisons, FILCOM/source preservation and KSYS. Native capture from
+  migration-native-verified matched ROEXP; its later fresh-build source transfer
+  timed out. Acceptance explicitly copied stopped external-lifecycle-green image,
+  not claiming fresh build success. Earlier failures remain. See docs/persona-migration.md.
+  No actual live cutover/deployment performed; native builds remain independent.
+
+- `tools.serve_external` is a foreground loopback browser lab at :8081, default
+  private persistent state runtime/external-local. Copies stopped verified image
+  external-lifecycle-green/machine-1 once; subsequent starts retain disk and DB.
+  Uses verified test runtime/database helpers, not the systemd installer. Empty
+  external personas; retained native fixture records are not imported. Roy can
+  be created/SAVEd with a user-chosen password for PURGE testing. Source image
+  retains original schedule (Friday 03:00 boot), not an always-open rebuild.
+  Optional gateway session_bootstrap runs server.external_bootstrap: stop initial
+  MUDGUEST autostart at name prompt, examine ROBOOT, ROSEED fresh 72-bit token,
+  GET/check/START, expose only new intro. Whole 30s bound; failures normal KJOB
+  cleanup. Native gateway remains default. State lock, private config/db/disk,
+  separate ports and readiness metadata. Shutdown cleans browsers with bridge/DB
+  alive, then KSYS/DB stop. Idle bridge timeouts retire owner and permit fresh H1;
+  dead workers stop the lab. Bounded three startup retries, never failed-read retries.
+  Chromium evidence runtime/external-local-password: create/SAVE/PASSWORD/masking,
+  full launcher/DB/guest restart and changed-password re-entry (live GAMES=2).
+  35 host bootstrap/launcher/gateway tests passed. Stored GAMES updates on SAVE/QUIT,
+  not login. See docs/external-local.md. Production deployment remains separate.
+
+- Persona storage format 2 is authoritative named columns, defined by
+  tools.persona_columns.ColumnPersona/table_ddl(); R1/W1 wire version stays 1.
+  Score is signed 36-bit; PN/games/native-time halves are 18-bit, attributes 9-bit.
+  Known STATES bits are individual booleans; unknown_state_bits retains high bits,
+  plus password_word and opaque_9/10/11. CHECKs enforce widths/name-key agreement.
+  No packed persona array duplicates the live authority. Journal word snapshots
+  remain unchanged. Adapters detect complete legacy vs column schema per connection;
+  imports support both, fresh init-schema/local labs use columns. personas.sql is
+  deliberately legacy test data. tools.persona_schema performs an offline verified
+  staging/table swap, preserving all words/gen/revision/time and journals; creates
+  a whole-DB backup first, leaves historical personas_words_archive. Requires all
+  writers/DDL stopped: MariaDB forbids RENAME under LOCK TABLES, so source is
+  rechecked after unlock before atomic swap. Failed staging is retained, not auto
+  repaired. Additional persona columns/triggers/FKs need explicit migration.
+  --local-state owns launcher lock and private DB for upgrade; regrants column
+  UPDATE privileges. Manual UPDATE should increment revision with a revision guard,
+  preferably logged out; SQL doesn't change a live BCPL profile. No revision trigger.
+  Evidence persona-columns-acceptance, native-persona-columns (16 imported +16
+  restored auth controls), external-columns-browser (SAVE/PASSWORD/PURGE/restart);
+  166 host tests passed. Local external-local's one saved persona was backed up at
+  before-persona-columns.zip, upgraded and exactly verified, then restarted :8081.
+  Browser PURGE required gateway input credit at the exact unstarred menu prompt;
+  regression/Chromium deletion passed. Private MariaDB fixtures now own tmp/ to
+  avoid shared OS-temp initialization failures. See docs/persona-columns.md.
+
+- Long-running external-local lookup failure was traced to both raw TTY6/7
+  assigned to job 1 STOMPR in INIT, not invalid MariaDB columns: direct worker
+  reads returned FOUND but guest OPEN failed. tools.serve_external now removes
+  only STOMP from the private copied guest's SYS:TTY.INI, keeps other settings,
+  saves XTTY.INI under the operator directory, verifies and KSYS/reboots before
+  readiness; later starts are idempotent and verify STOMPR absent. The optional
+  terminal initializer must not reclaim the storage pool. Native/default/deployed
+  configs and the source disk remain unchanged. Browser setup already sets type/
+  width; native LOGIN and MUDGUEST autostart still pass. Chromium acceptance:
+  external-local-stomper-verified and external-local-idle-verified (75-second idle
+  lookup, SAVE/PASSWORD/restart/PURGE). no-stomper's earlier final KSYS timeout
+  and private bridge-init-check experiments remain. Local saved records retained.
+
+- Local Connecting loop after long uptime was the historical opening schedule:
+  at Friday 15:21 MUDGUEST returned to monitor before the name prompt, and the
+  bootstrap waited until timeout. ExternalBootstrap now bounds/reads the preamble
+  and detects monitor/EOF early. tests.integration_external_availability builds
+  only X24LIB timeok change, links ROBOOT at 140 and DBADAT at 520000, initializes
+  from existing MUD.DMP, preserves XHRS.EXE and restores MUD.EXE<055>. No DEMO or
+  DBASE rerun. external-always-open-green passed Chromium at Friday 15:19; its
+  clean stopped compiled/guest.dsk is the new serve_external default source.
+  tools.install_external_availability patched the stopped existing external-local
+  disk in place under its lock with before-always-open.dsk backup; MariaDB unchanged.
+  always-open.json records completion. Old lifecycle-green source retains hours
+  if selected explicitly. 48 relevant host tests passed. Earlier out-of-hours
+  fixture's final BATCON/KSYS timeout remains; green is the completed acceptance.
+  See docs/external-local.md. Do not replace an existing game disk to install this
+  executable patch or restore the full backup just to roll back the executable.
+
+- Persona storage v3: tools.persona_timestamps converts LSTM to last_saved_at
+  DATETIME(6) (MJD epoch 1858-11-17, 18-bit day/fraction), zero -> NULL; integer
+  rounding exactly reconstructs all native fractions. Nine STATES fields become
+  whole-second TIMESTAMP NULL DEFAULT NULL x_at markers. NULL=off, non-NULL=on;
+  successful off->on timestamps UTC observation, on->on retains, on->off clears.
+  Observe at persistence, not in-memory toggle; no complete transition history.
+  created_at whole-second TIMESTAMP before whole-second updated_at; new rows get
+  insertion time, SAVE preserves creation, old rows remain created_at=NULL.
+  All adapter connections use UTC. Existing v1 arrays/v2 columns remain supported;
+  fresh schema/local labs use v3. Journal word snapshots and R1/W1 version stay 1.
+  tools.persona_schema --timestamps uses persona_timestamp_schema offline verified
+  table swap, archive personas_columns_v2_archive, one UTC backfill for enabled
+  flags and deliberate updated_at microsecond truncation. Generations/revisions/native
+  words/journals preserved. Same no-writers/DDL requirement as column migration.
+  Evidence persona-times-acceptance, native-persona-timestamps (16+16 auth),
+  external-timestamp-browser (SAVE/PASSWORD/restart/75s idle/PURGE); 174 host tests.
+  Local two personas backed up before-persona-timestamps.zip, exactly verified
+  against v2 archive after upgrade and restarted :8081. See docs/persona-timestamps.md.
+  Manual SQL timestamps still need revision guards; non-NULL observation date
+  changes may leave native flag words identical. asleep stays boolean. Namespace/
+  name_key/generation are identities, not dates. No native/world code changed.
 
 - The 24/7 build replaces only generated `MUDLIB.BCL`'s `timeok()` schedule gate
   with `demo\/~overload(numbargs()->low, low1)` (BCPL NOT is `~`, no extra escape).

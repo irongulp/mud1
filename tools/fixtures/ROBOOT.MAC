@@ -1,0 +1,9 @@
+; Independent restoration bootstrap. Link FIRST with /SET:.LOW.:140.
+; GET must show this marker and zero reserved words before token provisioning.
+        TITLE ROBOOT
+        TWOSEG 400000
+        RELOC 0
+ROMAGC:: EXP 621714324560
+RORES0:: EXP 0
+RORES1:: EXP 0
+        END

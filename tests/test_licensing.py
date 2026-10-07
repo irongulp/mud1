@@ -77,10 +77,10 @@ class LicensingTests(unittest.TestCase):
             root = Path(directory)
             checkout = root / 'checkout'
             checkout.mkdir()
-            for name in ('server', 'tools', 'web', 'deploy', 'docs', 'licenses'):
+            for name in ('server', 'tools', 'web', 'deploy', 'docs', 'licenses','source'):
                 (checkout / name).mkdir()
             names = ('README.md', 'requirements.lock', 'requirements-deploy.txt',
-                     'LICENSE', 'COPYING', 'NOTICE', 'THIRD_PARTY.md', 'setup.sh')
+                     'LICENSE', 'COPYING', 'NOTICE', 'THIRD_PARTY.md', 'setup.sh','requirements-storage.txt')
             for name in names:
                 (checkout / name).write_text(name)
             (checkout / 'licenses/MUD1-NOTICE.txt').write_text('original notice')

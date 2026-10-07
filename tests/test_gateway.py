@@ -27,6 +27,7 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
             self.count += 1
             identifier = self.count
             question = False
+            purge_menu = False
             try:
                 await reader.readuntil(b"\r")
                 writer.write("\r\n.")
@@ -49,6 +50,12 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
                     elif data.startswith('attach ghost'):
                         question = True
                         writer.write('\r\nCreating new persona:\r\nWhat sex do you wish to be?\r\n*')
+                    elif data.startswith('purge target'):
+                        purge_menu = True
+                        writer.write('\r\nSave, delete or finish? ')
+                    elif purge_menu and data.startswith('s'):
+                        purge_menu = False
+                        writer.write('\r\nSave\r\n*')
                     elif '\x03' in data:
                         if not self.ignore_interrupt:
                             question = False
@@ -119,6 +126,42 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(cleanup.count("quit\r"), 2)
         self.assertEqual(cleanup.count("kjob\r"), 2)
 
+    async def test_external_bootstrap_hides_setup_and_runs_for_each_session(self):
+        called = []
+        async def bootstrap(reader, writer):
+            called.append(writer)
+            await reader.readuntil(b'By what name shall I call you?')
+            return b'EXTERNAL INTRO'
+        await self.server.close()
+        port = self.backend.sockets[0].getsockname()[1]
+        self.server = TestServer(create_app(upstream_port=port, session_bootstrap=bootstrap))
+        await self.server.start_server()
+        for _ in range(2):
+            socket = await self.client.ws_connect(self.server.make_url('/terminal'))
+            output = await self.receive_until(socket, '*')
+            self.assertIn('EXTERNAL INTRO', output)
+            self.assertNotIn('By what name shall I call you?', output)
+            await socket.close()
+            await asyncio.wait_for(self.closed.get(), 5)
+        self.assertEqual(len(called), 2)
+
+    async def test_external_bootstrap_failure_still_cleans_allocated_guest(self):
+        async def bootstrap(reader, writer):
+            await reader.readuntil(b'By what name shall I call you?')
+            raise OSError('private bootstrap failure')
+        await self.server.close()
+        port = self.backend.sockets[0].getsockname()[1]
+        self.server = TestServer(create_app(upstream_port=port, session_bootstrap=bootstrap))
+        await self.server.start_server()
+        socket = await self.client.ws_connect(self.server.make_url('/terminal'))
+        await self.receive_until(socket, 'unavailable')
+        await asyncio.wait_for(self.closed.get(), 5)
+        await socket.close()
+        inputs = []
+        while not self.inputs.empty(): inputs.append(await self.inputs.get())
+        self.assertIn('kjob\r', ''.join(inputs))
+        self.assertFalse(self.handler_errors)
+
     async def test_non_ascii_input_closes_only_that_session(self):
         socket = await self.client.ws_connect(self.server.make_url("/terminal"))
         await self.receive_until(socket, "*")
@@ -127,6 +170,20 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(message.type, WSMsgType.CLOSE)
         self.assertEqual(message.data, 1007)
         await asyncio.wait_for(self.closed.get(), 5)
+
+    async def test_purge_menu_accepts_answer_without_starred_prompt(self):
+        socket = await self.client.ws_connect(self.server.make_url('/terminal'))
+        try:
+            await self.receive_until(socket, '*')
+            await self.inputs.get()  # LOGIN
+            await socket.send_str('purge target\r')
+            self.assertEqual(await asyncio.wait_for(self.inputs.get(), 5), 'purge target\r')
+            await self.receive_until(socket, 'Save, delete or finish? ')
+            await socket.send_str('s\r')
+            self.assertEqual(await asyncio.wait_for(self.inputs.get(), 5), 's\r')
+            await self.receive_until(socket, 'Save\r\n*')
+        finally:
+            await socket.close()
 
     async def check_question_cleanup(self, trigger, recover=True):
         socket = await self.client.ws_connect(self.server.make_url('/terminal'))

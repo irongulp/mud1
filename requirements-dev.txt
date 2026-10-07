@@ -1,3 +1,4 @@
 -r requirements.lock
+-r requirements-storage.txt
 playwright==1.55.0
 pexpect==4.9.0
