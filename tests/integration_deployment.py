@@ -107,7 +107,7 @@ def main():
     (output / 'backup.log').write_text(invoke(args.container, 'sudo', 'mud86ctl', 'backup'))
     sleeps.append(asyncio.run(saved_player(args.url, creating=False)))
     (output / 'status.log').write_text(invoke(args.container, 'sudo', 'mud86ctl', 'status'))
-    report = {'complete': True, 'platform': 'AlmaLinux 9 container, systemd',
+    report = {'complete': True, 'player_name': PLAYER_NAME, 'platform': 'AlmaLinux 9 container, systemd',
               'architecture': invoke(args.container, 'uname', '-m').strip(),
               'sleep_wake_seconds': [round(value, 3) for value in sleeps],
               'checks': ['install', 'HTTP/WebSocket via Nginx', 'saved persona', 'setup rerun',

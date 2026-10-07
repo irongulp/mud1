@@ -10,8 +10,17 @@ import time
 
 from aiohttp import ClientSession
 from tests.integration_web import Browser
+from tools.persona_protocol import MAX_NAME_LENGTH
 
 ROOT=Path(__file__).resolve().parents[1]
+
+
+def native_fixture_name(report):
+    name=report.get('player_name')
+    if (report.get('complete') is not True or not isinstance(name,str)
+            or not re.fullmatch(rf'[A-Za-z]{{1,{MAX_NAME_LENGTH}}}',name)):
+        raise ValueError('Cutover requires a completed native acceptance report with its verified persona name')
+    return name
 
 
 def invoke(container,*command):
@@ -47,9 +56,10 @@ def run(container,url,fresh):
     output=ROOT/'runtime'/('external-deployment-'+container); output.mkdir(mode=0o700,exist_ok=True)
     report={'complete':False,'fresh_external':fresh}
     try:
-        name='Freshsql' if fresh else 'Precut'
+        name='Freshsql' if fresh else native_fixture_name(json.loads(
+            (ROOT/'runtime'/('deployment-'+container)/'report.json').read_text()))
         if not fresh:
-            asyncio.run(login(url,name,'testpass',True))
+            asyncio.run(login(url,name,'testpass'))
             before=json.loads(invoke(container,'mud86ctl','persona',name,'--json'))
             assert before['personas'][0]['password_set'], 'Native cutover fixture was not saved'
         command=['bash','/checkout/setup.sh','--domain','mud.etimbo.com','--http-only','--image','/artifacts/mud86-runtime.tar.gz','--persona-storage','mariadb']

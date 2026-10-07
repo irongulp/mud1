@@ -6,9 +6,17 @@ from unittest.mock import Mock,patch,MagicMock
 from server.runtime import simulator_config,wait_listener
 from tools.deploy import selected_backend, external_dropins
 from tools.build_external_guest import read_back
+from tests.integration_external_deployment import native_fixture_name
 
 
 class ExternalDeploymentTests(unittest.TestCase):
+    def test_cutover_reuses_verified_native_fixture_identity(self):
+        self.assertEqual(native_fixture_name({'complete':True,'player_name':'Deployabc'}),'Deployabc')
+    def test_cutover_requires_completed_native_acceptance_and_letter_name(self):
+        for report in ({'complete':False,'player_name':'Deployabc'}, {'complete':True},
+                       {'complete':True,'player_name':'Deploy123'}, {'complete':True,'player_name':'Toolongname'}):
+            with self.subTest(report=report),self.assertRaises(ValueError):
+                native_fixture_name(report)
     def test_waits_for_fixed_listener_to_leave_time_wait(self):
         fake=MagicMock(); fake.__enter__.return_value=fake
         fake.bind.side_effect=[OSError('TIME_WAIT'),None]
