@@ -17,6 +17,17 @@ BOOT_ATTEMPTS = 3
 RETRY_DELAY = 3
 BOOT_CALIBRATION_SECONDS = 22
 DEPLOYMENT_MIPS = 5
+LISTENER_WAIT=90
+
+
+def wait_listener(port,timeout=LISTENER_WAIT):
+    deadline=time.monotonic()+timeout
+    while time.monotonic()<deadline:
+        try:
+            with socket.socket() as probe: probe.bind(('127.0.0.1',port))
+            return
+        except OSError: time.sleep(1)
+    raise TimeoutError('Runtime listener is still occupied; no guest was booted without transport')
 
 
 def simulator_config(state, port, idle, *, bridge_ports=None):
@@ -71,6 +82,7 @@ class Runtime:
 
     def boot(self):
         import pexpect
+        wait_listener(self.port)
         config = self.state / 'runtime.ini'
         ports=None
         if self.persona_config:
@@ -119,8 +131,10 @@ class Runtime:
                             clean = True
                         except Exception:
                             print('Guest shutdown did not complete; next start must recover the disk.', flush=True)
-                    self.child.sendcontrol('e')
-                    self.child.expect_exact('sim>')
+                    try: self.child.expect_exact('sim>',timeout=1)
+                    except Exception:
+                        self.child.sendcontrol('e')
+                        self.child.expect_exact('sim>')
                     self.child.send('quit\r')
                     self.child.expect_exact('Goodbye')
             finally:

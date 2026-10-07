@@ -1,14 +1,21 @@
 import tempfile
 from pathlib import Path
 import unittest
-from unittest.mock import Mock
+from unittest.mock import Mock,patch,MagicMock
 
-from server.runtime import simulator_config
+from server.runtime import simulator_config,wait_listener
 from tools.deploy import selected_backend, external_dropins
 from tools.build_external_guest import read_back
 
 
 class ExternalDeploymentTests(unittest.TestCase):
+    def test_waits_for_fixed_listener_to_leave_time_wait(self):
+        fake=MagicMock(); fake.__enter__.return_value=fake
+        fake.bind.side_effect=[OSError('TIME_WAIT'),None]
+        with patch('server.runtime.socket.socket',return_value=fake),patch('server.runtime.time.sleep') as sleep:
+            wait_listener(2020,timeout=10)
+        self.assertEqual(fake.bind.call_count,2)
+        sleep.assert_called_once()
     def test_repeated_closing_lines_require_unique_source_suffix(self):
         class Native:
             def send(self,text): pass
