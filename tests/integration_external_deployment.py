@@ -30,11 +30,12 @@ async def login(url,name,password,creating=False):
             if creating:
                 await player.expect('What sex do you wish to be?'); await socket.send_str('m'); await player.expect('letters, please.')
             else: await player.expect("what's the password?")
-            await player.expect('*'); await player.send(password); await player.expect('Hello'); await player.expect('\n*')
+            await player.expect('*'); await player.send(password); await player.expect('Hello, '+name); await player.expect('\n*')
             if creating:
                 await player.send('save'); await player.expect('saved.'); await player.expect('\n*')
             await player.send('score'); await player.expect('Score to date:'); await player.expect('\n*')
             await player.send('quit'); await player.expect('\n.')
+            return transcript.getvalue().replace(password,'[redacted]')
         except Exception as error:
             # This fixture has one declared disposable password. Capture the
             # native admission result for diagnosis, never an operator password.
@@ -47,11 +48,14 @@ def run(container,url,fresh):
     report={'complete':False,'fresh_external':fresh}
     try:
         name='Freshsql' if fresh else 'Precut'
-        if not fresh: asyncio.run(login(url,name,'testpass',True))
+        if not fresh:
+            asyncio.run(login(url,name,'testpass',True))
+            before=json.loads(invoke(container,'mud86ctl','persona',name,'--json'))
+            assert before['personas'][0]['password_set'], 'Native cutover fixture was not saved'
         command=['bash','/checkout/setup.sh','--domain','mud.etimbo.com','--http-only','--image','/artifacts/mud86-runtime.tar.gz','--persona-storage','mariadb']
         (output/'install.log').write_text(invoke(container,*command))
-        if fresh: asyncio.run(login(url,name,'testpass',True))
-        else: asyncio.run(login(url,name,'testpass'))
+        (output/'login.log').write_text(asyncio.run(login(url,name,'testpass',fresh)))
+        (output/'personas.log').write_text(invoke(container,'mud86ctl','personas','--json'))
         profile=json.loads(invoke(container,'sudo','mud86ctl','persona',name,'--json'))
         assert profile['backend']=='mariadb' and profile['personas'][0]['has_password']
         assert 'password_word' not in profile['personas'][0]
