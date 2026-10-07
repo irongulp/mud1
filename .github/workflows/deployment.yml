@@ -65,7 +65,7 @@ jobs:
       # Both a populated native cutover and an empty external installation
       # use the real installer on native x86, never a Mac lab disk.
       - name: Native-to-MariaDB cutover and external rerun/backup
-        run: .venv/bin/python -m tests.integration_external_deployment
+        run: .venv/bin/python -m tests.integration_external_deployment --native-url https://127.0.0.1:38443
       - name: Start fresh external installation container
         run: |
           docker run -d --name mud86-external-fresh --privileged --cgroupns=host \

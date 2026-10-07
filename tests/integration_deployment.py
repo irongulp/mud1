@@ -14,7 +14,7 @@ import string
 import subprocess
 import time
 
-from aiohttp import ClientSession
+from tests.deployment_http import fixture_client
 from tests.integration_web import Browser
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -37,7 +37,7 @@ def invoke(container, *command):
 
 
 async def saved_player(url, creating):
-    async with ClientSession(headers={'Host': 'mud.etimbo.com'}) as client:
+    async with fixture_client(url) as client:
         async with client.get(url) as response:
             assert response.status == 200
             assert 'xterm' in await response.text()

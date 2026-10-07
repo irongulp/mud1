@@ -121,6 +121,14 @@ a fresh external container, external reruns, saved login, backend-aware inspecti
 backup and restart. The workflow keeps native mode in its regression matrix and
 does not upload private snapshots, credential journals or database dumps.
 
+Acceptance clients reject redirects, including WebSocket upgrades, and require
+loopback endpoints. After the TLS fixture is installed, the native precheck uses
+`--native-url https://127.0.0.1:38443` to reach the container's mapped HTTPS port.
+The explicit HTTP-only cutover setup restores the mapped HTTP endpoint for later
+checks. The imported player identity comes from the completed native acceptance
+report and is rechecked with an exact greeting and backend-aware inspection.
+Earlier redirected fixture calls are not evidence of local cutover or persistence.
+
 Local production-service acceptance is available as:
 
 ```sh

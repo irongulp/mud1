@@ -8,7 +8,7 @@ import re
 import subprocess
 import time
 
-from aiohttp import ClientSession
+from tests.deployment_http import fixture_client
 from tests.integration_web import Browser
 from tools.persona_protocol import MAX_NAME_LENGTH
 
@@ -32,7 +32,7 @@ def invoke(container,*command):
 
 
 async def login(url,name,password,creating=False):
-    async with ClientSession(headers={'Host':'mud.etimbo.com'}) as client:
+    async with fixture_client(url) as client:
         socket=await client.ws_connect(url+'/terminal'); transcript=io.StringIO(); player=Browser(socket,name,transcript)
         try:
             await player.expect('By what name shall I call you?'); await player.expect('*'); await player.send(name)
@@ -52,14 +52,14 @@ async def login(url,name,password,creating=False):
         finally: await socket.close()
 
 
-def run(container,url,fresh):
+def run(container,url,fresh,native_url=None):
     output=ROOT/'runtime'/('external-deployment-'+container); output.mkdir(mode=0o700,exist_ok=True)
     report={'complete':False,'fresh_external':fresh}
     try:
         name='Freshsql' if fresh else native_fixture_name(json.loads(
             (ROOT/'runtime'/('deployment-'+container)/'report.json').read_text()))
         if not fresh:
-            asyncio.run(login(url,name,'testpass'))
+            asyncio.run(login(native_url or url,name,'testpass'))
             before=json.loads(invoke(container,'mud86ctl','persona',name,'--json'))
             assert before['personas'][0]['password_set'], 'Native cutover fixture was not saved'
         command=['bash','/checkout/setup.sh','--domain','mud.etimbo.com','--http-only','--image','/artifacts/mud86-runtime.tar.gz','--persona-storage','mariadb']
@@ -83,4 +83,6 @@ def run(container,url,fresh):
 if __name__=='__main__':
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--container',default='mud86-install-test'); parser.add_argument('--url',default='http://127.0.0.1:38080')
-    parser.add_argument('--fresh',action='store_true'); args=parser.parse_args(); run(args.container,args.url,args.fresh)
+    parser.add_argument('--fresh',action='store_true')
+    parser.add_argument('--native-url',help='Loopback endpoint before cutover, including the mapped HTTPS port')
+    args=parser.parse_args(); run(args.container,args.url,args.fresh,args.native_url)
