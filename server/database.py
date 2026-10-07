@@ -13,6 +13,14 @@ START_TIMEOUT=60
 STOP_TIMEOUT=30
 
 
+def server_program():
+    value=shutil.which('mariadbd') or shutil.which('mysqld')
+    if value: return value
+    for value in ('/usr/libexec/mariadbd','/usr/sbin/mariadbd','/usr/libexec/mysqld','/usr/sbin/mysqld'):
+        if Path(value).is_file(): return value
+    raise RuntimeError('MariaDB server executable is not installed')
+
+
 class PrivateDatabase:
     def __init__(self,directory):
         self.directory=Path(directory).resolve(); self.socket=self.directory/'db.sock'
@@ -30,7 +38,7 @@ class PrivateDatabase:
             return
         if (self.directory/'data').exists(): raise RuntimeError('Interrupted database initialization; preserve it for inspection')
         (self.directory/'tmp').mkdir(mode=0o700,exist_ok=True)
-        executable=shutil.which('mariadbd') or shutil.which('mysqld')
+        executable=server_program()
         initializer=shutil.which('mariadb-install-db') or shutil.which('mysql_install_db')
         if not executable or not initializer: raise RuntimeError('MariaDB server tools are missing')
         with (self.directory/'initialize.log').open('wb') as log:
@@ -41,7 +49,7 @@ class PrivateDatabase:
         publish_private(marker,lambda stream:stream.write(b'{"initialized":true}\n'))
     def start(self):
         self.initialize()
-        executable=shutil.which('mariadbd') or shutil.which('mysqld')
+        executable=server_program()
         self.log=(self.directory/'process.log').open('ab')
         self.process=subprocess.Popen([executable,'--no-defaults','--datadir='+str(self.directory/'data'),
             '--socket='+str(self.socket),'--pid-file='+str(self.directory/'db.pid'),'--tmpdir='+str(self.directory/'tmp'),

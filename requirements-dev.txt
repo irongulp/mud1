@@ -1,4 +1,6 @@
 -r requirements.lock
--r requirements-storage.txt
+# Hash-enforced optional installation is requirements-storage.txt; this combined
+# development set also contains intentionally unhashed browser/test dependencies.
+PyMySQL==1.2.3
 playwright==1.55.0
 pexpect==4.9.0
