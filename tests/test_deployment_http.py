@@ -4,9 +4,31 @@ from aiohttp import web
 from aiohttp.test_utils import TestServer
 
 from tests.deployment_http import fixture_client
+from tests.integration_external_deployment import login
 
 
 class DeploymentHttpTests(unittest.IsolatedAsyncioTestCase):
+    async def test_existing_persona_acceptance_matches_hello_again_identity(self):
+        app=web.Application()
+        async def terminal(request):
+            socket=web.WebSocketResponse()
+            await socket.prepare(request)
+            await socket.send_str('By what name shall I call you?\n*')
+            self.assertEqual((await socket.receive()).data,'Deployabc\r')
+            await socket.send_str("what's the password?\n*")
+            self.assertEqual((await socket.receive()).data,'testpass\r')
+            await socket.send_str('Hello again, Deployabc!\n*')
+            self.assertEqual((await socket.receive()).data,'score\r')
+            await socket.send_str('Score to date: 0\n*')
+            self.assertEqual((await socket.receive()).data,'quit\r')
+            await socket.send_str('\n.')
+            await socket.close()
+            return socket
+        app.router.add_get('/terminal',terminal)
+        async with TestServer(app) as server:
+            transcript=await login(str(server.make_url('')).rstrip('/'),'Deployabc','testpass')
+        self.assertIn('Hello again, Deployabc!',transcript)
+
     async def test_redirect_is_rejected_before_following_it(self):
         received=[]
         target_app=web.Application()

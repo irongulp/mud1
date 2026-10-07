@@ -39,7 +39,8 @@ async def login(url,name,password,creating=False):
             if creating:
                 await player.expect('What sex do you wish to be?'); await socket.send_str('m'); await player.expect('letters, please.')
             else: await player.expect("what's the password?")
-            await player.expect('*'); await player.send(password); await player.expect('Hello, '+name); await player.expect('\n*')
+            await player.expect('*'); await player.send(password)
+            await player.expect(('Hello, ' if creating else 'Hello again, ')+name+'!'); await player.expect('\n*')
             if creating:
                 await player.send('save'); await player.expect('saved.'); await player.expect('\n*')
             await player.send('score'); await player.expect('Score to date:'); await player.expect('\n*')
