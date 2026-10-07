@@ -15,6 +15,7 @@ ROOT=Path(__file__).resolve().parents[1]
 
 
 def invoke(container,*command):
+    if command and command[0]=='sudo': command=command[1:]
     result=subprocess.run(['docker','exec','-w','/checkout',container,*map(str,command)],capture_output=True,text=True,timeout=3600)
     text=re.sub(r'(?m)^(Richard|Roy|Brian|Ronan|Friday|Yawn|Debugger): [a-z0-9]{8} —',r'\1: [redacted] —',result.stdout+result.stderr)
     if result.returncode: raise AssertionError(text)

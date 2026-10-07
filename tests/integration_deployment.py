@@ -24,6 +24,9 @@ SLEEP_TOLERANCE = 1.5
 
 
 def invoke(container, *command):
+    # docker exec uses the image's root user. Calling sudo here needlessly
+    # invokes PAM; newer minimal AlmaLinux images have a locked root account.
+    if command and command[0]=='sudo': command=command[1:]
     result = subprocess.run(['docker', 'exec', '-w', '/checkout', container, *command],
                             capture_output=True, text=True, timeout=900)
     text = re.sub(r'(?m)^(Richard|Roy|Brian|Ronan|Friday|Yawn|Debugger): [a-z0-9]{8} —',
