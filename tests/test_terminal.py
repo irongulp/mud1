@@ -903,6 +903,13 @@ class TerminalTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_failed_connections_back_off_with_a_cap(self):
         await self.connect()
+        # This case measures ordinary backoff, not real HTTP scheduling. Resolve
+        # the independent maintenance probe before advancing the virtual clock.
+        await self.page.evaluate("""() => {
+            const fetch = window.fetch.bind(window);
+            window.fetch = (url, ...args) => url === '/maintenance-status'
+                ? Promise.resolve({status: 200}) : fetch(url, ...args);
+        }""")
         for attempt, delay in enumerate([1000, 2000, 4000, 8000, 16000, 30000, 30000], 1):
             await self.page.evaluate("socket.readyState = 3; socket.onerror(); socket.onclose({code: 1006, reason: ''})")
             await self.page.clock.run_for(delay - 1)
