@@ -189,9 +189,28 @@ def build_simh(revision):
 
 
 def nginx_config(domain, tls=False, challenge_only=False):
+    from server.maintenance import PAGE, RETRY_SECONDS
     domain = validate_domain(domain)
     acme = f'location ^~ /.well-known/acme-challenge/ {{ root {ACME}; }}'
-    proxy = '''location / {
+    proxy = '''location = /internal/maintenance { deny all; }
+    location = /maintenance-status {
+        error_page 503 =503 @maintenance_status;
+        default_type application/json;
+        add_header Cache-Control no-store always;
+        add_header Retry-After RETRY_VALUE always;
+        if (-f /etc/mud86/maintenance) { return 503 '{"maintenance":true}'; }
+        return 200 '{"maintenance":false}';
+    }
+    error_page 503 =503 @maintenance;
+    location @maintenance {
+        default_type text/html;
+        charset utf-8;
+        add_header Cache-Control no-store always;
+        add_header Retry-After RETRY_VALUE always;
+        return 503 'MAINTENANCE_PAGE';
+    }
+    location / {
+        if (-f /etc/mud86/maintenance) { return 503; }
         proxy_pass http://127.0.0.1:8080;
         proxy_http_version 1.1;
         proxy_set_header Host $http_host;
@@ -199,7 +218,13 @@ def nginx_config(domain, tls=False, challenge_only=False):
         proxy_set_header Connection $mud86_upgrade;
         proxy_read_timeout 3600s;
         proxy_buffering off;
-    }'''
+    }
+    location @maintenance_status {
+        default_type application/json;
+        add_header Cache-Control no-store always;
+        add_header Retry-After RETRY_VALUE always;
+        return 503 '{"maintenance":true}';
+    }'''.replace('RETRY_VALUE', str(RETRY_SECONDS)).replace('MAINTENANCE_PAGE', PAGE)
     header = 'map $http_upgrade $mud86_upgrade { default upgrade; "" close; }\n'
     if challenge_only:
         return header + f'server {{ listen 80; listen [::]:80; server_name {domain}; {acme}\nlocation / {{ return 503; }} }}\n'
@@ -216,7 +241,10 @@ def nginx_config(domain, tls=False, challenge_only=False):
 def wait_proxy(domain,tls,timeout=PROXY_READY_TIMEOUT):
     """Wait for the reloaded local vhost; never follow an HTTP redirect."""
     deadline=time.monotonic()+timeout
-    expected_status=HTTPStatus.MOVED_PERMANENTLY if tls else HTTPStatus.OK
+    if tls:
+        expected_status = HTTPStatus.MOVED_PERMANENTLY
+    else:
+        expected_status = HTTPStatus.SERVICE_UNAVAILABLE if (CONFIG/'maintenance').exists() else HTTPStatus.OK
     while time.monotonic()<deadline:
         connection=http.client.HTTPConnection('127.0.0.1',timeout=PROXY_REQUEST_TIMEOUT)
         try:
@@ -374,7 +402,7 @@ def install(args):
     (CONFIG / 'deployment.json').write_text(json.dumps({'domain': domain, 'release': release.name,'persona_storage':backend}, indent=2) + '\n')
     install_control()
     print(f'MUD ready: {"http" if args.http_only else "https"}://{domain}')
-    print('Management: sudo mud86ctl status | restart | backup | personas | files | errors')
+    print('Management: sudo mud86ctl status | maintenance on/off/status | restart | backup | personas | files | errors')
 
 
 def configure_external_units(release):
@@ -429,6 +457,55 @@ def backup():
             run('systemctl', 'start', 'mud86-runtime.service', 'mud86-gateway.service')
 
 
+MAINTENANCE_POLL_SECONDS = 2
+
+
+def maintenance_sessions():
+    """Query the loopback gateway directly, bypassing the maintenance proxy."""
+    connection = http.client.HTTPConnection('127.0.0.1', 8080, timeout=PROXY_REQUEST_TIMEOUT)
+    try:
+        connection.request('GET', '/internal/maintenance')
+        response = connection.getresponse()
+        if response.status != HTTPStatus.OK:
+            raise RuntimeError('Cannot determine remaining sessions; maintenance remains enabled')
+        sessions = json.loads(response.read(4096))['sessions']
+        if type(sessions) is not int or sessions < 0:
+            raise RuntimeError('Invalid session count; maintenance remains enabled')
+        return sessions
+    finally:
+        connection.close()
+
+
+def maintenance(action, mode='graceful'):
+    flag = CONFIG / 'maintenance'
+    if action == 'status':
+        print('Maintenance ' + ('enabled' if flag.exists() else 'disabled'))
+        return
+    if action == 'off':
+        # systemd start waits for runtime readiness and gateway ExecStartPost.
+        run('systemctl', 'start', 'mud86-runtime.service')
+        run('systemctl', 'start', 'mud86-gateway.service')
+        run(APP / 'current/.venv/bin/python', '-m', 'tools.wait_gateway', cwd=APP / 'current')
+        flag.unlink(missing_ok=True)
+        print('Maintenance disabled; game reopened')
+        return
+    if action != 'on' or mode not in ('graceful', 'wait'):
+        raise ValueError('Invalid maintenance action or shutdown mode')
+    flag.touch(mode=0o644, exist_ok=True)
+    print('Maintenance enabled; new connections blocked', flush=True)
+    if mode == 'wait':
+        while True:
+            sessions = maintenance_sessions()
+            if not sessions:
+                break
+            print(f'Waiting for {sessions} browser session(s), including logout cleanup', flush=True)
+            time.sleep(MAINTENANCE_POLL_SECONDS)
+    # Keep runtime/database alive until gateway QUIT/KJOB cleanup completes.
+    run('systemctl', 'stop', 'mud86-gateway.service')
+    run('systemctl', 'stop', 'mud86-runtime.service')
+    print('Game stopped; maintenance notice remains available')
+
+
 def main():
     # The installed wrapper executes this file directly, so make sibling tools
     # importable without depending on the operator's working directory.
@@ -460,7 +537,11 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__,
         epilog='Inspection commands: personas, persona NAME, files, file NAME, logs SOURCE, errors, inspection-install. '
                'Use mud86ctl COMMAND --help for inspection options.')
-    parser.add_argument('action', nargs='?', choices=('install', 'status', 'restart', 'stop', 'start', 'backup'), default='install')
+    parser.add_argument('action', nargs='?', choices=('install', 'status', 'restart', 'stop', 'start', 'backup', 'maintenance'), default='install')
+    parser.add_argument('maintenance_action', nargs='?', choices=('on', 'off', 'status'))
+    modes = parser.add_mutually_exclusive_group()
+    modes.add_argument('--graceful', dest='maintenance_mode', action='store_const', const='graceful')
+    modes.add_argument('--wait', dest='maintenance_mode', action='store_const', const='wait')
     parser.add_argument('--domain', default='mud.etimbo.com')
     parser.add_argument('--email')
     parser.add_argument('--http-only', action='store_true', help='Explicit HTTP-only mode for private acceptance testing')
@@ -468,6 +549,12 @@ def main():
     parser.add_argument('--persona-storage',choices=('native','mariadb'),default=None,
                         help='Native is the fresh-install default; existing selection is preserved; MariaDB cutover is one-way')
     args = parser.parse_args()
+    if args.action == 'maintenance' and args.maintenance_action is None:
+        parser.error('maintenance requires on, off, or status')
+    if args.action != 'maintenance' and (args.maintenance_action or args.maintenance_mode):
+        parser.error('maintenance options require the maintenance command')
+    if args.maintenance_mode and args.maintenance_action != 'on':
+        parser.error('--graceful/--wait require maintenance on')
     if os.geteuid() != 0:
         parser.error('Run this command with sudo')
     # Public application snapshots must remain readable by the service account
@@ -476,12 +563,17 @@ def main():
     if args.action == 'status':
         run('systemctl', 'status', '--no-pager', 'mud86-runtime', 'mud86-gateway', 'nginx')
         return
+    if args.action == 'maintenance' and args.maintenance_action == 'status':
+        maintenance('status')
+        return
     with Path('/run/mud86-setup.lock').open('a') as lock:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         if args.action == 'install':
             install(args)
         elif args.action == 'backup':
             backup()
+        elif args.action == 'maintenance':
+            maintenance(args.maintenance_action, args.maintenance_mode or 'graceful')
         else:
             run('systemctl', args.action, 'mud86-runtime.service')
             if args.action in ('start', 'restart'):

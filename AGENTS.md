@@ -540,6 +540,19 @@
 
 ## Hosting / idle measurements
 
+- Scheduled maintenance: `mud86ctl maintenance on --graceful|--wait`, `status`,
+  `off`. `/etc/mud86/maintenance` gates Nginx and gateway admission and survives
+  setup/restart; only readiness-checked off removes it. Nginx serves independent
+  503/no-store HTML with Retry-After 900 while game/gateway are stopped. Terminal
+  close 4015 selects 15-minute retry; handshake failures consult independent
+  `/maintenance-status` JSON because browser WebSockets hide HTTP response headers.
+  `/internal/maintenance` counts handlers through QUIT/KJOB cleanup; loopback-only
+  in gateway, denied by Nginx. Wait holds management lock, Ctrl-C leaves notice
+  enabled; failed count never implies zero. Stop gateway before runtime for
+  graceful cleanup. Counts exclude independent operator/Telnet jobs. Host/browser
+  and disposable AlmaLinux Nginx tests cover this; full installed systemd and
+  target-host SELinux maintenance acceptance remain unrun. See docs/deployment.md.
+
 - Read-only SSH inspection: `tools/inspect_game.py`, dispatched by `mud86ctl`
   through `tools/deploy.py`. Commands: personas/persona, files/file, logs, errors;
   explicit `inspection-install` compiles independent MVPER/MVTXT companions.

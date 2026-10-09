@@ -15,6 +15,7 @@ from telnetlib3.telopt import DONT, LINEMODE
 from aiohttp import WSMsgType, web
 
 from server.password_input import PasswordInput
+from server.maintenance import MAINTENANCE_FILE, MESSAGE, RETRY_SECONDS, CLOSE_CODE
 
 ROOT = Path(__file__).resolve().parents[1]
 WEB = ROOT / "web"
@@ -153,11 +154,26 @@ async def logout_guest(reader, writer, *, entered, monitor, connection_id):
                     connection_id, stage, type(error).__name__)
 
 
-def create_app(upstream_host="127.0.0.1", upstream_port=2020, *, session_bootstrap=None):
+def create_app(upstream_host="127.0.0.1", upstream_port=2020, *, session_bootstrap=None,
+               maintenance_file=MAINTENANCE_FILE):
     app = web.Application()
     terminal_handlers = set()
     terminal_cleanups = set()
     shutting_down = False
+
+    def maintenance_enabled():
+        return maintenance_file is not None and Path(maintenance_file).exists()
+
+    async def maintenance_status(request):
+        enabled = maintenance_enabled()
+        return web.json_response({'maintenance': enabled}, status=503 if enabled else 200,
+                                 headers={'Cache-Control': 'no-store', 'Retry-After': str(RETRY_SECONDS)})
+
+    async def maintenance_sessions(request):
+        if request.remote not in ('127.0.0.1', '::1'):
+            raise web.HTTPForbidden()
+        return web.json_response({'sessions': len(terminal_handlers)},
+                                 headers={'Cache-Control': 'no-store'})
 
     async def terminal(request):
         if shutting_down:
@@ -193,6 +209,10 @@ def create_app(upstream_host="127.0.0.1", upstream_port=2020, *, session_bootstr
             raise web.HTTPForbidden(text="Terminal connections must originate from this site")
         socket = web.WebSocketResponse(heartbeat=30, max_msg_size=MAX_INPUT_SIZE)
         await socket.prepare(request)
+        if maintenance_enabled():
+            await socket.send_str('\r\n' + MESSAGE + '\r\n')
+            await socket.close(code=CLOSE_CODE, message=b'Scheduled maintenance')
+            return socket
         writer = None
         close_code = 1000
         tasks = []
@@ -324,6 +344,12 @@ def create_app(upstream_host="127.0.0.1", upstream_port=2020, *, session_bootstr
                                        connection_id=connection_id)
                 writer.close()
                 await writer.wait_closed()
+            if maintenance_enabled() and not socket.closed:
+                try:
+                    await send_browser(socket, '\r\n' + MESSAGE + '\r\n')
+                except BrowserDisconnected:
+                    pass
+                close_code = CLOSE_CODE
             await socket.close(code=close_code)
         return socket
 
@@ -345,6 +371,8 @@ def create_app(upstream_host="127.0.0.1", upstream_port=2020, *, session_bootstr
     app.router.add_get('/legal', legal_page)
     app.router.add_get('/legal/{document}', legal_document)
     app.router.add_get("/terminal", terminal)
+    app.router.add_get('/maintenance-status', maintenance_status)
+    app.router.add_get('/internal/maintenance', maintenance_sessions)
     app.router.add_static("/static/", WEB)
     return app
 
@@ -356,6 +384,7 @@ def main():
     parser.add_argument("--upstream-host", default="127.0.0.1")
     parser.add_argument("--upstream-port", type=int, default=2020)
     parser.add_argument('--persona-config',default=os.environ.get('MUD86_PERSONA_CONFIG'))
+    parser.add_argument('--maintenance-file', type=Path, default=MAINTENANCE_FILE)
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO)
     bootstrap=None
@@ -364,7 +393,8 @@ def main():
         load_config(args.persona_config)
         from server.external_bootstrap import ExternalBootstrap
         bootstrap=ExternalBootstrap()
-    web.run_app(create_app(args.upstream_host,args.upstream_port,session_bootstrap=bootstrap),host=args.host,port=args.port)
+    web.run_app(create_app(args.upstream_host,args.upstream_port,session_bootstrap=bootstrap,
+                           maintenance_file=args.maintenance_file),host=args.host,port=args.port)
 
 
 if __name__ == "__main__":
