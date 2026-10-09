@@ -70,13 +70,21 @@ def run(container,url,fresh,native_url=None):
         profile=json.loads(invoke(container,'sudo','mud86ctl','persona',name,'--json'))
         assert profile['backend']=='mariadb' and profile['personas'][0]['has_password']
         assert 'password_word' not in profile['personas'][0]
+        access=json.loads(invoke(container,'mud86ctl','database-access'))
+        assert access['host']=='127.0.0.1' and access['port']==3307 and access['user']=='mud86_editor'
+        assert 'password' not in access
+        (output/'editor.log').write_text(invoke(container,'/opt/mud86/current/.venv/bin/python',
+                                              '-m','tests.deployed_database_editor',name))
         invoke(container,'systemctl','is-active','mud86-database','mud86-runtime','mud86-gateway')
         (output/'rerun.log').write_text(invoke(container,*command))
         asyncio.run(login(url,name,'testpass'))
         (output/'backup.log').write_text(invoke(container,'sudo','mud86ctl','backup'))
         asyncio.run(login(url,name,'testpass'))
         invoke(container,'sudo','mud86ctl','restart'); asyncio.run(login(url,name,'testpass'))
+        (output/'editor-restart.log').write_text(invoke(container,'/opt/mud86/current/.venv/bin/python',
+                                                      '-m','tests.deployed_database_editor',name))
         report.update(complete=True,cutover_preserved_player=not fresh,installer_rerun=True,backup=True,restart=True,
+                      tcp_editor=True,
                       architecture=invoke(container,'uname','-m').strip())
     finally: (output/'report.json').write_text(json.dumps(report,indent=2)+'\n')
 

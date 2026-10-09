@@ -540,6 +540,32 @@
 
 ## Hosting / idle measurements
 
+- SQL editor access is managed by tools.database_access during MariaDB setup:
+  127.0.0.1:3307, skip-name-resolve, private database-editor.json credentials,
+  and a column-granted updatable persona_editor view. Game storage still uses
+  its Unix socket; unconfigured PrivateDatabase/local labs stay socket-only.
+  Never enable TCP without the account-isolation step: historical root has an
+  empty socket password. Numeric loopback root/game/anonymous identities are
+  locked, and non-local root/game/anonymous identities are locked idempotently. TCP root,
+  game, anonymous and wrong-password rejection passed MariaDB 12.2.2/macOS and
+  10.5.29/AlmaLinux ARM, including a 127.0.0.2 source and actual SSH forwarding.
+  mud86_editor_revision fires only for USER()'s editor login, including no-op or
+  timestamp-only updates; game writes still increment once. Pending SAVE CAS
+  conflicts passed, but edits must be logged-out to avoid later stale-profile
+  overwrites. Identity/revision/metadata edits, base tables/passwords/journals,
+  INSERT/DELETE and DDL are denied. Credentials, object definitions and exact
+  grants are preserved/verified; drift or a locked editor stops setup for reconciliation.
+  ALTER USER re-lock of an already-locked hostname account failed on MariaDB 12;
+  inspect mysql.global_priv's account_locked before changing it. Whole-DB backup/
+  restore retains the view/trigger; paired configuration reprovisions users/grants.
+  Evidence: runtime/db-editor-verified, database-editor-alma-report.json and
+  editor-service-verified (browser SAVE/PASSWORD then SQL score 123 seen on login).
+  SQL acceptance calls the production driver directly; bounded-worker unit tests
+  and the real game-service check retain production deadlines. Earlier rapid
+  isolated-worker fixture runs hit UNAVAILABLE/UNKNOWN under local Docker load;
+  keep their evidence rather than increasing worker deadlines.
+  GUI clients and the updated native-x86 installer matrix remain separate checks.
+
 - Scheduled maintenance: `mud86ctl maintenance on --graceful|--wait`, `status`,
   `off`. `/etc/mud86/maintenance` gates Nginx and gateway admission and survives
   setup/restart; only readiness-checked off removes it. Nginx serves independent
@@ -552,6 +578,28 @@
   graceful cleanup. Counts exclude independent operator/Telnet jobs. Host/browser
   and disposable AlmaLinux Nginx tests cover this; full installed systemd and
   target-host SELinux maintenance acceptance remain unrun. See docs/deployment.md.
+
+- Deployment acceptance clients must stay on loopback and reject redirects before
+  following them, including WebSocket upgrades (`tests.deployment_http`). The TLS
+  fixture redirects port 80 to `https://mud.etimbo.com` without the host-mapped
+  port: using HTTP after that step could reach the public server. The cutover
+  precheck uses `--native-url https://127.0.0.1:38443`; after explicit HTTP-only
+  setup, checks return to the mapped HTTP endpoint. Reuse the native acceptance
+  report's verified persona identity and require its exact greeting. Earlier CI
+  fixture calls may have created disposable public personas; they are not valid
+  local cutover evidence. Never infer local persistence from a redirected login.
+
+- External AlmaLinux deployment CI run 37695126208 passed at commit 6a6a2f6:
+  native install/rerun/login/timing/backup, Chromium multiplayer, HTTPS/WSS,
+  container reboot, populated native-to-MariaDB cutover and fresh external setup.
+  Both external modes passed re-entry, backend-aware inspection, installer rerun,
+  backup and restart. Private reports: runtime/external-deployment-ci-green.
+  Setup now waits for Nginx's expected local vhost mode after reload (10s bound,
+  no redirect following); reload itself is asynchronous. 28 focused tests passed.
+  Earlier native initial-monitor/OPR stalls and one browser editing failure remain
+  unresolved. This Linux matrix does not independently cover external PASSWORD/
+  PURGE, deployed restore or external host reboot; retain separate milestone
+  evidence and target-host ACME/SELinux/cutover checks. No actual VPS cutover.
 
 - Read-only SSH inspection: `tools/inspect_game.py`, dispatched by `mud86ctl`
   through `tools/deploy.py`. Commands: personas/persona, files/file, logs, errors;

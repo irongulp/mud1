@@ -23,7 +23,7 @@ from tests.browser_smoke import wait_display
 os.environ.setdefault('PLAYWRIGHT_BROWSERS_PATH', str(ROOT / 'runtime/browsers'))
 
 
-async def browser_check(url, name, password, creating, output):
+async def browser_check(url, name, password, creating, output, expected_score=None):
     async with async_playwright() as playwright:
         browser = await playwright.chromium.launch()
         try:
@@ -51,6 +51,8 @@ async def browser_check(url, name, password, creating, output):
                 await submit('newproof'); await expect("Enter it again to make sure it's correct, please.")
                 await submit('newproof'); await expect('Your password will be updated when you leave the game.')
             await submit('score'); await expect('Games played to date:')
+            if expected_score is not None:
+                await expect('Score to date: '+str(expected_score))
             if not creating:
                 await expect('Games played to date: 2')
             # Fresh DOM transcript across processes proves actual re-entry.

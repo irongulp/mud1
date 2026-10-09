@@ -47,6 +47,9 @@ runtime dependencies.
 
 ## Scheduled maintenance
 
+For the combined first upgrade, MariaDB editor setup, and later maintenance
+workflow, see [the deployment runbook](maintenance-editor-deployment.md).
+
 After installing this version, use either shutdown mode:
 
 ```sh

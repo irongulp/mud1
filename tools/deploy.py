@@ -368,6 +368,7 @@ def install(args):
     if external_existing:
         configure_external_units(release)
         run('systemctl','enable','--now','mud86-database.service')
+        configure_database_editor(release)
     if not pending_cutover or external_existing:
         run('systemctl', 'enable', '--now', 'mud86-runtime.service')
     # This stdout is the operator's terminal, not a systemd service transcript.
@@ -393,6 +394,7 @@ def install(args):
         shutil.chown(CONFIG/'personas.json',user='mud86',group='mud86')
         configure_external_units(release)
         (CONFIG/'deployment.json').write_text(json.dumps({'domain':domain,'release':release.name,'persona_storage':'mariadb'})+'\n')
+        configure_database_editor(release)
         run('systemctl','start','mud86-runtime.service')
     if backend=='mariadb':
         run(release/'.venv/bin/python','-m','tools.external_cutover','--verify-only','--config-dir',CONFIG,cwd=release)
@@ -403,6 +405,14 @@ def install(args):
     install_control()
     print(f'MUD ready: {"http" if args.http_only else "https"}://{domain}')
     print('Management: sudo mud86ctl status | maintenance on/off/status | restart | backup | personas | files | errors')
+
+
+def configure_database_editor(release):
+    # Installer callers have stopped runtime/writers before changing SQL objects
+    # or restarting the listener. The editor password never reaches setup output.
+    run(release/'.venv/bin/python','-m','tools.database_access','--configure','--state',STATE,
+        '--config-dir',CONFIG,cwd=release)
+    run('systemctl','restart','mud86-database.service')
 
 
 def configure_external_units(release):
@@ -512,6 +522,12 @@ def main():
     if str(ROOT) not in sys.path:
         sys.path.insert(0, str(ROOT))
     from tools import inspect_game
+    if len(sys.argv)>1 and sys.argv[1]=='database-access':
+        if os.geteuid()!=0: raise SystemExit('Run this command with sudo')
+        from tools.database_access import main as database_access
+        if '--configure' in sys.argv[2:]:
+            raise SystemExit('Configure database access through setup during maintenance')
+        database_access(sys.argv[2:]); return
     if len(sys.argv)>1 and sys.argv[1] in ('personas','persona') and (CONFIG/'personas.json').exists():
         if os.geteuid()!=0: raise SystemExit('Run this command with sudo')
         from tools.external_install import persona_report

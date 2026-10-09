@@ -12,6 +12,8 @@ import time
 
 from server.database import PrivateDatabase
 from tools.external_install import database_config
+from tools.database_access import configure
+from tests.integration_database_access import tcp
 from tools.persona_snapshot import publish_private
 from tests.integration_external_local import browser_check,browser_purge
 from tests.integration_provisioning import require
@@ -27,8 +29,10 @@ def run(output,source):
     with socket.socket() as probe: probe.bind(('127.0.0.1',0)); http_port=probe.getsockname()[1]
     report={'complete':False}; runtime=gateway=None
     try:
-        with PrivateDatabase(output/'external/database'):
+        with PrivateDatabase(output/'external/database') as database:
             config,admin=database_config(output,configdir)
+            with socket.socket() as probe: probe.bind(('127.0.0.1',0)); editor_port=probe.getsockname()[1]
+            credentials=configure(output,configdir,editor_port); database.stop(); database.start()
             with (output/'runtime.log').open('wb') as log:
                 runtime=subprocess.Popen([sys.executable,'-m','server.runtime','--state',str(output),'--simh',str(ROOT/'upstream/simh/BIN/pdp10'),
                     '--port',str(telnet_port),'--persona-config',str(configdir/'personas.json')],stdout=log,stderr=log)
@@ -37,15 +41,25 @@ def run(output,source):
                     require(runtime.poll() is None,'Production runtime exited; inspect private log')
                     require(time.monotonic()<deadline,'Production runtime readiness timed out'); time.sleep(.1)
                 with (output/'gateway.log').open('wb') as gatewaylog:
-                    gateway=subprocess.Popen([sys.executable,'-m','server.gateway','--port',str(http_port),'--upstream-port',str(telnet_port),
-                                              '--persona-config',str(configdir/'personas.json')],stdout=gatewaylog,stderr=gatewaylog)
+                    gateway_command=[sys.executable,'-m','server.gateway','--port',str(http_port),'--upstream-port',str(telnet_port),
+                                     '--persona-config',str(configdir/'personas.json')]
+                    gateway=subprocess.Popen(gateway_command,stdout=gatewaylog,stderr=gatewaylog)
                     time.sleep(1)
                     url=f'http://127.0.0.1:{http_port}'
                     asyncio.run(browser_check(url,'Service','labproof',True,output))
                     gateway.send_signal(signal.SIGTERM); require(gateway.wait(timeout=45)==0,'Gateway stop failed'); gateway=None
+                with tcp(credentials) as editor,editor.cursor() as sql:
+                    sql.execute("UPDATE persona_editor SET score=123 WHERE namespace='mud' AND name='service'")
+                    require(sql.rowcount==1,'SQL editor could not update saved game persona')
+                with (output/'reentry.log').open('wb') as gatewaylog:
+                    gateway=subprocess.Popen(gateway_command,stdout=gatewaylog,stderr=gatewaylog)
+                    time.sleep(1)
+                    asyncio.run(browser_check(url,'Service','newproof',False,output,expected_score=123))
+                    gateway.send_signal(signal.SIGTERM); require(gateway.wait(timeout=45)==0,'Gateway re-entry stop failed'); gateway=None
                 runtime.send_signal(signal.SIGTERM); require(runtime.wait(timeout=180)==0,'Runtime stop failed'); runtime=None
                 require(json.loads((output/'shutdown.json').read_text())['clean'],'Production guest did not complete KSYS')
-        report.update(complete=True,private_database=True,production_runtime=True,browser_save_password=True,clean_shutdown=True)
+        report.update(complete=True,private_database=True,production_runtime=True,browser_save_password=True,
+                      tcp_editor_game_reentry=True,clean_shutdown=True)
         print('Production external service acceptance complete:',output,flush=True)
     finally:
         for process in (gateway,runtime):
