@@ -1,5 +1,7 @@
 """Verified first-install assets and AlmaLinux deployment orchestration."""
 import hashlib
+import http.client
+from http import HTTPStatus
 import argparse
 from datetime import datetime, timezone
 import fcntl
@@ -12,6 +14,7 @@ import subprocess
 import sys
 import tarfile
 import tempfile
+import time
 import urllib.request
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -21,6 +24,24 @@ STATE = Path('/var/lib/mud86')
 CONFIG = Path('/etc/mud86')
 ACME = Path('/var/www/mud86-acme')
 CONTROL_WRAPPER = '#!/bin/sh\nexec /opt/mud86/current/.venv/bin/python /opt/mud86/current/tools/deploy.py "$@"\n'
+PROXY_READY_TIMEOUT = 10
+PROXY_REQUEST_TIMEOUT = 1
+PROXY_POLL_INTERVAL = .1
+
+
+def selected_backend(requested,previous):
+    existing=previous.get('persona_storage','native')
+    if existing not in ('native','mariadb') or requested not in (None,'native','mariadb'):
+        raise ValueError('Unsupported persona storage backend')
+    if existing=='mariadb' and requested=='native': raise ValueError('External-to-native conversion is unsupported')
+    return requested or existing
+
+
+def external_dropins(config):
+    value=str(config)
+    if any(char in value for char in '\r\n" '): raise ValueError('Invalid systemd config path')
+    env='[Service]\nEnvironment=MUD86_PERSONA_CONFIG='+value+'\n'
+    return '[Unit]\nRequires=mud86-database.service\nAfter=mud86-database.service\n'+env,env
 
 
 def sha256(path):
@@ -116,10 +137,10 @@ def download(url, destination, expected):
         temporary.unlink(missing_ok=True)
 
 
-def application_release():
-    directories = ('server', 'tools', 'web', 'deploy', 'docs', 'licenses')
+def application_release(external=False):
+    directories = ('server', 'tools', 'web', 'deploy', 'docs', 'licenses','source')
     files = ('requirements.lock', 'requirements-deploy.txt', 'README.md', 'setup.sh',
-             'LICENSE', 'COPYING', 'NOTICE', 'THIRD_PARTY.md')
+              'LICENSE', 'COPYING', 'NOTICE', 'THIRD_PARTY.md','requirements-storage.txt')
     digest = hashlib.sha256()
     paths = [ROOT / name for name in files]
     for directory in directories:
@@ -145,6 +166,7 @@ def application_release():
     if not python.exists():
         run(sys.executable, '-m', 'venv', release / '.venv')
     run(python, '-m', 'pip', 'install', '-r', release / 'requirements-deploy.txt')
+    if external: run(python,'-m','pip','install','--require-hashes','-r',release/'requirements-storage.txt')
     return release
 
 
@@ -191,6 +213,26 @@ def nginx_config(domain, tls=False, challenge_only=False):
             f'ssl_protocols TLSv1.2 TLSv1.3;\n{proxy}\n}}\n')
 
 
+def wait_proxy(domain,tls,timeout=PROXY_READY_TIMEOUT):
+    """Wait for the reloaded local vhost; never follow an HTTP redirect."""
+    deadline=time.monotonic()+timeout
+    expected_status=HTTPStatus.MOVED_PERMANENTLY if tls else HTTPStatus.OK
+    while time.monotonic()<deadline:
+        connection=http.client.HTTPConnection('127.0.0.1',timeout=PROXY_REQUEST_TIMEOUT)
+        try:
+            connection.request('GET','/',headers={'Host':domain})
+            response=connection.getresponse()
+            ready=(response.status==expected_status
+                   and (not tls or response.getheader('Location')=='https://'+domain+'/'))
+            if ready: return
+        except (OSError,http.client.HTTPException):
+            pass
+        finally:
+            connection.close()
+        time.sleep(PROXY_POLL_INTERVAL)
+    raise TimeoutError('Nginx did not expose the configured proxy mode after reload')
+
+
 def configure_proxy(domain, http_only, email):
     ACME.mkdir(parents=True, exist_ok=True)
     ACME.chmod(0o755)
@@ -224,6 +266,7 @@ def configure_proxy(domain, http_only, email):
         hook.write_text('#!/bin/sh\n/usr/sbin/nginx -t && /usr/bin/systemctl reload nginx\n')
         hook.chmod(0o755)
         run('systemctl', 'enable', '--now', 'certbot-renew.timer')
+    wait_proxy(domain,tls=not http_only)
 
 
 def install_control(control=Path('/usr/local/bin/mud86ctl'), alias=Path('/usr/bin/mud86ctl')):
@@ -246,6 +289,13 @@ def install_control(control=Path('/usr/local/bin/mud86ctl'), alias=Path('/usr/bi
 
 def install(args):
     domain = validate_domain(args.domain)
+    previous_metadata=json.loads((CONFIG/'deployment.json').read_text()) if (CONFIG/'deployment.json').exists() else {}
+    backend=selected_backend(getattr(args,'persona_storage',None),previous_metadata)
+    external_existing=previous_metadata.get('persona_storage')=='mariadb'
+    pending_cutover=(STATE/'external/cutover.json').exists()
+    if pending_cutover and backend!='mariadb': raise ValueError('An external cutover exists; resume explicitly in MariaDB mode')
+    if backend=='mariadb' and not external_existing:
+        (CONFIG/'provisioned').unlink(missing_ok=True)
     manifest = json.loads((ROOT / 'deploy/runtime.json').read_text())
     run('dnf', 'install', '-y', 'gcc', 'make', 'git', 'nginx', 'openssl-devel', 'policycoreutils', 'procps-ng', 'tar', 'gzip')
     if not args.http_only:
@@ -270,7 +320,8 @@ def install(args):
             shutil.chown(path, user='mud86', group='mud86')
     else:
         install_image(None, manifest, STATE / 'game')
-    release = application_release()
+    if backend=='mariadb': run('dnf','install','-y','mariadb-server','mariadb')
+    release = application_release(external=backend=='mariadb')
     executable = build_simh(manifest['simh_revision'])
     previous = (APP / 'current').resolve() if (APP / 'current').exists() else None
     if previous and Path('/etc/systemd/system/mud86-runtime.service').exists():
@@ -286,22 +337,56 @@ def install(args):
     # reset-failed does not load newly installed units on a first installation.
     subprocess.run(['systemctl', 'reset-failed', 'mud86-runtime.service', 'mud86-gateway.service'],
                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    run('systemctl', 'enable', '--now', 'mud86-runtime.service')
+    if external_existing:
+        configure_external_units(release)
+        run('systemctl','enable','--now','mud86-database.service')
+    if not pending_cutover or external_existing:
+        run('systemctl', 'enable', '--now', 'mud86-runtime.service')
     # This stdout is the operator's terminal, not a systemd service transcript.
-    run('runuser', '-u', 'mud86', '--', release / '.venv/bin/python', '-m', 'tools.provision_archwizards',
-        '--port', '2020', '--state-dir', STATE / 'private', '--show-credentials', cwd=release)
-    run('runuser', '-u', 'mud86', '--', release / '.venv/bin/python', '-m', 'tools.inspect_game',
-        'inspection-install', cwd=release)
+    if not external_existing and not pending_cutover:
+        run('runuser', '-u', 'mud86', '--', release / '.venv/bin/python', '-m', 'tools.provision_archwizards',
+            '--port', '2020', '--state-dir', STATE / 'private', '--show-credentials', cwd=release)
+        run('runuser', '-u', 'mud86', '--', release / '.venv/bin/python', '-m', 'tools.inspect_game',
+            'inspection-install', cwd=release)
+    if backend=='mariadb' and not external_existing:
+        (CONFIG/'provisioned').unlink(missing_ok=True)
+        run('systemctl','stop','mud86-runtime.service')
+        external=STATE/'external'; external.mkdir(mode=0o700,exist_ok=True)
+        shutil.chown(external,user='mud86',group='mud86')
+        shutil.copyfile(release/'deploy/mud86-database.service',Path('/etc/systemd/system/mud86-database.service'))
+        run('systemctl','daemon-reload'); run('systemctl','enable','--now','mud86-database.service')
+        with (STATE/'runtime.lock').open('a') as lock:
+            fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
+            if not json.loads((STATE/'shutdown.json').read_text())['clean']:
+                raise RuntimeError('A confirmed stopped native snapshot is required for cutover')
+            # Execute from the installed release, never this checkout's test helpers.
+            run(release/'.venv/bin/python','-m','tools.external_cutover','--state',STATE,'--config-dir',CONFIG,'--simh',executable,cwd=release)
+        for path in [external,*external.rglob('*')]: shutil.chown(path,user='mud86',group='mud86')
+        shutil.chown(CONFIG/'personas.json',user='mud86',group='mud86')
+        configure_external_units(release)
+        (CONFIG/'deployment.json').write_text(json.dumps({'domain':domain,'release':release.name,'persona_storage':'mariadb'})+'\n')
+        run('systemctl','start','mud86-runtime.service')
+    if backend=='mariadb':
+        run(release/'.venv/bin/python','-m','tools.external_cutover','--verify-only','--config-dir',CONFIG,cwd=release)
     (CONFIG / 'provisioned').write_text('All seven archwizard records verified nonzero.\n')
     run('systemctl', 'start', 'mud86-gateway.service')
     configure_proxy(domain, args.http_only, args.email)
-    (CONFIG / 'deployment.json').write_text(json.dumps({'domain': domain, 'release': release.name}, indent=2) + '\n')
+    (CONFIG / 'deployment.json').write_text(json.dumps({'domain': domain, 'release': release.name,'persona_storage':backend}, indent=2) + '\n')
     install_control()
     print(f'MUD ready: {"http" if args.http_only else "https"}://{domain}')
     print('Management: sudo mud86ctl status | restart | backup | personas | files | errors')
 
 
-def write_backup(state, directory):
+def configure_external_units(release):
+    shutil.copyfile(release/'deploy/mud86-database.service',Path('/etc/systemd/system/mud86-database.service'))
+    runtime,gateway=external_dropins(CONFIG/'personas.json')
+    for name,text in (('mud86-runtime',runtime),('mud86-gateway',gateway)):
+        directory=Path('/etc/systemd/system')/(name+'.service.d'); directory.mkdir(exist_ok=True)
+        (directory/'personas.conf').write_text(text)
+    run('systemctl','daemon-reload')
+
+
+def write_backup(state, directory,configuration=None):
     """Caller must hold the runtime lock and have confirmed a clean shutdown."""
     directory.mkdir(mode=0o700, parents=True, exist_ok=True)
     directory.chmod(0o700)
@@ -313,6 +398,7 @@ def write_backup(state, directory):
             with tarfile.open(fileobj=stream, mode='w:gz') as archive:
                 for name in ('game', 'private'):
                     archive.add(state / name, arcname=name)
+                if configuration is not None: archive.add(configuration,arcname='configuration')
             stream.flush()
             os.fsync(stream.fileno())
         temporary.rename(path)
@@ -329,8 +415,15 @@ def backup():
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
             if not json.loads((STATE / 'shutdown.json').read_text())['clean']:
                 raise RuntimeError('Guest shutdown was not confirmed clean; recover and stop it before backing up')
-            path = write_backup(STATE, Path('/var/backups/mud86'))
+            path = write_backup(STATE, Path('/var/backups/mud86'),CONFIG)
             print('Private backup:', path)
+            metadata=json.loads((CONFIG/'deployment.json').read_text())
+            if metadata.get('persona_storage')=='mariadb':
+                from tools.persona_backup import backup_database
+                from tools.persona_migrate import load_config
+                sql_path=path.with_suffix('.database.zip')
+                backup_database(load_config(CONFIG/'persona-admin.json'),sql_path)
+                print('Private external database backup:',sql_path)
     finally:
         if active:
             run('systemctl', 'start', 'mud86-runtime.service', 'mud86-gateway.service')
@@ -342,6 +435,16 @@ def main():
     if str(ROOT) not in sys.path:
         sys.path.insert(0, str(ROOT))
     from tools import inspect_game
+    if len(sys.argv)>1 and sys.argv[1] in ('personas','persona') and (CONFIG/'personas.json').exists():
+        if os.geteuid()!=0: raise SystemExit('Run this command with sudo')
+        from tools.external_install import persona_report
+        from tools.persona_migrate import load_config
+        args=inspect_game.parser().parse_args(sys.argv[1:])
+        name=args.name if args.action=='persona' else None
+        rows=persona_report(load_config(CONFIG/'persona-admin.json'),name)
+        if args.action=='personas' and args.search: rows=[row for row in rows if args.search.lower() in row['name'].lower()]
+        if args.action=='persona' and not rows: raise SystemExit('Saved persona not found')
+        print(json.dumps({'format_version':1,'backend':'mariadb','personas':rows,'records':len(rows)},indent=2)); return
     if len(sys.argv) > 1 and sys.argv[1] in inspect_game.ACTIONS:
         if os.geteuid() != 0:
             raise SystemExit('Run this command with sudo')
@@ -362,6 +465,8 @@ def main():
     parser.add_argument('--email')
     parser.add_argument('--http-only', action='store_true', help='Explicit HTTP-only mode for private acceptance testing')
     parser.add_argument('--image', type=Path, help='Use a local archive matching the pinned manifest')
+    parser.add_argument('--persona-storage',choices=('native','mariadb'),default=None,
+                        help='Native is the fresh-install default; existing selection is preserved; MariaDB cutover is one-way')
     args = parser.parse_args()
     if os.geteuid() != 0:
         parser.error('Run this command with sudo')

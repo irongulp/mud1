@@ -1,0 +1,31 @@
+// PRIVATE quiescent-fixture export. Output includes password words: never log it.
+get "bcl:acs"
+get "bcl:rfs"
+get "bcl:iolib"
+get "bcl:bits"
+get "bcl:kernel"
+$ldtext "/runame:roexp"
+manifest $( HEADERWORDS=256; RECORDWORDS=12; MAXRECORDS=64 $)
+let start() be
+$( let head=vec HEADERWORDS-1
+   and records=newvec(MAXRECORDS*RECORDWORDS-1)
+   and stream,count=?,?
+   stream_dofile($6"dsk",$6"mud",$6".pm",0,label(missing),#14,2,0,0,0,0,lookup,rdb,0,closefile)
+   for i=0 to HEADERWORDS-1 readch(stream,head+i)
+   count_head!255->(head!255-HEADERWORDS)/RECORDWORDS,0
+   unless 0 le count le MAXRECORDS close(stream)<>writes(tty,"ROEXP BAD*C*L")<>finish
+   for i=0 to count*RECORDWORDS-1 readch(stream,records+i)
+   close(stream)
+   writes(tty,"ROEXP BEGIN*C*L")
+   for index=0 to count-1
+   $( let record=records+index*RECORDWORDS
+      if record!2
+      $( writes(tty,"ROW")
+         for i=1 to RECORDWORDS-1 write(tty," :8",record!i)
+         writes(tty,"*C*L")
+      $)
+   $)
+   writes(tty,"ROEXP END*C*L")
+   finish
+missing: writes(tty,"ROEXP MISSING*C*L")
+$)

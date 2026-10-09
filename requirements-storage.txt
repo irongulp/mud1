@@ -1,0 +1,4 @@
+# Optional MariaDB persona backend; installed only for external deployments.
+PyMySQL==1.2.3 \
+    --hash=sha256:14f1c68e2ed859243ae5ca41ffbe677027fc46bc136a9f0be8a4e928e5e7415a \
+    --hash=sha256:d5b288529782e536ae171866df3ca9dc4f6cbfb3cc2f18e6f837fbb90dbc262b

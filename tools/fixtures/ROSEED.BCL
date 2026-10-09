@@ -1,0 +1,31 @@
+// Private controller input only. Store a per-job, in-core, read-delete token.
+get "bcl:acs"
+get "bcl:rfs"
+get "bcl:iolib"
+get "bcl:bits"
+get "bcl:kernel"
+$ldtext "/runame:roseed"
+let start() be
+$( let seed=vec 1 and args=vec 2
+   writes(tty,"ROSEED READY*C*L")
+   seed!0_seedword(); seed!1_seedword()
+   if seed!0=0 writes(tty,"ROSEED BAD*C*L")<>finish
+   args!0_$6"rse"; args!1_(-2<<18) bitor (seed-1); args!2_0
+   unless valof
+   $[ $move ac,args
+      $hrli ac,3
+      $tmpcor ac,0
+      $tdza ac,ac
+      $seto ac,0
+   $] writes(tty,"ROSEED FAILED*C*L")<>finish
+   writes(tty,"ROSEED SET*C*L")
+$)
+and seedword()=valof
+$( let value,ch=0,?
+   for i=1 to 12
+   $( readch(tty,@ch)
+      unless '0' le ch le '7' writes(tty,"ROSEED BAD*C*L")<>finish
+      value_(value<<3) bitor (ch-'0')
+   $)
+   resultis value
+$)

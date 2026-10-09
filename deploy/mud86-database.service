@@ -1,0 +1,23 @@
+[Unit]
+Description=MUD86 private external persona database
+Before=mud86-runtime.service
+
+[Service]
+Type=notify
+User=mud86
+Group=mud86
+WorkingDirectory=/opt/mud86/current
+ExecStart=/opt/mud86/current/.venv/bin/python -u -m server.database --directory /var/lib/mud86/external/database
+Restart=on-failure
+RestartSec=5
+TimeoutStartSec=180
+TimeoutStopSec=60
+UMask=0077
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/lib/mud86
+
+[Install]
+WantedBy=multi-user.target

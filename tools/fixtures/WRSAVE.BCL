@@ -1,0 +1,97 @@
+// Independent existing-record SAVE adapter. Policy/serialization remain BCPL.
+static
+$( save.pending=false; xw.mode=0; xw.op0=0; xw.op1=0; xw.last=6
+   xw.name=vec 1; xw.savedscore=0
+$)
+// ROUTINES
+and xw.save(nam)=valof
+$( let checksum=?
+   xw.name!0_!nam; xw.name!1_1!nam
+   for attempt=1 to 3
+   $( xw.op0_0; xw.op1_0; xw.last_6; xw.mode_1
+      rec_xr.lookup(nam)
+      xw.mode_0
+      unless rec
+      $( if xw.last=4 outs("External persona missing; creation is unavailable.*C*L")<>resultis 0
+         resultis -2
+      $)
+      xr.escape_label(failed)
+      unless SCRE of rec ge savescr
+      $( outs("Your score seems to have changed without my noticing.*C*L")
+         xw.ident("W1 ABORT "); xr.emit(); xw.readresult()
+         xr.releasechannel(); rec_0; resultis 0
+      $)
+      // Retains native PN, name flags, opaque words, timestamp and password rules.
+      dumpersona(rec)
+      xw.savedscore_SCRE of rec
+      checksum_1 neqv xr.words
+      for index=1 to xr.words
+      $( xw.ident("W1 PUT "); xr.put('*S'); xr.putoct(index,2)
+         xr.put('*S'); xr.putoct(rec!index,12); xr.emit(); xw.waitack(index)
+         checksum_checksum neqv rec!index
+      $)
+      save.pending_true
+      xw.ident("W1 COMMIT "); xr.put('*S'); xr.putoct(checksum,12); xr.emit(); xw.readresult()
+failed: xr.releasechannel()
+      test save.pending then
+      $( if xw.last=6 \/ xw.last=8 xw.resolve()
+         if xw.last=1 save.pending_false<>resultis rec
+         if xw.last=6 \/ xw.last=8 resultis -1
+         save.pending_false
+         unless xw.last=3 resultis -2
+      $) or resultis -2
+      // CONFLICT: re-read at save time and repeat the native score decision.
+   $)
+   resultis -2
+$)
+and save.recover() be
+$( xw.resolve()
+   if xw.last=1
+   $( save.pending_false; savedp+_1; savescr_xw.savedscore
+      error("Previous SAVE committed. Current changes need a new SAVE.")
+   $)
+   if xw.last=2 \/ xw.last=3
+   $( save.pending_false
+      error("Previous SAVE did not commit. You may SAVE again.")
+   $)
+   xw.unknown()
+$)
+and xw.unknown() be
+$( out("External SAVE outcome unknown. Operation :8 :8.*C*L",xw.op0,xw.op1)
+   error("Retry SAVE to resolve it; new saves and ATTACH are blocked. QUIT does not save.")
+$)
+and xw.resolve() be
+$( xw.last_6; xw.mode_2
+   xr.lookup(xw.name)
+   xw.mode_0
+$)
+and xw.ident(prefix) be
+$( xr.build(prefix); xr.putoct(xr.epoch0,12); xr.putoct(xr.epoch1,12) $)
+and xw.waitack(index) be
+$( xr.readline(); xr.need("W1 ACK ")
+   unless xr.number(12)=xr.epoch0 /\ xr.number(12)=xr.epoch1 xr.fail("PROTOCOL")
+   xr.need(" "); unless xr.number(2)=index xr.fail("PROTOCOL")
+   xr.endline()
+$)
+and xw.is(text)=valof
+$( let chars=vec 20
+   unpackstring(text,chars)
+   unless xr.cursor+!chars=xr.received resultis false
+   for i=1 to !chars unless xr.incoming!(xr.cursor+i-1)=chars!i resultis false
+   resultis true
+$)
+and xw.readresult() be xr.readline()<>xw.result()
+and xw.result() be
+$( xr.need("W1 RESULT ")
+   unless xr.number(12)=xr.epoch0 /\ xr.number(12)=xr.epoch1 xr.fail("PROTOCOL")
+   xr.need(" ")
+   test xw.is("COMMITTED") then xw.last_1
+   or test xw.is("ABORTED") then xw.last_2
+   or test xw.is("CONFLICT") then xw.last_3
+   or test xw.is("NOT_FOUND") then xw.last_4
+   or test xw.is("INVALID_RECORD") then xw.last_5
+   or test xw.is("UNKNOWN") then xw.last_6
+   or test xw.is("REUSED") then xw.last_7
+   or test xw.is("UNAVAILABLE") then xw.last_8
+   or xr.fail("PROTOCOL")
+$)

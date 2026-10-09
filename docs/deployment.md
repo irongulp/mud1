@@ -11,6 +11,12 @@ acceptance tests do not clear those permissions. Read
 
 ## Install
 
+Native storage remains the default. For fresh MariaDB-backed persona storage or
+a one-way cutover of an existing native server, see
+[external persona deployment](external-deployment.md). The explicit option is
+`--persona-storage mariadb`; omitting it on subsequent reruns preserves the selected
+backend. World data and gameplay remain in the original native engine.
+
 Point `mud.etimbo.com`'s DNS A record at the VPS's IPv4 address. Allow inbound TCP
 80 and 443 in the IONOS firewall; keep SSH access enabled. Only add an AAAA record
 if IPv6 routing to this VPS works. These provider/DNS settings are outside the

@@ -6,13 +6,39 @@ import shutil
 import tarfile
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import patch,Mock
 
-from tools.deploy import install_image, validate_domain, nginx_config, write_backup, install_control
+from tools.deploy import install_image, validate_domain, nginx_config, write_backup, install_control,wait_proxy
 from server.runtime import Runtime, simulator_config
 
 
 class DeploymentTests(unittest.TestCase):
+    def test_proxy_readiness_waits_for_reload_without_following_old_redirect(self):
+        connection=Mock()
+        connection.getresponse.side_effect=[Mock(status=301),Mock(status=200)]
+        with patch('tools.deploy.http.client.HTTPConnection',return_value=connection) as connect,patch('tools.deploy.time.sleep') as sleep:
+            wait_proxy('mud.etimbo.com',tls=False)
+        self.assertEqual(connect.call_count,2)
+        self.assertEqual(connect.call_args.args[0],'127.0.0.1')
+        connection.request.assert_called_with('GET','/',headers={'Host':'mud.etimbo.com'})
+        self.assertEqual(connection.close.call_count,2)
+        sleep.assert_called_once()
+
+    def test_tls_proxy_requires_its_exact_redirect_target(self):
+        connection=Mock()
+        wrong=Mock(status=301); wrong.getheader.return_value='https://other.example/'
+        correct=Mock(status=301); correct.getheader.return_value='https://mud.etimbo.com/'
+        connection.getresponse.side_effect=[wrong,correct]
+        with patch('tools.deploy.http.client.HTTPConnection',return_value=connection),patch('tools.deploy.time.sleep') as sleep:
+            wait_proxy('mud.etimbo.com',tls=True)
+        sleep.assert_called_once()
+
+    def test_proxy_readiness_has_a_deadline(self):
+        connection=Mock()
+        connection.getresponse.return_value=Mock(status=301)
+        with patch('tools.deploy.http.client.HTTPConnection',return_value=connection),patch('tools.deploy.time.monotonic',side_effect=[0,0,11]),patch('tools.deploy.time.sleep'):
+            with self.assertRaises(TimeoutError): wait_proxy('mud.etimbo.com',tls=False,timeout=10)
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)

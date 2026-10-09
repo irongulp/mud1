@@ -1,0 +1,47 @@
+// Disposable native creation experiment ONLY. Never install on a live game.
+// Mode 1 marks Recyold's retained score/opaque words; mode 0 only inspects.
+// Output deliberately excludes names and password words.
+get "bcl:acs"
+get "bcl:rfs"
+get "bcl:iolib"
+get "bcl:bits"
+get "bcl:kernel"
+$ldtext "/runame:pmedge"
+manifest $( HEADERWORDS=256; RECORDWORDS=12; LIMITWORDS=4096 $)
+let start() be
+$( let data=newvec(LIMITWORDS-1)
+   and stream,count,mode,marked=?,?,?,false
+   writes(tty,"PMEDGE MODE*C*L")
+   mode_rdno(tty)
+   unless mode=0 \/ mode=1 writes(tty,"PMEDGE BAD MODE*C*L")<>finish
+   stream_dofile($6"dsk",$6"mud",$6".pm",0,label(missing),#14,2,0,0,0,0,lookup,rdb,0,closefile)
+   for i=0 to HEADERWORDS-1 readch(stream,data+i)
+   count_data!255
+   unless HEADERWORDS le count le LIMITWORDS close(stream)<>writes(tty,"PMEDGE BAD SIZE*C*L")<>finish
+   for i=HEADERWORDS to count-1 readch(stream,data+i)
+   close(stream)
+   if mode=1
+   $( for offset=HEADERWORDS to count-RECORDWORDS by RECORDWORDS
+      $( let record=data+offset
+         if (record!2>>1)=(!"recyold">>1) /\ (record!3>>1)=(1!"recyold">>1)
+         $( record!4_-2
+            record!9_-1; record!10_1<<35; record!11_#123456765432
+            marked_true
+         $)
+      $)
+      unless marked writes(tty,"PMEDGE NO TARGET*C*L")<>finish
+      stream_dofile($6"dsk",$6"mud",$6".pm",0,label(missing),#14,2,0,0,0,0,enter,0,wrb,closefile)
+      for i=0 to count-1 writech(stream,data!i)
+      close(stream)
+      writes(tty,"PMEDGE MARKED*C*L")
+   $)
+   write(tty,"PMEDGE HEADER :N :N*C*L",data!254,data!255)
+   for offset=HEADERWORDS to count-RECORDWORDS by RECORDWORDS
+   $( let record=data+offset
+      write(tty,"PMEDGE SLOT :N :N :N :N :8 :8 :8*C*L",offset,record!2 ne 0,
+         record!4,data!(offset rem 128+4),record!9,record!10,record!11)
+   $)
+   writes(tty,"PMEDGE END*C*L")
+   finish
+missing: writes(tty,"PMEDGE OPEN FAILED*C*L")
+$)

@@ -1,0 +1,49 @@
+// Each view binds a PURGE intent. Human input never holds a transport channel.
+static $( purge.pending=false $)
+// ROUTINES
+and purge.open(nam,enumerate)=valof
+$( xw.mode_enumerate->6,5; xw.op0_0; xw.op1_0; xw.last_6
+   rec_xr.lookup(nam)
+   xw.mode_0
+   if rec
+   $( xw.name!0_rec!2; xw.name!1_rec!3
+      resultis 1
+   $)
+   if xw.last=4 resultis 0
+   outs("External PURGE lookup failed; listing stopped.*C*L")
+   resultis -1
+$)
+and purge.act(remove)=valof
+$( unless remove
+   $( xw.resolve()
+      if xw.last=2 resultis true
+      outs("External PURGE view could not be retired; listing stopped.*C*L")
+      resultis false
+   $)
+   purge.pending_true; xw.last_6; xw.mode_7
+   xr.lookup(xw.name)
+   xw.mode_0
+   if xw.last=6 \/ xw.last=8 xw.resolve()
+   resultis xp.outcome()
+$)
+and purge.recover()=valof
+$( unless purge.pending resultis true
+   xw.resolve()
+   xp.outcome()
+   // Recovery readiness is distinct from whether the deletion succeeded.
+   // A known abort/conflict must not suppress the player's own eligible QUIT.
+   resultis ~purge.pending
+$)
+and xp.outcome()=valof
+$( if xw.last=6 \/ xw.last=8
+   $( write(tty,"External PURGE outcome UNKNOWN. Operation :8 :8.*C*L",xw.op0,xw.op1)
+      writes(tty,"Resolve this operation before assuming its outcome. Retry PURGE while still in this session.*C*L")
+      resultis false
+   $)
+   purge.pending_false
+   if xw.last=1 $( out("*C*L:u deleted.*C*L",xw.name); resultis true $)
+   if xw.last=4 $( outs("Persona already absent.*C*L"); resultis true $)
+   test xw.last=3 then outs("Persona changed; not deleted. PURGE again to inspect its current state.*C*L")
+   or outs("External PURGE deletion not confirmed; listing stopped.*C*L")
+   resultis false
+$)

@@ -1,0 +1,8 @@
+; Independent shared lifetime state, outside original DBASE data.
+TITLE External persona lifetime state
+TWOSEG 400000
+RELOC 400000
+XLSEQN:: EXP 0
+XLTABL:: EXP .+1
+BLOCK ^D252 ; 36 player slots, seven words each (WRLIFE.BCL).
+END

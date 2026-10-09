@@ -1,5 +1,7 @@
 name: AlmaLinux deployment
 on:
+  pull_request:
+    branches: [main]
   push:
     branches: [setup-almalinux9]
     paths-ignore: ['**/*.md']
@@ -9,7 +11,7 @@ permissions:
 jobs:
   alma9:
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
         with:
@@ -18,6 +20,8 @@ jobs:
         run: |
           python3 -m venv .venv
           .venv/bin/pip install -r requirements-dev.txt
+          git clone --no-checkout https://github.com/PDP-10/MUD1.git upstream/mud1
+          git -C upstream/mud1 checkout --detach 8d2ce6ee5ca1ae3d835538de20aeb87acaae3df1
           PLAYWRIGHT_BROWSERS_PATH="$PWD/runtime/browsers" .venv/bin/python -m playwright install --with-deps chromium
           .venv/bin/python -m unittest discover -s tests -v
       - name: Fetch pinned candidate runtime
@@ -58,12 +62,30 @@ jobs:
           docker exec mud86-install-test systemctl start mud86-runtime.service mud86-gateway.service nginx
           .venv/bin/python -c "import asyncio; from tests.browser_smoke import main; asyncio.run(main('https://mud.etimbo.com:38443', launch_args=['--host-resolver-rules=MAP mud.etimbo.com 127.0.0.1'], ignore_https_errors=True))"
           docker stats --no-stream mud86-install-test
+      # Both a populated native cutover and an empty external installation
+      # use the real installer on native x86, never a Mac lab disk.
+      - name: Native-to-MariaDB cutover and external rerun/backup
+        run: .venv/bin/python -m tests.integration_external_deployment --native-url https://127.0.0.1:38443
+      - name: Start fresh external installation container
+        run: |
+          docker run -d --name mud86-external-fresh --privileged --cgroupns=host \
+            --cpus=1 --memory=2g --tmpfs /run --tmpfs /tmp \
+            -v /sys/fs/cgroup:/sys/fs/cgroup:rw \
+            -v "$PWD:/checkout:ro" -v "$PWD/runtime/release-v1:/artifacts:ro" \
+            -p 127.0.0.1:48080:80 mud86-alma9
+          for attempt in $(seq 1 60); do
+            docker exec mud86-external-fresh systemctl show-environment >/dev/null 2>&1 && break
+            sleep 1
+          done
+      - name: Fresh external installation and persistence
+        run: .venv/bin/python -m tests.integration_external_deployment --fresh --container mud86-external-fresh --url http://127.0.0.1:48080
       - name: Service diagnostics
         if: always()
         run: |
           mkdir -p runtime/deployment-ci
           docker exec mud86-install-test journalctl -u mud86-runtime -u mud86-gateway --no-pager > runtime/deployment-ci/services.log || true
           docker exec mud86-install-test systemctl stop mud86-runtime.service || true
+          docker exec mud86-external-fresh systemctl stop mud86-runtime.service || true
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -72,3 +94,5 @@ jobs:
             runtime/deployment-*/**/*.log
             runtime/deployment-*/**/report.json
             runtime/browser.png
+            runtime/external-deployment-*/**/*.log
+            runtime/external-deployment-*/**/report.json

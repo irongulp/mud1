@@ -1,0 +1,31 @@
+// Disposable handover-format diagnostic. Never prints the password word.
+get "bcl:acs"
+get "bcl:rfs"
+get "bcl:iolib"
+get "bcl:bits"
+get "bcl:kernel"
+$ldtext "/runame:chnck"
+let start() be
+$( let stream,ch,count,stamp=?,?,0,?
+   and probe=vec 9
+   putprobe(@probe)
+   write(tty,"CHAINCK VECASSIGN :N*C*L",probe=12345)
+   stream_findtmp($6"valley",label(missing))
+   readch(stream,@ch)
+   write(tty,"CHAINCK HEADER :N*C*L",ch)
+   readch(stream,@ch)
+   while 'a' le ch le 'z' /\ count ls 12
+   $( count+_1; readch(stream,@ch) $)
+   write(tty,"CHAINCK NAMECOUNT :N FLAG :N*C*L",count,ch)
+   readch(stream,@ch)
+   write(tty,"CHAINCK NUMBER FIRST :N*C*L",ch)
+   stamp_0
+   while '0' le ch le '9'
+   $( stamp_stamp*10+ch-'0'; readch(stream,@ch) $)
+   write(tty,"CHAINCK AGE :N*C*L",valof $[ $mstime ac,0 $]-stamp)
+   close(stream)
+   writes(tty,"CHAINCK END*C*L")
+   finish
+missing: writes(tty,"CHAINCK MISSING*C*L")
+$)
+and putprobe(address) be !address_12345

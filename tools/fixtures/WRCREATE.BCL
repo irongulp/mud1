@@ -1,0 +1,25 @@
+// Track unsaved personas actually created in this job. Do not infer permission
+// to create merely because a previously saved record disappeared from storage.
+manifest $( xc.slots=36 $)
+static $( xc.names=vec 71 $)
+// ROUTINES
+and xc.register(nam) be
+$( for slot=0 to xc.slots-1
+   $( let key=xc.names+slot*2
+      if !key=0 $( !key_!nam; key!1_1!nam; return $)
+   $)
+   error("External creation tracking exhausted; restart this session.")
+$)
+and xc.fresh(nam)=valof
+$( for slot=0 to xc.slots-1
+   $( let key=xc.names+slot*2
+      if !key if seq(key,nam) resultis true
+   $)
+   resultis false
+$)
+and xc.saved(nam) be
+$( for slot=0 to xc.slots-1
+   $( let key=xc.names+slot*2
+      if !key if seq(key,nam) $( !key_0 $)
+   $)
+$)

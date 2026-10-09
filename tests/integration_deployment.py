@@ -14,7 +14,7 @@ import string
 import subprocess
 import time
 
-from aiohttp import ClientSession
+from tests.deployment_http import fixture_client
 from tests.integration_web import Browser
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -24,6 +24,9 @@ SLEEP_TOLERANCE = 1.5
 
 
 def invoke(container, *command):
+    # docker exec uses the image's root user. Calling sudo here needlessly
+    # invokes PAM; newer minimal AlmaLinux images have a locked root account.
+    if command and command[0]=='sudo': command=command[1:]
     result = subprocess.run(['docker', 'exec', '-w', '/checkout', container, *command],
                             capture_output=True, text=True, timeout=900)
     text = re.sub(r'(?m)^(Richard|Roy|Brian|Ronan|Friday|Yawn|Debugger): [a-z0-9]{8} —',
@@ -34,7 +37,7 @@ def invoke(container, *command):
 
 
 async def saved_player(url, creating):
-    async with ClientSession(headers={'Host': 'mud.etimbo.com'}) as client:
+    async with fixture_client(url) as client:
         async with client.get(url) as response:
             assert response.status == 200
             assert 'xterm' in await response.text()
@@ -104,7 +107,7 @@ def main():
     (output / 'backup.log').write_text(invoke(args.container, 'sudo', 'mud86ctl', 'backup'))
     sleeps.append(asyncio.run(saved_player(args.url, creating=False)))
     (output / 'status.log').write_text(invoke(args.container, 'sudo', 'mud86ctl', 'status'))
-    report = {'complete': True, 'platform': 'AlmaLinux 9 container, systemd',
+    report = {'complete': True, 'player_name': PLAYER_NAME, 'platform': 'AlmaLinux 9 container, systemd',
               'architecture': invoke(args.container, 'uname', '-m').strip(),
               'sleep_wake_seconds': [round(value, 3) for value in sleeps],
               'checks': ['install', 'HTTP/WebSocket via Nginx', 'saved persona', 'setup rerun',

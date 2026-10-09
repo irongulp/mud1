@@ -1,0 +1,140 @@
+// Standalone secondary-TTY bridge probe. Does not open any persona/game file.
+get "bcl:acs"
+get "bcl:rfs"
+get "bcl:iolib"
+get "bcl:bits"
+get "bcl:kernel"
+$ldtext "/runame:brgp"
+manifest
+$( WORDTESTS=40; FRAMESIZE=34; WORDSTART=22; DEADLINE=5000; DAYMS=86400000
+   POOLFIRST=6; POOLLAST=7; AUTO=8; HOLD=9; ACCESS=10; HOLDMS=30000
+   TTYDIGITSHIFT=12
+   // TOPS-10 7.04 SCNSER TOPTB0/TOPTB1 (octal function numbers).
+   TOINPUT=1; TOCLEAR=3; TOOUTPUT=5; TOREAD=#20; TOECHO=#2074
+$)
+static
+$( udx=0; trmval=0; message=vec 64; position=0; leased=-1 $)
+
+let start() be
+$( probe()
+   releasechannel()
+$)
+and probe() be
+$( let line,session,own,mode=?,?,?,?
+   writes(tty,"BRGP READY*C*L")
+   line_rdno(tty); session_rdno(tty)
+   mode_line
+   unless 0 le line le ACCESS /\ 0 ls session ls (1<<18)
+      writes(tty,"BRGP CONFIG*C*L")<>stopprobe()
+   own_valof $[ $seto ac,0; $trmno. ac,0; $trn $]
+   if mode=ACCESS
+   $( unless POOLFIRST le session le POOLLAST
+         writes(tty,"BRGP CONFIG*C*L")<>stopprobe()
+      udx_(own bitand ~#777) bitor session
+      test trm(TOECHO,0) then writes(tty,"BRGP FOREIGN_ACCESS*C*L")
+      or write(tty,"BRGP DENIED SET :N*C*L",trmval)
+      test trm(TOOUTPUT,'!') then writes(tty,"BRGP FOREIGN_ACCESS*C*L")
+      or write(tty,"BRGP DENIED OUTPUT :N*C*L",trmval)
+      test trm(TOREAD,0) then writes(tty,"BRGP FOREIGN_ACCESS*C*L")
+      or write(tty,"BRGP DENIED INPUT :N*C*L",trmval)
+      return
+   $)
+   if mode=AUTO \/ mode=HOLD
+   $( for candidate=POOLFIRST to POOLLAST if claim(candidate)
+      $( leased_candidate; line_candidate; break $)
+      if leased=-1 writes(tty,"BRGP NO_CHANNEL*C*L")<>stopprobe()
+      write(tty,"BRGP LEASE :N :8 :N*C*L",
+         valof $[ $pjob ac,0 $],valof $[ $getppn ac,0; $trn $],line)
+      if mode=HOLD
+      $( udx_own
+         unless trm(TOCLEAR,0) writes(tty,"BRGP CLEAR*C*L")<>stopprobe()
+         writes(tty,"BRGP HOLD*C*L")
+         if nextchar(millis(),HOLDMS)=-1 writes(tty,"BRGP HOLD_TIMEOUT*C*L")
+         trm(TOCLEAR,0)
+         return
+      $)
+   $)
+   if (own bitand #777)=line writes(tty,"BRGP OWN_TTY*C*L")<>stopprobe()
+   // Retain the universal-terminal index prefix from our own TRMNO result.
+   udx_(own bitand ~#777) bitor line
+   unless trm(TOECHO,0) writes(tty,"BRGP SETUP*C*L")<>stopprobe()
+   unless trm(TOCLEAR,0) writes(tty,"BRGP CLEAR*C*L")<>stopprobe()
+   for index=0 to WORDTESTS-1
+   $( let word=index=0->0,index=1->-1,index=2->1<<35,
+                 index=3->(1<<35)-1,1<<(index-4)
+      and started,decoded=?,0
+      position_0
+      text("B1 PING "); octal(session,6); character('*S')
+      octal(index+1,6); character('*S'); octal(word,12)
+      for i=0 to FRAMESIZE-1 unless trm(TOOUTPUT,message!i)
+         writes(tty,"BRGP OUTPUT*C*L")<>stopprobe()
+      unless trm(TOOUTPUT,'*C') writes(tty,"BRGP OUTPUT*C*L")<>stopprobe()
+      unless trm(TOOUTPUT,'*L') writes(tty,"BRGP OUTPUT*C*L")<>stopprobe()
+      message!4_'O' // Expected PONG differs from PING in one byte.
+      started_millis()
+      for i=0 to FRAMESIZE
+      $( let ch=nextchar(started)
+         // Permit only the previous frame's optional LF, never one in a frame.
+         if i=0 /\ ch='*L' ch_nextchar(started)
+         if ch=-1 write(tty,"BRGP TIMEOUT :N :N*C*L",session,index+1)<>stopprobe()
+         test WORDSTART le i ls FRAMESIZE then
+         $( unless '0' le ch le '7'
+               write(tty,"BRGP BAD_REPLY :N :N*C*L",session,index+1)<>stopprobe()
+            decoded_(decoded<<3) bitor (ch-'0')
+         $) or if ch ne (i=FRAMESIZE->'*C',message!i)
+               write(tty,"BRGP BAD_REPLY :N :N*C*L",session,index+1)<>stopprobe()
+      $)
+      unless decoded=word
+         write(tty,"BRGP BAD_REPLY :N :N*C*L",session,index+1)<>stopprobe()
+      write(tty,"BRGP OK :N :N :8*C*L",session,index+1,decoded)
+   $)
+   write(tty,"BRGP DONE :N :N*C*L",session,WORDTESTS)
+$)
+and claim(line)=valof
+$( let args=vec 2
+   // This standalone fixture reserves I/O channel 17; a MUD adapter must use
+   // the library's channel allocator rather than assuming that channel is free.
+   args!0_0; args!1_$6"tty6"+((line-POOLFIRST)<<TTYDIGITSHIFT); args!2_0
+   resultis valof $[ $move ac,args; $open #17,0(ac); $tdza ac,ac; $seto ac,0 $]
+$)
+and releasechannel() be if leased ne -1
+$( $[ $release #17,0 $]
+   write(tty,"BRGP RELEASED :N*C*L",leased)
+   leased_-1
+$)
+and stopprobe() be releasechannel()<>finish
+and character(ch) be message!position_ch<>position+_1
+and text(str) be
+$( let chars=vec 20
+   unpackstring(str,chars)
+   for i=1 to !chars character(chars!i)
+$)
+and octal(word,digits) be for i=0 to digits-1
+   character('0'+((word>>(3*(digits-i-1))) bitand 7))
+and millis()=valof $[ $mstime ac,0 $]
+and nextchar(started,duration)=valof
+$( unless numbargs()=2 duration_DEADLINE
+   while (millis()-started+DAYMS) rem DAYMS ls duration
+   $( test trm(TOINPUT,0) then
+      $( unless trm(TOREAD,0) resultis -1
+         resultis trmval
+      $) or $[ $movei ac,10; $hiber ac,0; $trn $]
+   $)
+   resultis -1
+$)
+and trm(function,value)=valof
+$( let args=vec 2
+   args!0_function; args!1_udx; args!2_value
+   resultis valof
+   $[ $move ac,args
+      $hrli ac,3
+      $trmop. ac,0
+      $jrst failed
+      $movem ac,trmval
+      $seto ac,0
+      $jrst done
+failed: $movem ac,trmval
+      $setz ac,0
+done:
+   $]
+$)

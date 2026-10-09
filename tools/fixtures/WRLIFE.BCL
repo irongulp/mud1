@@ -1,0 +1,87 @@
+// Shared creation provenance; session passwords/savedp/savescr remain job-local.
+manifest
+$( life.words=7; life.id=0; life.state=1; life.op0=2; life.op1=3
+   life.owner=4; life.started=5; life.profile=6
+   life.saved=0; life.new=1; life.pending=2
+   life.wait=12000; life.bound=15000
+$)
+static $( life.selected=0; life.saveid=0; life.saveslot=0 $)
+// ROUTINES
+and life.entry()=life.table+player.no*life.words
+and life.init() be
+$( let entry=life.entry()
+   jar(@persona.door)
+   life.serial+_1
+   if life.serial le 0
+   $( unjar(@persona.door)
+      outs("External lifetime counter exhausted; reset this world.*C*L"); finish
+   $)
+   for i=0 to life.words-1 entry!i_0
+   entry!life.id_life.serial
+   entry!life.profile_profile
+   life.selected_life.serial
+   unjar(@persona.door)
+$)
+and life.select() be life.selected_life.entry()!life.id
+and life.current()=life.selected ne 0 /\ life.entry()!life.id=life.selected /\ life.entry()!life.profile=profile
+and life.drop() be
+$( jar(@persona.door)
+   life.entry()!life.id_0
+   unjar(@persona.door)
+$)
+and life.age(start)=valof
+$( let elapsed=xr.millis()-start
+   resultis elapsed ls 0 -> elapsed+xr.dayms,elapsed
+$)
+and life.prepare(nam)=valof
+$( let entry=life.entry() and began=xr.millis()
+   life.saveid_life.selected; life.saveslot_player.no
+   $( unless life.current() resultis -1
+      jar(@persona.door)
+      unless entry!life.id=life.selected
+         unjar(@persona.door)<>resultis -1
+      if entry!life.state=life.saved
+      $( unjar(@persona.door)
+         xw.op0_0; xw.op1_0; resultis 0
+      $)
+      if entry!life.state=life.new
+      $( unless xr.base0 /\ xr.calls ls admin.calls-1
+            unjar(@persona.door)<>resultis -1
+         xr.calls+_1
+         xw.op0_xr.base0; xw.op1_xr.base1 neqv xr.calls
+         entry!life.op0_xw.op0; entry!life.op1_xw.op1
+         entry!life.owner_jobno; entry!life.started_xr.millis()
+         entry!life.state_life.pending
+         unjar(@persona.door)
+         resultis 1
+      $)
+      // Give a normal in-flight first SAVE time to complete. Afterwards RESOLVE
+      // fences the exact old operation, including a stopped/killed creator.
+      test entry!life.owner=jobno \/ life.age(entry!life.started) ge life.wait then
+      $( xw.op0_entry!life.op0; xw.op1_entry!life.op1
+         unjar(@persona.door)
+         xw.resolve()
+         test xw.last=1 then life.end(life.saved)
+         or test xw.last=2 \/ xw.last=3 then life.end(life.new)
+         or resultis -1
+      $) or
+      $( unjar(@persona.door)
+         $[ $movei ac,1; $sleep ac,0 $]
+      $)
+      if life.age(began) ge life.bound resultis -1
+   $) repeat
+$)
+and life.end(state) be
+$( let entry=life.table+life.saveslot*life.words
+   jar(@persona.door)
+   if entry!life.id=life.saveid /\ entry!life.state=life.pending
+   if entry!life.op0=xw.op0 /\ entry!life.op1=xw.op1
+      entry!life.state_state
+   unjar(@persona.door)
+$)
+and life.resume() be
+$( unless life.current() /\ active!player.no ne -1
+   $( outs("This live persona is no longer active. Reconnect to enter again.*C*L")
+      finish
+   $)
+$)

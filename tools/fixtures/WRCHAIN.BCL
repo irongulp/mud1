@@ -1,0 +1,52 @@
+// Fixed-word, read-delete, job-local handover for compatible external images.
+manifest $( chain.words=13; chain.magic=#526473462751 $)
+static $( chain.ready=false $)
+// ROUTINES
+and chain.permitted(target)=valof
+$( unless life.current() /\ chain.allowed(target) resultis false
+   if purge.pending unless purge.recover() resultis false
+   if save.pending
+   $( xw.resolve()
+      test xw.last=1 then
+      $( xc.saved(xw.name); save.pending_false; savedp+_1; savescr_xw.savedscore $)
+      or test xw.last=2 \/ xw.last=3 then
+      $( life.end(life.new); save.pending_false $)
+      or resultis false
+   $)
+   resultis xr.base0 ne 0 /\ xr.calls ls admin.calls-16
+$)
+and chain.out(target,destination,logs)=valof
+$( let data=vec chain.words-1 and args=vec 2
+   unless chain.ready /\ chain.allowed(target) resultis false
+   data!0_chain.magic; data!1_sixbit(target)
+   data!2_profile!14; data!3_profile!15
+   data!4_ps.word; data!5_oldscore; data!6_daytime
+   data!7_sixbit(destination)
+   data!8_xr.base0; data!9_xr.base1; data!10_xr.calls
+   data!11_xr.millis(); data!12_logs ne 0
+   args!0_$6"xch"; args!1_(-chain.words<<18) bitor (data-1); args!2_0
+   resultis valof
+   $[ $move ac,args; $hrli ac,3; $tmpcor ac,0; $tdza ac,ac; $seto ac,0 $]
+$)
+and chain.in() be
+$( let data=vec chain.words-1 and args=vec 1 and count=?
+   chain_false
+   args!0_$6"xch"; args!1_(-chain.words<<18) bitor (data-1)
+   count_valof $[ $move ac,args; $hrli ac,2; $tmpcor ac,0; $setz ac,0 $]
+   unless count return
+   unless count=chain.words /\ data!0=chain.magic /\ data!1=mud6
+      outs("External handover rejected.*C*L")<>finish
+   unless data!8 ne 0 /\ 0 ls data!10 ls admin.calls /\ life.age(data!11) ls TIMECHK
+      outs("External handover expired or invalid.*C*L")<>finish
+   chain_newvec(2)
+   !chain_data!2; chain!1_data!3
+   unless 1 le LENGTH of chain le NAMELENGTH
+      outs("External handover name invalid.*C*L")<>finish
+   ps.word_data!4; oldscore_data!5; daytime_data!6
+   room_find.room(data!7)
+   if room room_LH of room
+   xr.base0_data!8; xr.base1_data!9; xr.calls_data!10
+   logstr_false
+   if data!12 logstr_appendfile($6"dsk",chain,$6"log",ppn,label(nolog))
+nolog: return
+$)
