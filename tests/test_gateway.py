@@ -3,10 +3,10 @@ import os
 import unittest
 import tempfile
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import AsyncMock, call, patch
 
 import telnetlib3
-from aiohttp import ClientSession, WSMsgType, web
+from aiohttp import ClientSession, WSMessage, WSMsgType, web
 from aiohttp.client_exceptions import ClientConnectionResetError
 from aiohttp.test_utils import TestServer
 
@@ -125,9 +125,33 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
         result = ""
         while text not in result:
             message = await asyncio.wait_for(socket.receive(), 5)
+            if message.type == WSMsgType.PING:
+                await socket.pong(message.data)
+                continue
             self.assertEqual(message.type, WSMsgType.TEXT)
             result += message.data
         return result
+
+    async def test_prompt_wait_answers_pings_before_and_between_text_fragments(self):
+        socket = AsyncMock()
+        socket.receive.side_effect = [
+            WSMessage(WSMsgType.PING, b'before-prompt', ''),
+            WSMessage(WSMsgType.TEXT, 'By what name ', ''),
+            WSMessage(WSMsgType.PING, b'between-fragments', ''),
+            WSMessage(WSMsgType.TEXT, 'shall I call you?\r\n*', ''),
+        ]
+        output = await self.receive_until(socket, '*')
+        self.assertEqual(output, 'By what name shall I call you?\r\n*')
+        self.assertEqual(socket.pong.await_args_list,
+                         [call(b'before-prompt'), call(b'between-fragments')])
+
+    async def test_prompt_wait_does_not_ignore_closed_or_error_frames(self):
+        for kind in (WSMsgType.CLOSE, WSMsgType.CLOSED, WSMsgType.ERROR):
+            with self.subTest(kind=kind):
+                socket = AsyncMock()
+                socket.receive.return_value = WSMessage(kind, None, '')
+                with self.assertRaises(AssertionError):
+                    await self.receive_until(socket, '*')
 
     async def input_barrier(self, socket):
         # A protocol PONG proves earlier raw input frames reached the independent
