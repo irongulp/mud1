@@ -292,13 +292,9 @@ def create_app(upstream_host="127.0.0.1", upstream_port=2020, *, session_bootstr
                         if any(ord(char) < 32 and char not in SAFE_CONTROLS for char in message.data):
                             await socket.close(code=1008, message=b"Unsupported terminal control")
                             return
-                        try:
-                            data = password_input.feed(message.data)
-                        except ValueError:
-                            await socket.close(code=1009, message=b"Password input line too long")
-                            return
+                        data = message.data
                         if data:
-                            if pending_bytes + len(data) > MAX_PENDING_INPUT_SIZE:
+                            if pending_bytes + len(password_input.line) + len(data) > MAX_PENDING_INPUT_SIZE:
                                 await socket.close(code=1009, message=b"Pending terminal input too long")
                                 return
                             pending_bytes += len(data)
@@ -326,11 +322,25 @@ def create_app(upstream_host="127.0.0.1", upstream_port=2020, *, session_bootstr
                         await input_ready.wait()
                         if socket.closed or browser_stopped.is_set():
                             return
-                        writer.write(part)
-                        if part.endswith(('\r', '\n')):
+                        # Guest prompts, not WebSocket arrival time, determine
+                        # whether this fragment needs silent password editing.
+                        # Filter one logical line/fragment at a time so pipelined
+                        # admission answers cannot inherit an earlier prompt state.
+                        try:
+                            output = password_input.feed(part)
+                        except ValueError:
+                            await socket.close(code=1009, message=b"Password input line too long")
+                            return
+                        # Replace consumed raw bytes with dispatch bytes. Hidden
+                        # editor bytes are counted separately by the receiver.
+                        pending_bytes += len(output) - len(part)
+                        if not output:
+                            continue
+                        writer.write(output)
+                        if output.endswith(('\r', '\n')):
                             input_ready.clear()
                         await writer.drain()
-                        pending_bytes -= len(part)
+                        pending_bytes -= len(output)
 
             tasks = [asyncio.create_task(to_browser()), asyncio.create_task(from_browser()),
                      asyncio.create_task(to_game())]

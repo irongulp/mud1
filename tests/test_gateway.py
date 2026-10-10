@@ -26,6 +26,9 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
         self.allow_logout.set()
         self.handler_errors = []
         self.backend_writers = {}
+        self.admission_mode = False
+        self.release_name_answer = asyncio.Event()
+        self.release_password_prompt = asyncio.Event()
 
         async def shell(reader, writer):
             self.count += 1
@@ -33,6 +36,7 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
             self.backend_writers[identifier] = writer
             question = False
             purge_menu = False
+            admission_step = 0
             try:
                 await reader.readuntil(b"\r")
                 writer.write("\r\n.")
@@ -42,7 +46,7 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
                     writer.write("\r\n.")
                     login = (await reader.readuntil(b"\r")).decode("ascii")
                 await self.inputs.put(login)
-                greeting = '' if self.reject_entry else 'Hello, test!\r\n'
+                greeting = '' if self.reject_entry or self.admission_mode else 'Hello, test!\r\n'
                 if not self.silent_login:
                     writer.write(f"By what name shall I call you?\r\n{greeting}SESSION {identifier}\r\n*")
                 while True:
@@ -50,7 +54,20 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
                     if not data:
                         break
                     await self.inputs.put(data)
-                    if self.reject_entry and data.startswith('bad'):
+                    if (self.admission_mode and admission_step < 3
+                            and 'quit\r' not in data and 'kjob\r' not in data and '\x03' not in data):
+                        admission_step += 1
+                        if admission_step == 1:
+                            await self.release_name_answer.wait()
+                            writer.write('\r\nWhat sex do you wish to be?\r\n*')
+                        elif admission_step == 2:
+                            await self.release_password_prompt.wait()
+                            writer.write('\r\nGive me a password for this persona of up to 9 letters, ')
+                            await asyncio.sleep(0)
+                            writer.write('please.\r\n*')
+                        else:
+                            writer.write('\r\nHello, candidate!\r\n*')
+                    elif self.reject_entry and data.startswith('bad'):
                         writer.write('\r\nNo!\r\n.')
                     elif data.startswith('attach ghost'):
                         question = True
@@ -111,6 +128,134 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(message.type, WSMsgType.TEXT)
             result += message.data
         return result
+
+    async def input_barrier(self, socket):
+        # A protocol PONG proves earlier raw input frames reached the independent
+        # receiver; it never grants or substitutes guest prompt credit.
+        await socket.ping(b'input-barrier')
+        message = await asyncio.wait_for(socket.receive(), 2)
+        self.assertEqual(message.type, WSMsgType.PONG)
+        self.assertEqual(message.data, b'input-barrier')
+
+    async def check_queued_password_transition(self, frames):
+        self.admission_mode = True
+        socket = await self.client.ws_connect(self.server.make_url('/terminal'), autoping=False)
+        try:
+            await self.receive_until(socket, '*')
+            self.assertEqual(await self.inputs.get(), 'login mudguest\r')
+            for frame in frames:
+                await socket.send_str(frame)
+            await self.input_barrier(socket)
+            self.assertEqual(await self.inputs.get(), 'candidate\r')
+            self.assertTrue(self.inputs.empty())
+            self.release_name_answer.set()
+            await self.receive_until(socket, 'What sex do you wish to be?\r\n*')
+            self.assertEqual(await asyncio.wait_for(self.inputs.get(), 2), 'male\r')
+            self.assertTrue(self.inputs.empty(), 'Password escaped before the guest password prompt')
+            self.release_password_prompt.set()
+            await self.receive_until(socket, 'letters, please.\r\n*')
+            self.assertEqual(await asyncio.wait_for(self.inputs.get(), 2), 'secret\r')
+            await self.receive_until(socket, 'Hello, candidate!\r\n*')
+            self.assertEqual(await asyncio.wait_for(self.inputs.get(), 2), 'look\r')
+        finally:
+            self.release_name_answer.set()
+            self.release_password_prompt.set()
+            await socket.close()
+
+    async def test_queued_password_frames_use_state_at_dispatch(self):
+        await self.check_queued_password_transition([
+            'candidate\r', 'male\r', 'wrong\x15secret bad\x17',
+            '\x08x', '\x7f\x12', '\r', 'look\r'])
+
+    async def test_pipelined_admission_frame_filters_each_password_line_at_dispatch(self):
+        await self.check_queued_password_transition([
+            'candidate\rmale\rwrong\x15secret bad\x17\x08x\x7f\x12\rlook\r'])
+
+    async def open_password_session(self):
+        self.admission_mode = True
+        self.release_name_answer.set()
+        self.release_password_prompt.set()
+        socket = await self.client.ws_connect(self.server.make_url('/terminal'), autoping=False)
+        await self.receive_until(socket, '*')
+        self.assertEqual(await self.inputs.get(), 'login mudguest\r')
+        await socket.send_str('candidate\r')
+        await self.receive_until(socket, 'What sex do you wish to be?\r\n*')
+        self.assertEqual(await self.inputs.get(), 'candidate\r')
+        await socket.send_str('male\r')
+        await self.receive_until(socket, 'letters, please.\r\n*')
+        self.assertEqual(await self.inputs.get(), 'male\r')
+        return socket
+
+    async def test_dispatched_password_fragments_remain_silent_until_enter(self):
+        socket = await self.open_password_session()
+        try:
+            await socket.send_str('secretx')
+            await self.input_barrier(socket)
+            await socket.send_str('\x7f')
+            await self.input_barrier(socket)
+            self.assertTrue(self.inputs.empty(), 'Incomplete password reached the guest')
+            await socket.send_str('\r')
+            self.assertEqual(await asyncio.wait_for(self.inputs.get(), 2), 'secret\r')
+        finally:
+            await socket.close()
+
+    async def test_hidden_password_counts_towards_pending_input_budget(self):
+        socket = await self.open_password_session()
+        try:
+            with patch('server.gateway.MAX_PENDING_INPUT_SIZE', 32):
+                await socket.send_str('x' * 20)
+                await self.input_barrier(socket)
+                self.assertTrue(self.inputs.empty())
+                await socket.send_str('y' * 14)
+                message = await asyncio.wait_for(socket.receive(), 2)
+                self.assertEqual(message.type, WSMsgType.CLOSE)
+                self.assertEqual(message.data, 1009)
+            await asyncio.wait_for(self.closed.get(), 2)
+            commands = ''.join(self.inputs.get_nowait() for _ in range(self.inputs.qsize()))
+            self.assertNotIn('xxx', commands)
+            self.assertNotIn('yyy', commands)
+        finally:
+            await socket.close()
+
+    async def test_restart_clears_buffered_password_without_sending_it(self):
+        socket = await self.open_password_session()
+        try:
+            await socket.send_str('secretx\x7f')
+            await self.input_barrier(socket)
+            await socket.send_bytes(b'restart')
+            while (message := await asyncio.wait_for(socket.receive(), 2)).type == WSMsgType.TEXT:
+                pass
+            self.assertEqual(message.type, WSMsgType.CLOSE)
+            await asyncio.wait_for(self.closed.get(), 2)
+            commands = ''.join(self.inputs.get_nowait() for _ in range(self.inputs.qsize()))
+            self.assertNotIn('secret', commands)
+            self.assertIn('kjob\r', commands)
+        finally:
+            await socket.close()
+
+    async def test_password_editor_limit_is_enforced_at_dispatch(self):
+        socket = await self.open_password_session()
+        try:
+            with patch('server.gateway.PasswordInput.MAX_LINE_LENGTH', 4):
+                await socket.send_str('xxxxx')
+                message = await asyncio.wait_for(socket.receive(), 2)
+                self.assertEqual(message.type, WSMsgType.CLOSE)
+                self.assertEqual(message.data, 1009)
+            await asyncio.wait_for(self.closed.get(), 2)
+            commands = ''.join(self.inputs.get_nowait() for _ in range(self.inputs.qsize()))
+            self.assertNotIn('xxxxx', commands)
+        finally:
+            await socket.close()
+
+    async def test_disconnect_discards_buffered_password_without_sending_it(self):
+        socket = await self.open_password_session()
+        await socket.send_str('secretx\x7f')
+        await self.input_barrier(socket)
+        await socket.close()
+        await asyncio.wait_for(self.closed.get(), 2)
+        commands = ''.join(self.inputs.get_nowait() for _ in range(self.inputs.qsize()))
+        self.assertNotIn('secret', commands)
+        self.assertIn('kjob\r', commands)
 
     async def test_maintenance_blocks_new_jobs_but_allows_existing_player_to_quit(self):
         socket = await self.client.ws_connect(self.server.make_url('/terminal'))
