@@ -45,6 +45,73 @@ SIMH is built from its pinned revision with automatic package installation
 disabled and a single build job. Docker and Chromium are test tools, not VPS
 runtime dependencies.
 
+## Scheduled maintenance
+
+For the combined first upgrade, MariaDB editor setup, and later maintenance
+workflow, see [the deployment runbook](maintenance-editor-deployment.md).
+
+After installing this version, use either shutdown mode:
+
+```sh
+# Block admissions, close browser sessions through QUIT/KJOB, then stop the game:
+sudo mud86ctl maintenance on --graceful
+
+# Block admissions, leave connected players playing, then stop once they leave:
+sudo mud86ctl maintenance on --wait
+
+sudo mud86ctl maintenance status
+
+# Run updates/backups while the maintenance notice remains available.
+# Start and verify the game/gateway before reopening access:
+sudo mud86ctl maintenance off
+```
+
+`maintenance on` defaults to `--graceful`. Both modes close admission first.
+Graceful mode follows normal game QUIT persistence rules; it does not force a
+SAVE. Wait mode reports remaining browser sessions, including setup and logout
+cleanup, every two seconds. It holds the management lock while waiting. Ctrl-C
+releases that lock and leaves maintenance enabled and remaining players running;
+you can resume the wait or switch to `--graceful`. If session status cannot be
+read, wait mode fails without stopping the game. Use `--graceful` when the
+gateway is already stopped. These counts cover browser gateway sessions, not
+independent operator/Telnet sessions.
+
+Visitors receive exactly:
+
+> The game is unavailable due to scheduled maintenance. Please try again later.
+
+New visitors receive an independent Nginx page, even with the gateway and game
+stopped. The response is HTTP 503 with `Retry-After: 900` and `Cache-Control:
+no-store`; the page retries after 15 minutes. Existing terminal pages retain
+scrollback, display the same notice when their session ends, and retry every
+15 minutes. Retry intervals begin after terminal output finishes displaying at
+the chosen receive baud. HTTPS and ACME challenge handling remain available.
+
+The root-managed `/etc/mud86/maintenance` flag persists across reboot, setup
+reruns and service restarts. Starting services or rerunning setup does not clear
+it; `maintenance off` clears it only after readiness succeeds. A failed update
+or start leaves maintenance enabled. Nginx checks the flag on each request, so
+switching mode needs no proxy reload. Setup updates the Nginx configuration to
+include the independent notice. A first upgrade from a version without these
+commands must install this version before using them.
+
+The gateway's session count is loopback-only at `/internal/maintenance`, with
+public access denied by Nginx. Local gateway runs can select a maintenance flag
+with `python -m server.gateway --maintenance-file PATH`; create/remove that file
+to block/reopen admission (this alone does not stop the emulator).
+
+Validation includes host control/admission/cleanup tests, Chromium virtual-clock
+tests of the full 15-minute interval, and independent AlmaLinux Nginx acceptance
+with the gateway absent:
+
+```sh
+MUD86_NGINX_IMAGE=mud86-alma9-arm:latest .venv/bin/python -m tests.integration_maintenance
+```
+
+This acceptance uses a disposable Nginx container and loopback requests; it does
+not boot the game or change any game disks. Full installed systemd maintenance
+and target-host SELinux acceptance remain separate deployment checks.
+
 ## Installed layout and startup
 
 | Path | Purpose |

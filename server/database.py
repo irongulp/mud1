@@ -1,4 +1,4 @@
-"""Foreground private Unix-socket MariaDB service, independent of system MariaDB."""
+"""Foreground MariaDB with a private socket and optional managed loopback editor."""
 import argparse
 import json
 import os
@@ -11,6 +11,29 @@ import time
 
 START_TIMEOUT=60
 STOP_TIMEOUT=30
+MAX_TCP_PORT=65535
+LISTENER_CONFIG='listener.json'
+LISTENER_CONFIG_LIMIT=4096
+
+
+def listener_options(port):
+    if port is None: return ['--skip-networking']
+    if type(port) is not int or not 1<=port<=MAX_TCP_PORT: raise ValueError('Invalid database TCP port')
+    return ['--bind-address=127.0.0.1','--port='+str(port),'--skip-name-resolve']
+
+
+def configured_port(directory):
+    from tools.persona_snapshot import private_read,strict_json
+    path=Path(directory)/LISTENER_CONFIG
+    if not path.exists(): return None
+    if path.is_symlink(): raise ValueError('Database listener config must not be a symlink')
+    value=strict_json(private_read(path,LISTENER_CONFIG_LIMIT))
+    if (not isinstance(value,dict) or set(value)!={'format_version','port'}
+            or type(value['format_version']) is not int or value['format_version']!=1):
+        raise ValueError('Unrecognized database listener config')
+    listener_options(value['port'])
+    if value['port'] is None: raise ValueError('Configured listener must have a port')
+    return value['port']
 
 
 def server_program():
@@ -53,7 +76,8 @@ class PrivateDatabase:
         self.log=(self.directory/'process.log').open('ab')
         self.process=subprocess.Popen([executable,'--no-defaults','--datadir='+str(self.directory/'data'),
             '--socket='+str(self.socket),'--pid-file='+str(self.directory/'db.pid'),'--tmpdir='+str(self.directory/'tmp'),
-            '--skip-networking','--skip-log-bin','--general-log=0','--slow-query-log=0','--default-time-zone=+00:00',
+            *listener_options(configured_port(self.directory)),
+            '--skip-log-bin','--general-log=0','--slow-query-log=0','--default-time-zone=+00:00',
             '--innodb-buffer-pool-size=64M','--performance-schema=OFF','--event-scheduler=OFF',
             '--log-error='+str(self.directory/'server.log')],stdout=self.log,stderr=subprocess.STDOUT)
         deadline=time.monotonic()+START_TIMEOUT

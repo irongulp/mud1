@@ -903,6 +903,13 @@ class TerminalTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_failed_connections_back_off_with_a_cap(self):
         await self.connect()
+        # This case measures ordinary backoff, not real HTTP scheduling. Resolve
+        # the independent maintenance probe before advancing the virtual clock.
+        await self.page.evaluate("""() => {
+            const fetch = window.fetch.bind(window);
+            window.fetch = (url, ...args) => url === '/maintenance-status'
+                ? Promise.resolve({status: 200}) : fetch(url, ...args);
+        }""")
         for attempt, delay in enumerate([1000, 2000, 4000, 8000, 16000, 30000, 30000], 1):
             await self.page.evaluate("socket.readyState = 3; socket.onerror(); socket.onclose({code: 1006, reason: ''})")
             await self.page.clock.run_for(delay - 1)
@@ -912,6 +919,31 @@ class TerminalTests(unittest.IsolatedAsyncioTestCase):
         await self.page.evaluate("socket.onmessage({data: 'Goodbye'}); socket.close()")
         await self.page.clock.run_for(1200)
         self.assertEqual(await self.page.evaluate('connections.length'), 9)
+
+    async def test_maintenance_retries_after_fifteen_minutes_then_resets(self):
+        await self.connect()
+        await self.page.evaluate("socket.onmessage({data: 'The game is unavailable due to scheduled maintenance. Please try again later.'}); socket.readyState = 3; socket.onclose({code: 4015})")
+        await self.page.clock.run_for(1000)
+        await self.page.clock.run_for(898000)
+        self.assertEqual(await self.page.evaluate('connections.length'), 1)
+        text = await self.page.evaluate("Array.from({length: terminal.buffer.active.length}, (_, i) => terminal.buffer.active.getLine(i).translateToString(true)).join('\\n')")
+        self.assertIn('Reconnecting in 15 minutes', text)
+        await self.page.clock.run_for(2000)
+        self.assertEqual(await self.page.evaluate('connections.length'), 2)
+        await self.page.evaluate("socket.onmessage({data: 'Fresh prompt*'}); socket.close()")
+        await self.page.clock.run_for(1500)
+        self.assertEqual(await self.page.evaluate('connections.length'), 3)
+
+    async def test_proxy_maintenance_handshake_failure_uses_long_retry(self):
+        await self.connect()
+        await self.page.route('**/maintenance-status', lambda route: route.fulfill(
+            status=503, content_type='application/json', body='{"maintenance":true}'))
+        await self.page.evaluate("socket.readyState = 3; socket.onclose({code: 1006})")
+        await self.page.wait_for_function('incoming.pending.includes("scheduled maintenance")')
+        await self.page.clock.run_for(899000)
+        self.assertEqual(await self.page.evaluate('connections.length'), 1)
+        await self.page.clock.run_for(3000)
+        self.assertEqual(await self.page.evaluate('connections.length'), 2)
 
     async def test_period_presentation_and_font_alignment(self):
         await self.initial_style('vt220')

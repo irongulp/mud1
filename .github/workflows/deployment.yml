@@ -79,6 +79,11 @@ jobs:
           done
       - name: Fresh external installation and persistence
         run: .venv/bin/python -m tests.integration_external_deployment --fresh --container mud86-external-fresh --url http://127.0.0.1:48080
+      - name: Database editor permissions, concurrency and recovery
+        run: |
+          docker exec -w /checkout mud86-install-test runuser -u mud86 -- /opt/mud86/current/.venv/bin/python -m tests.integration_database_access --output /var/lib/mud86/editor-acceptance
+          mkdir -p runtime/database-editor-ci
+          docker cp mud86-install-test:/var/lib/mud86/editor-acceptance/report.json runtime/database-editor-ci/report.json
       - name: Service diagnostics
         if: always()
         run: |
@@ -96,3 +101,4 @@ jobs:
             runtime/browser.png
             runtime/external-deployment-*/**/*.log
             runtime/external-deployment-*/**/report.json
+            runtime/database-editor-ci/report.json

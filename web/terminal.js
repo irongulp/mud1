@@ -270,6 +270,9 @@ terminal.attachCustomKeyEventHandler(event => {
 
 const RETRY_INITIAL_MS = 1000;
 const RETRY_MAX_MS = 30000;
+const MAINTENANCE_RETRY_MS = 15 * 60 * 1000;
+const MAINTENANCE_CLOSE_CODE = 4015;
+const MAINTENANCE_MESSAGE = 'The game is unavailable due to scheduled maintenance. Please try again later.';
 const OUTPUT_DRAIN_POLL_MS = 50;
 let retryDelay = RETRY_INITIAL_MS;
 let retryTimer;
@@ -282,7 +285,8 @@ function reconnect(delay) {
         return;
     }
     wrappedOutput.reset();
-    terminal.write(`\x18\r\n[Reconnecting in ${delay / 1000}s...]\r\n`, () => {
+    const interval = delay === MAINTENANCE_RETRY_MS ? '15 minutes' : `${delay / 1000}s`;
+    terminal.write(`\x18\r\n[Reconnecting in ${interval}...]\r\n`, () => {
         retryTimer = setTimeout(start, delay);
     });
 }
@@ -321,13 +325,31 @@ function start() {
     socket.onclose = event => {
         outgoing.reset();
         chat.connection(false);
+        if (event.code === MAINTENANCE_CLOSE_CODE) {
+            retryDelay = RETRY_INITIAL_MS;
+            reconnect(MAINTENANCE_RETRY_MS);
+            return;
+        }
         if (restartRequested) retryDelay = RETRY_INITIAL_MS;
         if (event.code === 1000 && !waitingForOutput) retryDelay = RETRY_INITIAL_MS;
         const delay = retryDelay;
         if (event.code !== 1000 || waitingForOutput) {
             retryDelay = Math.min(retryDelay * 2, RETRY_MAX_MS);
         }
-        reconnect(delay);
+        if (event.code === 1006 || event.code === 1013 || event.code === 1001) {
+            // WebSockets hide HTTP handshake response headers. Check the
+            // independent proxy status after a failure or service shutdown.
+            fetch('/maintenance-status', {cache: 'no-store', redirect: 'error', signal: AbortSignal.timeout(5000)})
+                .then(async response => response.status === 503 && (await response.json()).maintenance === true)
+                .catch(() => false)
+                .then(maintenance => {
+                    if (maintenance) {
+                        incoming.enqueue(`\r\n${MAINTENANCE_MESSAGE}\r\n`);
+                        retryDelay = RETRY_INITIAL_MS;
+                    }
+                    reconnect(maintenance ? MAINTENANCE_RETRY_MS : delay);
+                });
+        } else reconnect(delay);
     };
     // WebSocket errors are followed by close, which owns the retry schedule.
     socket.onerror = () => {};

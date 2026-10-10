@@ -1,5 +1,7 @@
 import asyncio
 import unittest
+import tempfile
+from pathlib import Path
 from unittest.mock import patch
 
 import telnetlib3
@@ -84,7 +86,10 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
             except Exception as error:
                 self.handler_errors.append(error)
                 raise
-        app = create_app(upstream_port=port)
+        self.maintenance_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(self.maintenance_dir.cleanup)
+        self.maintenance_file = Path(self.maintenance_dir.name) / 'maintenance'
+        app = create_app(upstream_port=port, maintenance_file=self.maintenance_file)
         app.middlewares.append(record_errors)
         self.server = TestServer(app)
         await self.server.start_server()
@@ -103,6 +108,52 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(message.type, WSMsgType.TEXT)
             result += message.data
         return result
+
+    async def test_maintenance_blocks_new_jobs_but_allows_existing_player_to_quit(self):
+        socket = await self.client.ws_connect(self.server.make_url('/terminal'))
+        await self.receive_until(socket, '*')
+        self.maintenance_file.touch()
+        response = await self.client.get(self.server.make_url('/maintenance-status'))
+        self.assertEqual(response.status, 503)
+        self.assertEqual(response.headers['Retry-After'], '900')
+        blocked = await self.client.ws_connect(self.server.make_url('/terminal'))
+        self.assertIn('scheduled maintenance', (await blocked.receive()).data)
+        await blocked.receive()
+        self.assertEqual(blocked.close_code, 4015)
+        self.assertEqual(self.count, 1)
+        response = await self.client.get(self.server.make_url('/internal/maintenance'))
+        self.assertEqual((await response.json())['sessions'], 1)
+        self.allow_logout.clear()
+        await socket.close()
+        await asyncio.sleep(.05)
+        response = await self.client.get(self.server.make_url('/internal/maintenance'))
+        self.assertEqual((await response.json())['sessions'], 1)
+        self.allow_logout.set()
+        await asyncio.wait_for(self.closed.get(), 5)
+        for _ in range(50):
+            response = await self.client.get(self.server.make_url('/internal/maintenance'))
+            if (await response.json())['sessions'] == 0: break
+            await asyncio.sleep(.01)
+        self.assertEqual((await response.json())['sessions'], 0)
+        self.maintenance_file.unlink()
+        response = await self.client.get(self.server.make_url('/maintenance-status'))
+        self.assertEqual(response.status, 200)
+
+    async def test_maintenance_shutdown_sends_notice_after_normal_cleanup(self):
+        socket = await self.client.ws_connect(self.server.make_url('/terminal'))
+        await self.receive_until(socket, '*')
+        self.maintenance_file.touch()
+        async def read_close():
+            await self.receive_until(socket, 'scheduled maintenance')
+            return await socket.receive()
+        reader = asyncio.create_task(read_close())
+        await asyncio.wait_for(self.server.close(), 3)
+        self.assertEqual((await reader).type, WSMsgType.CLOSE)
+        self.assertEqual(socket.close_code, 4015)
+        self.assertEqual(await asyncio.wait_for(self.closed.get(), 5), 1)
+        commands = ''.join([await asyncio.wait_for(self.inputs.get(), 5) for _ in range(3)])
+        self.assertIn('quit\r', commands)
+        self.assertIn('kjob\r', commands)
 
     async def test_each_browser_gets_its_own_terminal_and_unmodified_output(self):
         first = await self.client.ws_connect(self.server.make_url("/terminal"))
