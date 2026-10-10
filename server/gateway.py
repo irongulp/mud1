@@ -43,6 +43,7 @@ TERMINAL_STYLES = {
 }
 READ_SIZE = 4096
 MAX_INPUT_SIZE = 8192
+MAX_PENDING_INPUT_SIZE = MAX_INPUT_SIZE
 LOGOUT_TIMEOUT = 3
 INTERRUPT_SEQUENCE = "\x03" * 4  # Controlled TOPS-10 monitor recovery, never browser input.
 SAFE_CONTROLS = frozenset('\b\t\n\r\x12\x15\x17')
@@ -224,6 +225,9 @@ def create_app(upstream_host="127.0.0.1", upstream_port=2020, *, session_bootstr
         LOG.info("Terminal session started: connection=%s style=%s", connection_id, style)
         password_input = PasswordInput()
         input_ready = asyncio.Event()
+        pending_input = asyncio.Queue()
+        pending_bytes = 0
+        browser_stopped = asyncio.Event()
         try:
             reader, writer = await asyncio.wait_for(telnetlib3.open_connection(
                 host=upstream_host, port=upstream_port, term="vt100", encoding="ascii",
@@ -278,7 +282,8 @@ def create_app(upstream_host="127.0.0.1", upstream_port=2020, *, session_bootstr
                             ("What's the password for this persona?\n", "Save, delete or finish? ")):
                         input_ready.set()
 
-            async def to_game():
+            async def from_browser():
+                nonlocal pending_bytes
                 async for message in socket:
                     if message.type == WSMsgType.TEXT:
                         if not message.data.isascii():
@@ -292,26 +297,43 @@ def create_app(upstream_host="127.0.0.1", upstream_port=2020, *, session_bootstr
                         except ValueError:
                             await socket.close(code=1009, message=b"Password input line too long")
                             return
-                        # Never pipeline another line past a game exit or rejected
-                        # login into the operating-system monitor. Disconnects
-                        # cancel the blocked sender before QUIT/KJOB cleanup.
-                        for part in re.findall(r'[^\r\n]*[\r\n]|[^\r\n]+$', data):
-                            await input_ready.wait()
-                            writer.write(part)
-                            if part.endswith(('\r', '\n')):
-                                input_ready.clear()
-                            await writer.drain()
+                        if data:
+                            if pending_bytes + len(data) > MAX_PENDING_INPUT_SIZE:
+                                await socket.close(code=1009, message=b"Pending terminal input too long")
+                                return
+                            pending_bytes += len(data)
+                            pending_input.put_nowait(data)
                     elif message.type == WSMsgType.BINARY:
                         # Reserved browser control frame; never forward to MUD.
                         # Returning runs QUIT/KJOB before finally closes the socket.
                         if message.data == b"restart":
+                            browser_stopped.set()
                             return
                         await socket.close(code=1003, message=b"Text terminal input required")
                         return
                     elif message.type == WSMsgType.ERROR:
+                        LOG.warning("Browser terminal error: connection=%s error=%s",
+                                    connection_id, socket.exception())
                         return
 
-            tasks = [asyncio.create_task(to_browser()), asyncio.create_task(to_game())]
+            async def to_game():
+                nonlocal pending_bytes
+                while True:
+                    data = await pending_input.get()
+                    # Prompt fencing must not block the independent WebSocket
+                    # receiver: it needs to read PONG and restart/disconnect.
+                    for part in re.findall(r'[^\r\n]*[\r\n]|[^\r\n]+$', data):
+                        await input_ready.wait()
+                        if socket.closed or browser_stopped.is_set():
+                            return
+                        writer.write(part)
+                        if part.endswith(('\r', '\n')):
+                            input_ready.clear()
+                        await writer.drain()
+                        pending_bytes -= len(part)
+
+            tasks = [asyncio.create_task(to_browser()), asyncio.create_task(from_browser()),
+                     asyncio.create_task(to_game())]
             done, _ = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
             for task in done:
                 task.result()

@@ -1,4 +1,5 @@
 import asyncio
+import os
 import unittest
 import tempfile
 from pathlib import Path
@@ -24,10 +25,12 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
         self.allow_logout = asyncio.Event()
         self.allow_logout.set()
         self.handler_errors = []
+        self.backend_writers = {}
 
         async def shell(reader, writer):
             self.count += 1
             identifier = self.count
+            self.backend_writers[identifier] = writer
             question = False
             purge_menu = False
             try:
@@ -396,6 +399,80 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
         commands = ''.join(self.inputs.get_nowait() for _ in range(self.inputs.qsize()))
         self.assertNotIn('login richard', commands)
 
+    async def test_waiting_for_guest_prompt_keeps_reading_browser_pongs(self):
+        original_socket = web.WebSocketResponse
+
+        def short_heartbeat(**kwargs):
+            kwargs['heartbeat'] = 0.05
+            return original_socket(**kwargs)
+
+        with patch('server.gateway.web.WebSocketResponse', side_effect=short_heartbeat):
+            socket = await self.client.ws_connect(self.server.make_url('/terminal'), autoping=False)
+        try:
+            await self.receive_until(socket, '*')
+            self.assertEqual(await self.inputs.get(), 'login mudguest\r')
+            # The fixture echoes LOOK but deliberately supplies no next prompt.
+            # NORTH must remain queued while the responsive browser answers PING.
+            await socket.send_str('look\rnorth\r')
+            self.assertEqual(await asyncio.wait_for(self.inputs.get(), 1), 'look\r')
+            pings = 0
+            while pings < 3:
+                message = await asyncio.wait_for(socket.receive(), 1)
+                if message.type == WSMsgType.PING:
+                    await socket.pong(message.data)
+                    pings += 1
+                else:
+                    self.assertEqual(message.type, WSMsgType.TEXT,
+                                     'Responsive browser disconnected while waiting for guest prompt')
+            self.assertFalse(socket.closed)
+            self.assertTrue(self.inputs.empty(), 'Queued NORTH escaped the prompt fence')
+        finally:
+            await socket.close()
+
+    async def test_two_chromium_pages_keep_heartbeats_while_guest_is_silent(self):
+        from playwright.async_api import async_playwright
+        os.environ.setdefault('PLAYWRIGHT_BROWSERS_PATH',
+                              str(Path(__file__).resolve().parents[1] / 'runtime/browsers'))
+        original_socket = web.WebSocketResponse
+        server_sockets = []
+
+        def short_heartbeat(**kwargs):
+            kwargs['heartbeat'] = 0.1
+            result = original_socket(**kwargs)
+            server_sockets.append(result)
+            return result
+
+        async with async_playwright() as playwright:
+            browser = await playwright.chromium.launch()
+            try:
+                with patch('server.gateway.web.WebSocketResponse', side_effect=short_heartbeat):
+                    pages = []
+                    for _ in range(2):
+                        page = await browser.new_page()
+                        await page.add_init_script("localStorage.setItem('mud86-chat-mode', 'true')")
+                        await page.goto(str(self.server.make_url('/')))
+                        await page.evaluate('terminalReady')
+                        await page.wait_for_function(
+                            "socket && socket.readyState === WebSocket.OPEN && document.getElementById('chat-output').textContent.includes('SESSION')")
+                        self.assertEqual(await asyncio.wait_for(self.inputs.get(), 2), 'login mudguest\r')
+                        await page.evaluate("socket.send('look\\rnorth\\r')")
+                        self.assertEqual(await asyncio.wait_for(self.inputs.get(), 2), 'look\r')
+                        pages.append(page)
+                    # Real Chromium supplies protocol PONG automatically. No fake
+                    # WebSocket or virtual browser clock participates in this test.
+                    await asyncio.sleep(0.5)
+                    self.assertEqual(len(server_sockets), 2)
+                    self.assertTrue(all(not socket.closed for socket in server_sockets))
+                    self.assertTrue(self.inputs.empty())
+                    for page in pages:
+                        self.assertEqual(await page.evaluate('socket.readyState'), 1)
+                    for writer in self.backend_writers.values():
+                        writer.write('\r\n*')
+                    self.assertEqual([await asyncio.wait_for(self.inputs.get(), 2) for _ in pages],
+                                     ['north\r', 'north\r'])
+            finally:
+                await browser.close()
+
     async def test_pasted_commands_cannot_continue_after_rejected_entry(self):
         self.reject_entry = True
         socket = await self.client.ws_connect(self.server.make_url('/terminal'))
@@ -406,6 +483,67 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
         await asyncio.wait_for(self.closed.get(), 5)
         commands = ''.join(self.inputs.get_nowait() for _ in range(self.inputs.qsize()))
         self.assertNotIn('login richard', commands)
+
+    async def test_pending_input_is_bounded_without_forwarding_overflow(self):
+        from server.gateway import MAX_INPUT_SIZE
+        socket = await self.client.ws_connect(self.server.make_url('/terminal'))
+        try:
+            await self.receive_until(socket, '*')
+            self.assertEqual(await self.inputs.get(), 'login mudguest\r')
+            await socket.send_str('look\rnorth\r')
+            self.assertEqual(await asyncio.wait_for(self.inputs.get(), 1), 'look\r')
+            # Each frame fits the WebSocket limit; only the cumulative pending
+            # budget is exceeded (NORTH is still held behind the prompt fence).
+            await socket.send_str('x' * (MAX_INPUT_SIZE - 1))
+            while (message := await asyncio.wait_for(socket.receive(), 2)).type == WSMsgType.TEXT:
+                pass
+            self.assertEqual(message.type, WSMsgType.CLOSE)
+            self.assertEqual(message.data, 1009)
+            await asyncio.wait_for(self.closed.get(), 2)
+            commands = ''.join(self.inputs.get_nowait() for _ in range(self.inputs.qsize()))
+            self.assertNotIn('north', commands)
+            self.assertNotIn('xxx', commands)
+        finally:
+            await socket.close()
+
+    async def test_queued_lines_advance_one_at_a_time_on_guest_prompts(self):
+        socket = await self.client.ws_connect(self.server.make_url('/terminal'))
+        try:
+            await self.receive_until(socket, '*')
+            self.assertEqual(await self.inputs.get(), 'login mudguest\r')
+            await socket.send_str('look\rnorth\r')
+            await socket.send_str('south\r')
+            self.assertEqual(await asyncio.wait_for(self.inputs.get(), 1), 'look\r')
+            await self.receive_until(socket, 'look\r')
+            self.assertTrue(self.inputs.empty())
+            self.backend_writers[1].write('\r\n*')
+            self.assertEqual(await asyncio.wait_for(self.inputs.get(), 1), 'north\r')
+            await self.receive_until(socket, 'north\r')
+            self.assertTrue(self.inputs.empty())
+            self.backend_writers[1].write('\r\n*')
+            self.assertEqual(await asyncio.wait_for(self.inputs.get(), 1), 'south\r')
+        finally:
+            await socket.close()
+
+    async def test_restart_remains_readable_while_command_waits_for_prompt(self):
+        socket = await self.client.ws_connect(self.server.make_url('/terminal'))
+        try:
+            await self.receive_until(socket, '*')
+            self.assertEqual(await self.inputs.get(), 'login mudguest\r')
+            await socket.send_str('look\rnorth\r')
+            self.assertEqual(await asyncio.wait_for(self.inputs.get(), 1), 'look\r')
+            await socket.send_bytes(b'restart')
+            while (message := await asyncio.wait_for(socket.receive(), 2)).type == WSMsgType.TEXT:
+                pass
+            self.assertEqual(message.type, WSMsgType.CLOSE)
+            self.assertEqual(message.data, 1000)
+            await asyncio.wait_for(self.closed.get(), 2)
+            commands = ''.join(self.inputs.get_nowait() for _ in range(self.inputs.qsize()))
+            self.assertIn('quit\r', commands)
+            self.assertIn('kjob\r', commands)
+            self.assertNotIn('north', commands)
+        finally:
+            await socket.close()
 
     async def test_restart_waits_for_logout_before_closing_browser(self):
         socket = await self.client.ws_connect(self.server.make_url('/terminal'))

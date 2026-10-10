@@ -540,6 +540,13 @@
 
 ## Hosting / idle measurements
 
+- Keep WebSocket receiving separate from prompt-fenced guest sending. Waiting for
+  input credit inside the receiver can starve PONG and restart frames, closing a
+  responsive browser after the heartbeat deadline. Pending input is byte-bounded
+  (including the sender's in-flight wait); overflow closes1009. Gateway tests
+  cover responsive PONG, real Chromium, ordered prompt release, overflow and
+  restart/logout cleanup. Existing running gateways need restart to load changes.
+
 - SQL editor access is managed by tools.database_access during MariaDB setup:
   127.0.0.1:3307, skip-name-resolve, private database-editor.json credentials,
   and a column-granted updatable persona_editor view. Game storage still uses
