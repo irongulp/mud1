@@ -13,10 +13,10 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 120
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
       - name: Audit Python dependencies
@@ -100,7 +100,7 @@ jobs:
           docker exec mud86-install-test journalctl -u mud86-runtime -u mud86-gateway --no-pager > runtime/deployment-ci/services.log || true
           docker exec mud86-install-test systemctl stop mud86-runtime.service || true
           docker exec mud86-external-fresh systemctl stop mud86-runtime.service || true
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: deployment-results
