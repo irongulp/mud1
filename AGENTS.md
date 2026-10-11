@@ -550,6 +550,10 @@
   one logical line/fragment at a time. Receipt-time filtering misclassifies future
   admission passwords. The pending budget includes hidden editor bytes; do not
   clear prompt credit for a buffered fragment that sends nothing upstream.
+  Browser smoke editing waits for each parsed echo/erase stage with both pacing
+  queues empty; raw WebSocket suffixes do not prove native redraw completion.
+  Failed stages retain escaped raw output, cursor/queue diagnostics and the
+  browser screenshot before subsequent commands can overwrite the evidence.
 
 - SQL editor access is managed by tools.database_access during MariaDB setup:
   127.0.0.1:3307, skip-name-resolve, private database-editor.json credentials,
