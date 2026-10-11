@@ -8,7 +8,7 @@ opening browser access.
 
 ## Run
 
-Use Python 3.9–3.12 and an initialized restoration runtime with the original
+Use Python 3.12 and an initialized restoration runtime with the original
 BCPL compiler and password-free RICHARD operating-system account. The command
 connects to the explicitly selected **loopback Telnet port**. Provisioning needs
 exclusive maintenance access: run it before starting the browser gateway or

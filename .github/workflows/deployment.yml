@@ -16,9 +16,18 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Audit Python dependencies
+        run: |
+          python3 -m venv .audit-venv
+          .audit-venv/bin/python -m pip install pip-audit==2.10.1
+          .audit-venv/bin/python -m pip_audit -s osv -r requirements-dev.txt -r requirements-deploy.txt
       - name: Host test environment
         run: |
           python3 -m venv .venv
+          .venv/bin/python -m pip install --upgrade pip==26.2.1
           .venv/bin/pip install -r requirements-dev.txt
           git clone --no-checkout https://github.com/PDP-10/MUD1.git upstream/mud1
           git -C upstream/mud1 checkout --detach 8d2ce6ee5ca1ae3d835538de20aeb87acaae3df1

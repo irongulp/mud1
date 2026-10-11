@@ -288,7 +288,9 @@ before installing the locked dependencies. Installer reruns enforce the same pin
 and run `pip check` after installation, including optional hash-checked MariaDB
 dependencies. A failed upgrade or dependency check stops setup. System pip is not
 upgraded. This uses the installer's Python 3.12; pip 26.2.1 requires Python 3.10 or
-newer and cannot be installed in the development Mac's Python 3.9 environment.
+newer. The security-updated dependencies also require Python 3.10+, so local
+development now uses Python 3.12; recreate legacy Python 3.9 environments as
+described in README host setup.
 
 The real `application_release()` path passed fresh native dependency setup and an
 external-dependency rerun in disposable native-ARM AlmaLinux 9/Python 3.12.15
@@ -299,7 +301,7 @@ full installed-service acceptance; the native-x86 deployment workflow checks tho
 
 The optional `browser-tests` target includes Python 3.12, pip 26.2.1, the pinned
 development/deployment dependencies, hash-checked storage dependencies, Playwright
-1.55.0 and its matching Chromium. Chromium libraries are installed with `dnf`;
+1.63.0 and its matching Chromium. Chromium libraries are installed with `dnf`;
 Playwright's Debian/Ubuntu `install --with-deps` command is not used on AlmaLinux.
 Linux browsers live inside the image at `/opt/mud86-test-browsers`, independently
 of any macOS binaries in the mounted checkout. Rebuild after changing requirements.
@@ -315,9 +317,10 @@ docker run --rm --shm-size=1g \
 
 The default command runs deployment, external-deployment, gateway, persona-store
 and terminal tests, including real Chromium heartbeat and UI checks. On native
-ARM AlmaLinux 9 with Python 3.12.15, all 130 tests passed on 2026-10-11. Playwright
-reports AlmaLinux as unsupported and selects its Ubuntu 20.04 fallback browser;
-the matching Chromium 140.0.7339.16 was successfully launched and tested here.
+ARM AlmaLinux 9 with Python 3.12.15, all 131 tests passed with the security-updated
+pins on 2026-10-11. Playwright reports AlmaLinux as unsupported and selects its
+Ubuntu 24.04 fallback browser; the matching Chromium 153.0.8010.12 was successfully
+launched and tested here.
 Only Chromium is installed; Firefox/WebKit need separate binaries and libraries.
 
 Override the command to select other host tests, for example:
@@ -332,6 +335,39 @@ This target runs host/browser suites without starting the historical guest or
 MariaDB. Guest, database and full installed-service acceptance still require their
 respective fixtures. The default Docker build continues to select the `deployment`
 target below, which starts systemd and does not include the browser-test tooling.
+
+### Security update validation
+
+The pinned runtime now uses aiohttp 3.14.5, multidict 6.9.1 and yarl 1.25.1.
+This replaces aiohttp 3.12.15 and multidict 6.7.1, which returned active security
+advisories. Relevant fixes include incomplete WebSocket frames bypassing memory
+limits ([CVE-2026-54274](https://github.com/aio-libs/aiohttp/security/advisories/GHSA-xcgm-r5h9-7989)),
+WebSocket-upgrade request smuggling ([CVE-2026-69243](https://github.com/aio-libs/aiohttp/security/advisories/GHSA-mfx4-hv73-q22v)),
+and the multidict items-view reference leak
+([CVE-2026-104874](https://github.com/aio-libs/multidict/security/advisories/GHSA-54p9-h82j-f925)).
+Playwright 1.63.0 replaces the older test browser; installing the Python package
+alone does not replace browser binaries, so rerun `playwright install chromium`.
+
+On 2026-10-11, pip-audit 2.10.1 found no known vulnerabilities in the resolved
+development/deployment Python dependency set using both its PyPI and OSV services.
+The same OSV audit runs in deployment CI, in a separate audit-tool environment:
+
+```sh
+python3.12 -m venv .audit-venv
+.audit-venv/bin/python -m pip install pip-audit==2.10.1
+.audit-venv/bin/python -m pip_audit -s osv -r requirements-dev.txt -r requirements-deploy.txt
+```
+
+The combined development set includes the exact optional PyMySQL pin from
+`requirements-storage.txt`; production still installs it with hash verification.
+The full 356-test host suite and the additional multidict reference-leak regression
+passed on macOS arm64/Python 3.12.15 with the new Chromium. That regression failed
+for both affected operations with the old multidict 6.7.1 Docker image and passed
+with 6.9.1. The real installer release setup and external rerun also passed in
+AlmaLinux.
+These Python advisory checks do not audit AlmaLinux RPMs or browser binaries.
+Rebuild test images to download the matching browser; apply target-host OS
+security updates separately. No live deployment is implied by local evidence.
 
 ### Local installed-service tests
 

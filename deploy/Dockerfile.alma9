@@ -21,6 +21,6 @@ RUN python3.12 -m venv "$VIRTUAL_ENV" \
     && python -m pip check \
     && python -m playwright install chromium
 WORKDIR /checkout
-CMD ["python", "-m", "unittest", "tests.test_deployment", "tests.test_external_deployment", "tests.test_gateway", "tests.test_persona_store", "tests.test_terminal", "-v"]
+CMD ["python", "-m", "unittest", "tests.test_dependency_security", "tests.test_deployment", "tests.test_external_deployment", "tests.test_gateway", "tests.test_persona_store", "tests.test_terminal", "-v"]
 
 FROM base AS deployment
