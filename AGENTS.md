@@ -578,6 +578,14 @@
   fix is claimed; native-x86 CI with diagnostics remains needed. Keep the separate
   OPR boot failure, Linux player-arrival redraw failure and interrupted experiment.
   See docs/ci-admission.md for private evidence and reproduction commands.
+  Follow-up38178361290 at9933234 passed HTTPS, reboot and populated cutover,
+  then failed fresh-external installer rerun in reset_permissions' DIRECTORY
+  read. Initial fresh install/login/editor passed; final SQL acceptance skipped.
+  Cause unestablished. Diagnostics now cover BOTH containers, including DB
+  journals and status; external installer logs persist redacted failed/timeout
+  output, including interrupted credential fields. Five red regressions then32
+  focused host tests passed. No production
+  retry/deadline change or native timeout fix is claimed.
 
 - Deployment release setup now pins pip26.2.1 in the release venv before locked
   requirements, including reruns; pip check follows optional hash-checked storage

@@ -96,12 +96,7 @@ jobs:
       - name: Service diagnostics
         if: always()
         run: |
-          mkdir -p runtime/deployment-ci
-          docker exec mud86-install-test journalctl -u mud86-runtime -u mud86-gateway --no-pager > runtime/deployment-ci/services.log || true
-          docker exec mud86-install-test nginx -T > runtime/deployment-ci/nginx.log 2>&1 || true
-          # Read-only guest ownership evidence, before service teardown. Bound
-          # the helper too: the same admission fault may affect maintenance TTYs.
-          docker exec -w /checkout mud86-install-test timeout --signal=INT --kill-after=100s 110s /opt/mud86/current/.venv/bin/python -m tests.deployment_guest_status > runtime/deployment-ci/guest-systat.log 2>&1 || true
+          .venv/bin/python -m tests.deployment_diagnostics || true
           docker exec mud86-install-test systemctl stop mud86-runtime.service || true
           docker exec mud86-external-fresh systemctl stop mud86-runtime.service || true
       - uses: actions/upload-artifact@v4

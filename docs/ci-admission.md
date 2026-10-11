@@ -98,3 +98,29 @@ correlate the connection stage, socket close code, guest line ownership, and
 runtime/Nginx evidence before selecting a change. Compare a proposed correction
 against a failing control on a disposable guest; a successful rerun alone is not
 proof of causation or a general admission fix.
+
+## Native-x86 diagnostic run
+
+Run `38178361290` at `9933234` passed the previously failing HTTPS smoke,
+container reboot/browser recovery, and populated native-to-MariaDB cutover with
+installer rerun, backup and restart. It then failed the **rerun** of a fresh
+external installation: `tools.reset_permissions.configure()` timed out awaiting
+`directory DSKB:MUD.EXE[2011,2776]`. Initial installation, saved persona admission
+and the installed editor check had passed. The final database-editor acceptance
+step was skipped. This is a different failure point from the initial browser
+monitor wait; no common cause has been established.
+
+That run exposed two evidence gaps. Diagnostics only targeted
+`mud86-install-test`, not the failing `mud86-external-fresh`, and `rerun.log` was
+written only on success. The collector now captures service journals (including
+MariaDB), service status, Nginx configuration and independent guest SYSTAT for
+**both containers**, under `runtime/deployment-ci/<container>/`. Missing
+containers or timed-out diagnostics retain their errors and do not suppress the
+other captures. Installer/rerun/backup logs retain redacted output before raising
+on failure, including partial output from a subprocess timeout.
+
+Five failing regressions preceded these corrections (including interrupted
+credential-line redaction); all 32 diagnostic,
+deployment and external-deployment host tests passed afterward. This fixes
+evidence retention, not the native DIRECTORY timeout. No additional production
+retry or increased guest deadline has been introduced.
