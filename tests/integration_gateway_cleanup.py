@@ -25,7 +25,7 @@ JOB_REMOVAL_TIMEOUT = 10
 JOB_POLL_INTERVAL = 0.25
 
 
-def deployment_emulator(directory):
+def deployment_emulator(directory, *, reuse=False):
     # Select the deployment throttle before SIMH opens its DO script. Never
     # rewrite a running .ini or rely on pause/resume to reconfigure the guest.
     spawn = pexpect.spawn
@@ -34,7 +34,7 @@ def deployment_emulator(directory):
         config.write_text(config.read_text().replace('boot tu0\n', 'set throttle 5M\nboot tu0\n'))
         return spawn(executable, args, **kwargs)
     with patch('pexpect.spawn', start):
-        return Emulator(directory, 'noidle', speed_factor=8)
+        return Emulator(directory, 'noidle', reuse=reuse, speed_factor=8)
 
 
 class Browser:

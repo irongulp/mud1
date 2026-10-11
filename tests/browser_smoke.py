@@ -1,6 +1,7 @@
 """Real Chromium test against an original MUD gateway (localhost:8080 by default)."""
 import argparse
 import asyncio
+import json
 import os
 import secrets
 import string
@@ -11,15 +12,41 @@ from playwright.async_api import TimeoutError as BrowserTimeoutError, async_play
 ROOT = Path(__file__).resolve().parents[1]
 os.environ.setdefault("PLAYWRIGHT_BROWSERS_PATH", str(ROOT / "runtime/browsers"))
 EDITING_TIMEOUT_MS = 20000
+TEXT_TIMEOUT_MS = 20000
+DIAGNOSTIC_OUTPUT_CHARS = 8192
+DIAGNOSTIC_EVENT_LIMIT = 32
 
 
-async def wait_text(page, text):
+async def wait_text(page, text, *, timeout=TEXT_TIMEOUT_MS):
     await page.wait_for_function(r"""text => {
+        if (typeof terminal === 'undefined') return false;
         const buffer = terminal.buffer.active;
         const lines = [];
         for (let n = 0; n < buffer.length; n++) lines.push(buffer.getLine(n).translateToString());
         return lines.join('\n').includes(text);
-    }""", arg=text, timeout=20000)
+    }""", arg=text, timeout=timeout)
+
+
+async def wait_admission(page, *, screenshot=None, errors=(), timeout=TEXT_TIMEOUT_MS):
+    """Retain pre-persona failure evidence before closing the browser."""
+    try:
+        await wait_text(page, 'By what name shall I call you?', timeout=timeout)
+    except BrowserTimeoutError as error:
+        state = await page.evaluate("""limits => ({
+            url: location.href,
+            socket: typeof socket === 'undefined' || !socket ? null :
+                {url: socket.url, readyState: socket.readyState},
+            raw_output: (window.gameOutput || '').slice(-limits.output),
+            events: (window.admissionEvents || []).slice(-limits.events),
+            incoming: typeof incoming === 'undefined' ? null : incoming.pending.length,
+            outgoing: typeof outgoing === 'undefined' ? null : outgoing.pending.length
+        })""", {'output': DIAGNOSTIC_OUTPUT_CHARS, 'events': DIAGNOSTIC_EVENT_LIMIT})
+        state['errors'] = list(errors)[-DIAGNOSTIC_EVENT_LIMIT:]
+        if screenshot is not None:
+            screenshot = Path(screenshot)
+            screenshot.with_suffix('.admission.json').write_text(json.dumps(state, indent=2) + '\n')
+            await page.screenshot(path=str(screenshot), full_page=True)
+        raise AssertionError(f'Initial admission failed: {state!r}') from error
 
 
 async def command(page, text):
@@ -126,17 +153,32 @@ async def main(url="http://127.0.0.1:8080", screenshot=ROOT / "runtime/browser.p
                 page = await browser.new_page(viewport={"width": 1100, "height": 850},
                                               ignore_https_errors=ignore_https_errors)
                 page.on("pageerror", lambda error: errors.append(str(error)))
+                admission_errors = []
+                page.on('pageerror', lambda error, captured=admission_errors: captured.append(str(error)))
+                page.on('console', lambda message, captured=admission_errors: captured.append(message.text)
+                        if message.type == 'error' else None)
+                page.on('requestfailed', lambda request, captured=admission_errors: captured.append(
+                    request.url + ': ' + str(request.failure)))
                 await page.add_init_script("""(() => {
+                    const MAX_ADMISSION_EVENTS = 32;
                     window.gameOutput = '';
+                    window.admissionEvents = [];
                     window.WebSocket = class extends WebSocket {
                         constructor(...args) {
                             super(...args);
+                            for (const event of ['open', 'error', 'close']) {
+                                this.addEventListener(event, e => {
+                                    admissionEvents.push({event, code: e.code, url: this.url});
+                                    if (admissionEvents.length > MAX_ADMISSION_EVENTS) admissionEvents.shift();
+                                });
+                            }
                             this.addEventListener('message', event => gameOutput += event.data);
                         }
                     };
                 })();""")
                 await page.goto(url)
-                await wait_text(page, "By what name shall I call you?")
+                await wait_admission(page, screenshot=screenshot,
+                                     errors=admission_errors)
                 errors.extend(await check_name_prompt(page))
                 name = "Ui" + "".join(secrets.choice(string.ascii_lowercase) for _ in range(6))
                 names.append(name)

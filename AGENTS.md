@@ -567,6 +567,18 @@
 
 ## Hosting / idle measurements
 
+- PR6 CI run38172587681 at925155c failed HTTPS smoke at `stage=monitor` before
+  LOGIN; HTTPS assets/WSS101 reached the gateway. A preceding TTY STOMPER TTY0
+  warning is a lead, not established cause. Browser initial-admission failures
+  now retain bounded pre-persona socket/output/error diagnostics plus screenshot;
+  CI collects read-only SYSTAT and Nginx configuration before teardown. Native
+  disposable controls passed24 historical/8 deployment-image Mac admissions,
+  three Mac two-tab rounds and three ARM AlmaLinux HTTPS/WSS rounds.75 selected
+  host/browser tests passed both Python3.12 environments. No production admission
+  fix is claimed; native-x86 CI with diagnostics remains needed. Keep the separate
+  OPR boot failure, Linux player-arrival redraw failure and interrupted experiment.
+  See docs/ci-admission.md for private evidence and reproduction commands.
+
 - Deployment release setup now pins pip26.2.1 in the release venv before locked
   requirements, including reruns; pip check follows optional hash-checked storage
   installation. System pip stays distro-managed. Python>=3.10 required (installer
