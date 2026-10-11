@@ -227,19 +227,28 @@ reconstructed by checking out the application files.
 
 ## Host setup
 
-Tested with macOS arm64 and Python 3.9. The standalone legacy Telnet smoke test
-uses standard-library `telnetlib` and needs Python 3.9–3.12. The gateway uses
-`telnetlib3` instead.
+Use **Python 3.12** for development and deployment. The security-updated dependency
+set requires Python 3.10 or newer; the previous Python 3.9 environment cannot use
+it. The standalone legacy Telnet smoke test uses standard-library `telnetlib`,
+which was removed in Python 3.13. The gateway uses `telnetlib3` instead.
 
 ```sh
-python3 -m venv .venv
+python3.12 -m venv .venv
+.venv/bin/python -m pip install --upgrade pip==26.2.1
 .venv/bin/python -m pip install -r requirements.lock
-python3 tools/fetch_terminal.py
+.venv/bin/python tools/fetch_terminal.py
 ```
 
 For a fresh machine, follow [the restoration procedure](docs/restoration.md)
 to obtain/build SIMH and create the guest disk. The source-preparation step does
 not by itself install TOPS-10.
+
+On macOS, `brew install python@3.12` provides `python3.12`. If `.venv` already
+uses Python 3.9, stop its host processes first, rename it to a backup such as
+`.venv-python39`, then create a fresh `.venv` with the commands above. Reinstall
+`requirements-dev.txt` and the matching Playwright browsers before browser tests;
+changing the package does not update existing browser binaries. Guest disks and
+database state are independent of the Python environment.
 
 ## Small-server hosting
 
@@ -257,7 +266,7 @@ The report contains the measurements, limitations and reproduction commands.
 .venv/bin/python -m unittest discover -s tests -v
 
 # Original engine must already be running
-python3 tests/integration_multiplayer.py
+.venv/bin/python tests/integration_multiplayer.py
 .venv/bin/python -m tests.integration_web
 
 # Real browser test; also requires the gateway on :8080

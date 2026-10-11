@@ -31,7 +31,8 @@
 
 ## Current working system
 
-- macOS arm64; Python 3.9 virtual environment at `.venv`.
+- macOS arm64; use Python 3.12 for the security-updated dependencies. Legacy
+  Python 3.9 `.venv` directories need fresh recreation (README host setup).
 - SIMH revision `47b7ddabbe5b548cfc32f2fd45f7bed238ff7921`, `upstream/simh/BIN/pdp10`.
 - TOPS-10 7.04 disk: `runtime/disks/tops10-704.dsk`.
 - **Boot via the original tape and `/tm02`**, as in `tools/boot.py` and
@@ -539,6 +540,26 @@
   OPTIONAL_PACKAGES= to suppress that behavior.
 
 ## Hosting / idle measurements
+
+- Deployment release setup now pins pip26.2.1 in the release venv before locked
+  requirements, including reruns; pip check follows optional hash-checked storage
+  installation. System pip stays distro-managed. Python>=3.10 required (installer
+  uses3.12); recreate old Mac3.9 venvs under3.12. Disposable native-ARM
+  AlmaLinux9/Python3.12.15 passed real application_release fresh native setup and
+  external rerun. Two host regressions cover ordering/reruns and upgrade failure.
+  Security pins aiohttp3.14.5/multidict6.9.1/yarl1.25.1 require Python>=3.10.
+  pip-audit2.10.1 PyPI/OSV audits found no known Python dependency vulnerabilities;
+  CI repeats OSV audit in a separate env. Full356 macOS3.12 host tests plus a new
+  multidict leak regression passed (357 total). That regression fails for both
+  operations on6.7.1 and passes on6.9.1.
+  `deploy/Dockerfile.alma9 --target browser-tests` includes Playwright1.63.0,
+  matching Chromium and dnf-installed browser libraries. Image-owned
+  PLAYWRIGHT_BROWSERS_PATH avoids mounted Mac browser binaries. All131 selected
+  dependency-security/deployment/external-deployment/gateway/persona-store/
+  terminal tests passed.
+  Chromium153.0.8010.12 uses the Ubuntu24.04 fallback on unsupported AlmaLinux;
+  only Chromium is installed. Default/final deployment target retains systemd.
+  See docs/deployment.md; guest/DB/systemd and native-x86 acceptance are separate.
 
 - Keep WebSocket receiving separate from prompt-fenced guest sending. Waiting for
   input credit inside the receiver can starve PONG and restart frames, closing a

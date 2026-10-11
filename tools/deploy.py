@@ -27,6 +27,7 @@ CONTROL_WRAPPER = '#!/bin/sh\nexec /opt/mud86/current/.venv/bin/python /opt/mud8
 PROXY_READY_TIMEOUT = 10
 PROXY_REQUEST_TIMEOUT = 1
 PROXY_POLL_INTERVAL = .1
+DEPLOY_PIP_VERSION = '26.2.1'
 
 
 def selected_backend(requested,previous):
@@ -165,8 +166,10 @@ def application_release(external=False):
     python = release / '.venv/bin/python'
     if not python.exists():
         run(sys.executable, '-m', 'venv', release / '.venv')
+    run(python, '-m', 'pip', 'install', '--upgrade', 'pip==' + DEPLOY_PIP_VERSION)
     run(python, '-m', 'pip', 'install', '-r', release / 'requirements-deploy.txt')
     if external: run(python,'-m','pip','install','--require-hashes','-r',release/'requirements-storage.txt')
+    run(python, '-m', 'pip', 'check')
     return release
 
 

@@ -12,8 +12,9 @@ system MariaDB service and port 8080 are not selected by this launcher.
 
 ## Requirements and state
 
-Use the existing Python 3.9 `.venv`, pinned SIMH, original boot tape and frontend
-assets. Install optional storage dependencies if necessary:
+Use a Python 3.12 `.venv` (see README host setup for replacing the old Python 3.9
+environment), pinned SIMH, original boot tape and frontend assets. Install optional
+storage dependencies if necessary:
 
 ```sh
 .venv/bin/python -m pip install --require-hashes -r requirements-storage.txt
