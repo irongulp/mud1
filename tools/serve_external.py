@@ -22,6 +22,8 @@ from tools.persona_migrate import load_config
 from tools.persona_snapshot import publish_private
 from tools.persona_write_session import serve_personas
 from tools.persona_writes import isolated_writer
+from tools.inspect_game import NativeInspector
+from tools.reset_permissions import configure as configure_reset_permissions
 # Reuse verified disposable-runtime mechanics for this local research launcher.
 # This is not the systemd deployment entry point.
 from tests.integration_storage_bridge import private_emulator, BRIDGE_LINES
@@ -233,6 +235,8 @@ def run(state, source, port):
                             machine.boot(); machine.command('daytime')
                         if 'STOMPR' in machine.command('systat'):
                             raise RuntimeError('Terminal initializer is still active on private bridge guest')
+                        with NativeInspector(machine.port) as native:
+                            configure_reset_permissions(native)
                         bridge = startup.enter_context(PersonaBridge(machine, ports, store))
                         break
                     except Exception:

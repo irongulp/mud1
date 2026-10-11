@@ -401,6 +401,8 @@ def install(args):
         run('systemctl','start','mud86-runtime.service')
     if backend=='mariadb':
         run(release/'.venv/bin/python','-m','tools.external_cutover','--verify-only','--config-dir',CONFIG,cwd=release)
+    run('runuser', '-u', 'mud86', '--', release / '.venv/bin/python', '-m', 'tools.reset_permissions',
+        '--port', '2020', cwd=release)
     (CONFIG / 'provisioned').write_text('All seven archwizard records verified nonzero.\n')
     run('systemctl', 'start', 'mud86-gateway.service')
     configure_proxy(domain, args.http_only, args.email)

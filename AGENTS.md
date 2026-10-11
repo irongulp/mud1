@@ -534,6 +534,32 @@
   a persona password. Old players remain in the old world; quit/reconnect to
   join the reset world. Separate old/new WHO lists verified this behavior.
   This direct operation does not set the old segment's in-game `supers` flag.
+  Browser RESET now uses MUD.EXE<051> under unchanged MUDGUEST. Native probes
+  rejected 055/054/053/052 and passed 051; this cumulative other-project access
+  includes write/delete/rename/attributes, not a reset-only permission. No native
+  code or account switch. tools.reset_permissions verifies/idempotently applies
+  it, --disable restores055; setup/local external launcher apply before admission.
+  TXTBTM.GET rejects ordinary-player RESET before SF.RESET (including solo);
+  earlier handler-only claims allowing it were wrong. Ordinary wizard solo and
+  multiplayer refusal, saved archwizard multiplayer success, combat refusal and
+  Chromium terminal/Chat passed. First-admission new archwizard lacks maint until
+  SAVE/re-entry. Native reset-browser-acceptance passed behavior/FILCOM but final
+  KSYS timed out; keep later boot/fixture failures, no clean native recovery claim.
+  reset-external-verified passed SAVE/RESET, unchanged DB records, new-world WHO,
+  both Chromium modes, restart/idempotence and two clean shutdowns. Local :8081
+  configured; old native operator unavailable, no VPS deployment. See
+  docs/browser-reset.md. Original source/executable bytes unchanged.
+  74 focused permission/deployment/local-launcher/gateway/keyboard-history host
+  tests passed in the working checkout, including the user's arrow-key changes.
+  Isolated permission PR on current main passed82 focused host/gateway tests;
+  arrow-key changes remain separate user work.
+  Follow-up user report: external solo ordinary-wizard RESET succeeds at world
+  reset but prints "External handover unavailable; resolve pending persistence
+  first." Existing external acceptance used saved Roy, bypassing quit-and-chain;
+  only native storage verified the ordinary-wizard solo path. WRCHAIN's generic
+  error does not prove pending SAVE. Suspect SIXBIT mud6 passed to string-based
+  chain.allowed, not isolated/reproduced yet. User explicitly deferred the adapter
+  fix; do not claim full external solo-wizard RESET support.
 - Do not edit an active SIMH .ini file: a running DO script can retain its file
   offset, and stopping simulation may execute newly shifted trailing content.
 - SIMH's makefile can auto-install packages. Build with USEFUL_PACKAGES= and

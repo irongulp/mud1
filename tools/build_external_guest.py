@@ -4,6 +4,8 @@ import re
 import socket
 import time
 
+from tools.reset_permissions import RESET_PROTECTION
+
 DATA_BASE=0o520000
 MARKER_BASE=0o140
 COPY_DELAY=.1
@@ -85,5 +87,5 @@ def build_external(native,prepared):
     if b'Total space used 25247' not in generated or not generated.endswith(b'MUD saved'):
         raise RuntimeError('Original DBASE did not regenerate the expected world')
     native.receive(b'\n.'); native.at_monitor=True
-    native.command('protect mud.exe<055>')
+    native.command('protect mud.exe<' + RESET_PROTECTION + '>')
     for kind in 'rtomcg': native.command('protect mud.?'+kind+'m<055>')

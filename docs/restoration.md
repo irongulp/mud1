@@ -413,11 +413,16 @@ core limits `512 512`; context quotas `4 1000`; ENQ/DEQ quota `100`; IPCF quotas
 `2 5 2`; DSKB structure quotas `INFINITE INFINITE 0`. REACT access types, login
 times, requirements, and structure quotas are submenus, each closed with DONE.
 
-The MUD executable and description/action files have protection `055`; the
+The baseline MUD executable and description/action files have protection `055`; the
 persona file and writable `.DBA` files have `022`. Match the persona file with
 `MUD.?PM`, and all generated data extensions with `MUD.??M` to handle the
 embedded dot. All players execute the **same file in the same PPN**, sharing
 its high segment; copying an executable per player would create separate worlds.
+
+Browser RESET installations now use `051` for **MUD.EXE only**, allowing its
+original same-name RENAME operation under MUDGUEST. See
+[browser reset permissions](browser-reset.md) for the access-level tradeoff,
+configuration command, original wizard policy and native/browser evidence.
 
 ## Verification evidence and remaining acceptance work
 
