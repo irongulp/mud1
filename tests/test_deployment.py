@@ -3,12 +3,14 @@ import io
 import json
 from pathlib import Path
 import shutil
+import subprocess
+import sys
 import tarfile
 import tempfile
 import unittest
 from unittest.mock import patch,Mock
 
-from tools.deploy import install_image, validate_domain, nginx_config, write_backup, install_control,wait_proxy
+from tools.deploy import application_release, install_image, validate_domain, nginx_config, write_backup, install_control,wait_proxy
 from server.runtime import Runtime, simulator_config
 
 
@@ -56,6 +58,49 @@ class DeploymentTests(unittest.TestCase):
                 'archive': {'sha256': hashlib.sha256(self.archive.read_bytes()).hexdigest()},
                 'files': {name: {'size': len(data), 'sha256': hashlib.sha256(data).hexdigest()}
                           for name, data in self.files.items()}}
+
+    def release_checkout(self):
+        checkout = self.root / 'checkout'
+        checkout.mkdir()
+        for name in ('server', 'tools', 'web', 'deploy', 'docs', 'licenses', 'source'):
+            (checkout / name).mkdir()
+        for name in ('requirements.lock', 'requirements-deploy.txt', 'README.md',
+                     'setup.sh', 'LICENSE', 'COPYING', 'NOTICE', 'THIRD_PARTY.md',
+                     'requirements-storage.txt'):
+            (checkout / name).write_text('fixture\n')
+        return checkout
+
+    def test_release_upgrades_pip_before_dependencies_on_fresh_setup_and_rerun(self):
+        checkout = self.release_checkout()
+        with patch('tools.deploy.ROOT', checkout), patch('tools.deploy.APP', self.root / 'app'), patch('tools.deploy.run') as run:
+            release = application_release()
+            python = release / '.venv/bin/python'
+            self.assertEqual([call.args for call in run.call_args_list], [
+                (sys.executable, '-m', 'venv', release / '.venv'),
+                (python, '-m', 'pip', 'install', '--upgrade', 'pip==26.2.1'),
+                (python, '-m', 'pip', 'install', '-r', release / 'requirements-deploy.txt'),
+                (python, '-m', 'pip', 'check'),
+            ])
+            python.parent.mkdir(parents=True)
+            python.touch()
+            run.reset_mock()
+            self.assertEqual(application_release(external=True), release)
+            self.assertEqual([call.args for call in run.call_args_list], [
+                (python, '-m', 'pip', 'install', '--upgrade', 'pip==26.2.1'),
+                (python, '-m', 'pip', 'install', '-r', release / 'requirements-deploy.txt'),
+                (python, '-m', 'pip', 'install', '--require-hashes', '-r', release / 'requirements-storage.txt'),
+                (python, '-m', 'pip', 'check'),
+            ])
+
+    def test_failed_pip_upgrade_stops_release_dependency_installation(self):
+        checkout = self.release_checkout()
+        def fail_upgrade(*command):
+            if '--upgrade' in command:
+                raise subprocess.CalledProcessError(1, command)
+        with patch('tools.deploy.ROOT', checkout), patch('tools.deploy.APP', self.root / 'app'), patch('tools.deploy.run', side_effect=fail_upgrade) as run:
+            with self.assertRaises(subprocess.CalledProcessError):
+                application_release(external=True)
+        self.assertEqual(run.call_count, 2)
 
     def test_install_then_rerun_preserves_changed_disk(self):
         manifest = self.bundle()

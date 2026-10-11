@@ -281,6 +281,60 @@ through Nginx and container restart. Logs redact generated credential lines.
 Public ACME issuance, SELinux enforcing-kernel behavior and the actual IONOS host
 reboot need verification on the target VPS; a container is not evidence of those.
 
+### Deployment pip version
+
+Setup pins pip to **26.2.1** inside each application release's virtual environment
+before installing the locked dependencies. Installer reruns enforce the same pin
+and run `pip check` after installation, including optional hash-checked MariaDB
+dependencies. A failed upgrade or dependency check stops setup. System pip is not
+upgraded. This uses the installer's Python 3.12; pip 26.2.1 requires Python 3.10 or
+newer and cannot be installed in the development Mac's Python 3.9 environment.
+
+The real `application_release()` path passed fresh native dependency setup and an
+external-dependency rerun in disposable native-ARM AlmaLinux 9/Python 3.12.15
+containers on 2026-10-11. This checks release/dependency setup, not guest boot or
+full installed-service acceptance; the native-x86 deployment workflow checks those.
+
+### Local host and browser tests
+
+The optional `browser-tests` target includes Python 3.12, pip 26.2.1, the pinned
+development/deployment dependencies, hash-checked storage dependencies, Playwright
+1.55.0 and its matching Chromium. Chromium libraries are installed with `dnf`;
+Playwright's Debian/Ubuntu `install --with-deps` command is not used on AlmaLinux.
+Linux browsers live inside the image at `/opt/mud86-test-browsers`, independently
+of any macOS binaries in the mounted checkout. Rebuild after changing requirements.
+
+From the repository root:
+
+```sh
+docker build --target browser-tests -t mud86-alma9-browser-tests -f deploy/Dockerfile.alma9 .
+docker run --rm --shm-size=1g \
+  --mount "type=bind,source=$PWD,target=/checkout,readonly" \
+  mud86-alma9-browser-tests
+```
+
+The default command runs deployment, external-deployment, gateway, persona-store
+and terminal tests, including real Chromium heartbeat and UI checks. On native
+ARM AlmaLinux 9 with Python 3.12.15, all 130 tests passed on 2026-10-11. Playwright
+reports AlmaLinux as unsupported and selects its Ubuntu 20.04 fallback browser;
+the matching Chromium 140.0.7339.16 was successfully launched and tested here.
+Only Chromium is installed; Firefox/WebKit need separate binaries and libraries.
+
+Override the command to select other host tests, for example:
+
+```sh
+docker run --rm --shm-size=1g \
+  --mount "type=bind,source=$PWD,target=/checkout,readonly" \
+  mud86-alma9-browser-tests python -m unittest tests.test_terminal -v
+```
+
+This target runs host/browser suites without starting the historical guest or
+MariaDB. Guest, database and full installed-service acceptance still require their
+respective fixtures. The default Docker build continues to select the `deployment`
+target below, which starts systemd and does not include the browser-test tooling.
+
+### Local installed-service tests
+
 Local Docker reproduction (requires a Docker host capable of privileged systemd):
 
 ```sh

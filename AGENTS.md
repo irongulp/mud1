@@ -540,6 +540,20 @@
 
 ## Hosting / idle measurements
 
+- Deployment release setup now pins pip26.2.1 in the release venv before locked
+  requirements, including reruns; pip check follows optional hash-checked storage
+  installation. System pip stays distro-managed. Python>=3.10 required (installer
+  uses3.12); never upgrade the Mac3.9 venv to this pin. Disposable native-ARM
+  AlmaLinux9/Python3.12.15 passed real application_release fresh native setup and
+  external rerun. Two host regressions cover ordering/reruns and upgrade failure.
+  `deploy/Dockerfile.alma9 --target browser-tests` includes Playwright1.55.0,
+  matching Chromium and dnf-installed browser libraries. Image-owned
+  PLAYWRIGHT_BROWSERS_PATH avoids mounted Mac browser binaries. All130 selected
+  deployment/external-deployment/gateway/persona-store/terminal tests passed.
+  Chromium140.0.7339.16 uses the Ubuntu20.04 fallback on unsupported AlmaLinux;
+  only Chromium is installed. Default/final deployment target retains systemd.
+  See docs/deployment.md; guest/DB/systemd and native-x86 acceptance are separate.
+
 - Keep WebSocket receiving separate from prompt-fenced guest sending. Waiting for
   input credit inside the receiver can starve PONG and restart frames, closing a
   responsive browser after the heartbeat deadline. Pending input is byte-bounded
