@@ -83,6 +83,19 @@ class RenderedLineTests(unittest.IsolatedAsyncioTestCase):
         await browser_smoke.wait_terminal_line(self.page, '*who', 'paced echo')
         self.assertEqual(await self.page.evaluate('[incoming.pending, outgoing.pending]'), ['', ''])
 
+    async def test_native_rubout_leaves_a_blank_cell_after_the_cursor(self):
+        await self.page.evaluate(r"""() => new Promise(resolve => {
+            terminal.write('*wx\x08 \x08', resolve);
+        })""")
+        await browser_smoke.wait_terminal_line(self.page, '*w', 'native rubout', timeout=100)
+
+    async def test_nonblank_content_after_cursor_is_not_accepted(self):
+        await self.page.evaluate(r"""() => new Promise(resolve => {
+            terminal.write('*whoX\x08', resolve);
+        })""")
+        with self.assertRaisesRegex(AssertionError, 'whoX'):
+            await browser_smoke.wait_terminal_line(self.page, '*who', 'unerased tail', timeout=100)
+
     async def test_failed_redraw_reports_raw_output_cursor_and_queues(self):
         self.page.screenshot = AsyncMock()
         await self.page.evaluate("""() => new Promise(resolve => {

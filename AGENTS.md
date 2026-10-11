@@ -554,6 +554,9 @@
   queues empty; raw WebSocket suffixes do not prove native redraw completion.
   Failed stages retain escaped raw output, cursor/queue diagnostics and the
   browser screenshot before subsequent commands can overwrite the evidence.
+  TOPS-10 rubout emits BS SPACE BS; xterm retains the literal erased space.
+  Compare exact text up to the cursor and require a blank tail, rather than
+  treating that blank cell as an unerased character.
 
 - SQL editor access is managed by tools.database_access during MariaDB setup:
   127.0.0.1:3307, skip-name-resolve, private database-editor.json credentials,
