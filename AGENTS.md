@@ -612,6 +612,11 @@
   restart/editor continuation passed after retaining monitor-dot and OPR-notice
   failures. See docs/verified-guest-control.md. No claim of fixing every native
   boot/shutdown fault; final native-x86 acceptance remains needed.
+  First CI38277153941 at3ea5b6f passed native install/rerun/persistence/backup,
+  then stable-prompt browser editing raced the second player's arrival (*wxwx).
+  Smoke now awaits the explicit arrival and refreshed prompt before editing;
+  red regression, nine smoke tests and three native two-tab rounds passed.
+  This is test synchronization, not a fix for concurrent-arrival redraws.
 
 - Deployment release setup now pins pip26.2.1 in the release venv before locked
   requirements, including reruns; pip check follows optional hash-checked storage

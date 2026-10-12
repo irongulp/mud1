@@ -115,3 +115,13 @@ fixtures is retained:
 
 Native-x86 CI must still validate the complete final implementation. Original
 `source/` and gameplay remain unchanged; native storage has no MariaDB dependency.
+
+The first native-x86 run at `3ea5b6f` (`38277153941`) passed native installation,
+rerun, saved-player checks, backup and restart. It then hit the separately
+retained browser arrival/redraw race: stable-prompt editing began before the
+second player's arrival had reached the first page, producing `*wxwx`. The smoke
+client now waits for that explicit arrival and the refreshed prompt before
+editing. Its new regression failed before implementation; all nine smoke-client
+tests and three disposable original-engine two-browser rounds passed afterward
+(`browser-arrival-barrier`). No production terminal filtering was introduced and
+this does not claim correct editing during arbitrary asynchronous game output.

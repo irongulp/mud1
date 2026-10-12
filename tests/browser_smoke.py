@@ -107,8 +107,13 @@ async def check_name_prompt(page):
     return []
 
 
-async def check_editing_and_width(page, name, *, screenshot=None):
+async def check_editing_and_width(page, name, *, screenshot=None, arrivals=()):
     failures = []
+    # The second tab's Hello does not prove its arrival notification has reached
+    # the first tab. Establish the intended stable prompt before editing; native
+    # redraw during asynchronous social output is a separate behavior check.
+    for arriving in arrivals:
+        await wait_text(page, arriving + ' has just arrived.')
     await wait_prompt(page)
     for key in ("Backspace", "Control+Backspace", "Control+h"):
         await page.evaluate("gameOutput = ''")
@@ -192,7 +197,8 @@ async def main(url="http://127.0.0.1:8080", screenshot=ROOT / "runtime/browser.p
                 pages.append(page)
             if after_join is not None:
                 await after_join()
-            errors.extend(await check_editing_and_width(pages[0], names[0], screenshot=screenshot))
+            errors.extend(await check_editing_and_width(pages[0], names[0], screenshot=screenshot,
+                                                       arrivals=names[1:]))
             await command(pages[0], "who")
             for name in names:
                 await wait_text(pages[0], name + " is playing")

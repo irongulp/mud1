@@ -11,6 +11,24 @@ from tests import browser_smoke
 
 
 class EditingSequenceTests(unittest.IsolatedAsyncioTestCase):
+    async def test_editing_waits_for_other_players_arrival_before_typing(self):
+        page = AsyncMock()
+        arrived = False
+        async def displayed(target, text):
+            nonlocal arrived
+            self.assertIs(target, page)
+            self.assertEqual(text, 'Guestb has just arrived.')
+            arrived = True
+        async def type_text(text):
+            self.assertTrue(arrived, 'Editing began before the multiplayer arrival was displayed')
+        page.keyboard.type.side_effect = type_text
+        page.evaluate.side_effect = lambda expression: 'Candidate is playing' if expression == 'gameOutput' else []
+        with patch.object(browser_smoke, 'wait_text', side_effect=displayed), \
+                patch.object(browser_smoke, 'wait_prompt', new_callable=AsyncMock), \
+                patch.object(browser_smoke, 'wait_terminal_line', new_callable=AsyncMock):
+            self.assertEqual(await browser_smoke.check_editing_and_width(
+                page, 'Candidate', arrivals=['Guestb']), [])
+
     async def test_editing_waits_for_each_echo_before_the_next_key(self):
         page = AsyncMock()
         pending_echo = False
