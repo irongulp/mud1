@@ -98,10 +98,19 @@ class InspectionTests(unittest.TestCase):
     def test_query_timeout_aborts_and_logs_out(self):
         native = inspect.NativeInspector()
         wire = MagicMock()
+        pending = bytearray()
+        def write(data):
+            if data not in (b'\x03\x03', b'\r'):
+                pending.extend(data)
+        def expect(patterns, timeout):
+            return (0, None, bytes([pending.pop(0)])) if pending else (-1, None, b'')
+        wire.write.side_effect = write
+        wire.expect.side_effect = expect
         native.connection = wire
         with patch.object(native, 'receive', side_effect=['\r\n.', 'Logged-off']):
             native.__exit__(inspect.InspectionError, inspect.InspectionError('timeout'), None)
-        self.assertEqual([call.args[0] for call in wire.write.call_args_list], [b'\x03\x03', b'kjob\r'])
+        self.assertEqual(b''.join(call.args[0] for call in wire.write.call_args_list), b'\x03\x03kjob\r')
+        self.assertTrue(native.cleanup_confirmed)
         wire.close.assert_called_once()
 
     def test_queries_do_not_install_or_create_personas(self):

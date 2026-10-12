@@ -11,6 +11,8 @@ import sys
 import threading
 import time
 
+from tools.guest_control import ControlError, COPY_READY_DELAY, console_byte, console_notice, operator_redraw, submit_line
+
 BOOT_TIMEOUT = 60
 SHUTDOWN_TIMEOUT = 90
 BOOT_ATTEMPTS = 3
@@ -18,6 +20,9 @@ RETRY_DELAY = 3
 BOOT_CALIBRATION_SECONDS = 22
 DEPLOYMENT_MIPS = 5
 LISTENER_WAIT=90
+MONITOR_PROMPT = r'\n\.'
+OPERATOR_PROMPT = 'OPR>'
+MAX_OPERATOR_NOTICES = 8
 
 
 def wait_listener(port,timeout=LISTENER_WAIT):
@@ -75,14 +80,74 @@ class Runtime:
         self.stopping = threading.Event()
         self.persona_config=persona_config
         self.bridge=self.store=None
+        self.control_prompt = None
 
-    def command(self,text,prompt=r'\n\.'):
-        self.child.send(text+'\r'); self.child.expect(prompt)
-        return self.child.before+self.child.after
+    def _submit_control(self, text, deadline, *, operator=False):
+        delay = self.child.delaybeforesend
+        self.child.delaybeforesend = 0
+        try:
+            return submit_line(text, lambda data: self.child.send(data.decode('ascii')),
+                               lambda timeout: console_byte(self.child, timeout),
+                               timeout=max(0, deadline - time.monotonic()), notice=console_notice,
+                               redraw=operator_redraw if operator else None).decode('ascii')
+        finally:
+            self.child.delaybeforesend = delay
+
+    def command(self,text,prompt=MONITOR_PROMPT, *, timeout=BOOT_TIMEOUT):
+        if self.control_prompt not in (MONITOR_PROMPT, OPERATOR_PROMPT):
+            raise RuntimeError('Guest control command requires a confirmed prompt')
+        ready_prompt = self.control_prompt
+        self.control_prompt = None
+        deadline = time.monotonic() + timeout
+        for attempt in range(MAX_OPERATOR_NOTICES + 1):
+            try:
+                echo = self._submit_control(text, deadline, operator=ready_prompt == OPERATOR_PROMPT)
+                break
+            except ControlError as error:
+                # OPR emits queued operator notices after its initial prompt.
+                # Only resynchronize when no input has been sent: never search
+                # through a bad echo or replay a partly/fully submitted command.
+                if (ready_prompt != OPERATOR_PROMPT or error.input_started or error.submitted
+                        or attempt == MAX_OPERATOR_NOTICES or time.monotonic() >= deadline):
+                    raise
+                self.child.expect(OPERATOR_PROMPT, timeout=max(0, deadline - time.monotonic()))
+        self.child.expect(prompt, timeout=max(0, deadline - time.monotonic()))
+        output = echo + self.child.before + self.child.after
+        if prompt in (MONITOR_PROMPT, OPERATOR_PROMPT):
+            self.control_prompt = prompt
+        return output
+
+    def copy_text(self, filename, text):
+        """Explicit COPY dialogue. Callers must stage and verify before use."""
+        import re
+        if not re.fullmatch(r'(?:sys:)?[a-z0-9]{1,6}\.[a-z0-9]{1,3}', filename):
+            raise ValueError('Invalid guest staging filename')
+        if self.control_prompt != MONITOR_PROMPT:
+            raise RuntimeError('Guest COPY requires a confirmed monitor prompt')
+        self.control_prompt = None
+        deadline = time.monotonic() + BOOT_TIMEOUT
+        self._submit_control('copy ' + filename + '=tty:', deadline)
+        self.child.expect_exact('\r\n', timeout=max(0, deadline - time.monotonic()))
+        time.sleep(COPY_READY_DELAY)
+        for line in text.splitlines():
+            if time.monotonic() >= deadline:
+                raise TimeoutError('Guest COPY deadline expired')
+            if line:
+                self._submit_control(line, deadline)
+            else:
+                self.child.send('\r')
+            self.child.expect_exact('\r\n', timeout=max(0, deadline - time.monotonic()))
+            time.sleep(COPY_READY_DELAY)
+        if time.monotonic() >= deadline:
+            raise TimeoutError('Guest COPY deadline expired')
+        self.child.sendcontrol('z')
+        self.child.expect(MONITOR_PROMPT, timeout=max(0, deadline - time.monotonic()))
+        self.control_prompt = MONITOR_PROMPT
 
     def boot(self):
         import pexpect
         wait_listener(self.port)
+        self.control_prompt = None
         config = self.state / 'runtime.ini'
         ports=None
         if self.persona_config:
@@ -102,8 +167,11 @@ class Runtime:
                 raise InterruptedError('Shutdown requested during boot')
             if prompt == 'Startup option:' and self.stopping.wait(BOOT_CALIBRATION_SECONDS):
                 raise InterruptedError('Shutdown requested during calibration')
-            self.child.send(response + '\r')
-        self.child.expect(r'\n\.')
+            if prompt == OPERATOR_PROMPT:
+                self.control_prompt = OPERATOR_PROMPT
+                self.command(response)
+            else:
+                self.child.send(response + '\r')
         self.booted = True
         if self.persona_config:
             from server.persona_bridge import PersonaBridge
@@ -124,10 +192,20 @@ class Runtime:
                 if self.child.isalive():
                     if self.booted:
                         try:
-                            self.child.send('r opr\r')
-                            self.child.expect_exact('OPR>')
-                            self.child.send('set ksys now\r')
-                            self.child.expect_exact('KSYS processing completed', timeout=SHUTDOWN_TIMEOUT)
+                            deadline = time.monotonic() + SHUTDOWN_TIMEOUT
+                            if self.control_prompt not in (MONITOR_PROMPT, OPERATOR_PROMPT):
+                                # A failed COPY may still be accepting file data.
+                                # Interrupt and witness a monitor before sending
+                                # any operator commands, never type R OPR into it.
+                                self.child.send('\x03\x03')
+                                self.child.expect_exact('^C', timeout=max(0, deadline - time.monotonic()))
+                                self.child.expect(MONITOR_PROMPT, timeout=max(0, deadline - time.monotonic()))
+                                self.control_prompt = MONITOR_PROMPT
+                            if self.control_prompt == MONITOR_PROMPT:
+                                self.command('r opr', OPERATOR_PROMPT,
+                                             timeout=max(0, deadline - time.monotonic()))
+                            self.command('set ksys now', 'KSYS processing completed',
+                                         timeout=max(0, deadline - time.monotonic()))
                             clean = True
                         except Exception:
                             print('Guest shutdown did not complete; next start must recover the disk.', flush=True)
@@ -141,6 +219,7 @@ class Runtime:
                 self.child.close(force=True)
                 self.child = None
                 self.booted = False
+                self.control_prompt = None
                 if self.bridge is not None: self.bridge.__exit__(None,None,None); self.bridge=None
                 if self.store is not None: self.store.close(); self.store=None
         (self.state / 'shutdown.json').write_text(json.dumps({'clean': clean}) + '\n')

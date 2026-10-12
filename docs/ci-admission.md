@@ -1,5 +1,9 @@
 # CI initial-admission investigation
 
+The later controller implementation and validation are described in
+[verified guest control](verified-guest-control.md). The failures below remain
+historical evidence; they are not retroactively declared successful.
+
 ## Observed failure
 
 PR #6, commit `925155c`, failed in run `38172587681` during the HTTPS browser
@@ -124,3 +128,54 @@ credential-line redaction); all 32 diagnostic,
 deployment and external-deployment host tests passed afterward. This fixes
 evidence retention, not the native DIRECTORY timeout. No additional production
 retry or increased guest deadline has been introduced.
+
+## Repeated failure and private control experiments
+
+Run `38182544754` at `e40e6b2` retained both containers' diagnostics as intended.
+Attempt 1 failed before cutover: KSYS started its batch stream but did not finish
+within the existing deadline. The installer correctly refused the unconfirmed
+snapshot. Attempt 2 (unchanged commit) passed cutover, then reproduced the fresh
+installer rerun's maintenance DIRECTORY timeout. Fresh-container diagnostics
+showed STOMPR explicitly **not starting**, runtime/database still active, and an
+independent RICHARD maintenance login failing. Removing STOMPR is therefore not
+a demonstrated remedy for this failure.
+
+The fresh guest's console echoed `set tty tty: echo` where the host requested
+`set tty tty7: echo`. A separate private ARM AlmaLinux fresh-build attempt echoed
+`copy sys:tty.nii=tty:` for `copy sys:tty.ini=tty:` and failed the exact-echo
+check. These establish malformed echoes, not whether loss/reordering occurred
+on input, output, or within the guest. No shared cause with the earlier browser
+timeout is proved.
+
+Private repeated COPY controls on the pinned native image:
+
+- Unpaced control: round 99 echoed `copy chtest.iin=tty:` for `.ini`; clean KSYS.
+- 20 ms character delay: round 174 echoed `copy chtest.ini=tt:`; clean KSYS.
+  Simple pacing is not a verified correction.
+- Per-character echo acknowledgement plus COPY consumption settling: 200 rounds
+  passed with clean KSYS. Earlier acknowledgement and a separate settled-unpaced
+  run stalled at COPY completion and were stopped without clean-shutdown claims.
+  This is preliminary transport research, not a production-ready fix.
+- Permission/DIRECTORY loops passed 30 times on macOS and 40 times on ARM Linux.
+  The private probe used shorter diagnostic timeouts; production timeouts stayed
+  unchanged. They do not reproduce the fresh external installer failure.
+
+The Mac entered maintenance sleep during some experiments (confirmed by `pmset`),
+so interrupted/local timing results cannot establish CI timeout causes or timing
+margins. The Linux 40-round probe ultimately completed with clean KSYS despite
+the host-side command watcher timing out. Preserve the interrupted runs.
+
+Private evidence is in the OpenCode temporary directory: `ci-e40e6b2-attempt1`,
+`ci-e40e6b2-attempt2`, `ci-9933234-failure`, `maintenance-native-awake`,
+`maintenance-linux-report.json`, and `console-{unpaced,paced,ack-settled}-report.json`.
+Local fresh-install reports are in the PR worktree's ignored
+`runtime/external-deployment-mud86-maintenance-fresh` and temporary
+`fresh-arm-retry/runtime/`; systemd diagnostics are in
+`maintenance-fresh-local-diagnostics`. Disposable Docker containers
+`mud86-maintenance-fresh` and `mud86-admission-probe` are stopped and retain the
+other private traces/disks. No historical binary or private wire trace was pushed.
+
+The next investigation must distinguish echo corruption from input corruption,
+then prove a bounded controller correction on both the failed native control
+and the full fresh external rerun. Do not bypass the clean-shutdown guard,
+blindly retry an uncertain guest command, or claim that pacing fixed CI.

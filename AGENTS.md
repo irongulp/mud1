@@ -586,6 +586,32 @@
   output, including interrupted credential fields. Five red regressions then32
   focused host tests passed. No production
   retry/deadline change or native timeout fix is claimed.
+  At e40e6b2,38182544754 attempt1 correctly rejected an unconfirmed KSYS before
+  cutover. Unchanged attempt2 reproduced fresh-rerun DIRECTORY timeout with
+  STOMPR absent and services active; independent maintenance login also failed.
+  Console showed a missing7 in SET TTY. Private ARM build echoed tty.nii for
+  tty.ini; repeated COPY control reordered .ini->.iin at99,20ms pacing dropped
+  a character at174. Pacing is not a fix. Per-character echo acknowledgements
+  plus COPY settling passed200 but other COPY completion failures remain.
+  See docs/ci-admission.md for all retained private evidence. Both disposable
+  containers are stopped. Mac maintenance sleep interrupted some local watchers;
+  do not treat those as CI reproductions or timing evidence. No production
+  correction established; never bypass the clean-shutdown migration guard.
+  Later verified-control implementation: tools.guest_control checks each printable
+  echo before Enter, using one deadline; monitor/operator state is explicit.
+  NativeInspector raw program input stays separate. MVTXT leaves an extra monitor
+  dot: allow bounded empty-prompt padding only before first echo. OPR notifications
+  can redraw the entire in-flight line; validate known startup frames AND the full
+  typed prefix, never search for a matching character. Only the witnessed CTY
+  stomper notice is recognized mid-echo; unknown output fails closed. Stage and
+  read back SYS:XTTY.TMP before file-to-file activation of TTY.INI. Failed COPY
+  needs confirmed interrupt/monitor before shutdown commands. Permission CLI
+  can reconcile once via fresh read-back after confirmed logout, not retry login
+  or blindly replay PROTECT.156 focused tests passed on Mac and ARM Linux. Native ARM200 COPY rounds,
+  staging/reboot and two clean shutdowns passed; installed ARM rerun/login/backup/
+  restart/editor continuation passed after retaining monitor-dot and OPR-notice
+  failures. See docs/verified-guest-control.md. No claim of fixing every native
+  boot/shutdown fault; final native-x86 acceptance remains needed.
 
 - Deployment release setup now pins pip26.2.1 in the release venv before locked
   requirements, including reruns; pip check follows optional hash-checked storage
