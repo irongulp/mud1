@@ -3,6 +3,7 @@ import argparse
 from collections import deque
 from datetime import datetime, timezone
 import json
+import math
 from pathlib import Path
 import re
 import subprocess
@@ -113,15 +114,18 @@ def parse_text(text):
 
 class NativeInspector:
     """Short-lived maintenance job; queries never install code or enter the game."""
-    def __init__(self, port=PORT):
+    def __init__(self, port=PORT, *, timeout=None):
+        if timeout is not None and (not math.isfinite(timeout) or timeout <= 0):
+            raise ValueError('Maintenance timeout must be finite and positive')
         self.port = port
+        self._io_timeout = timeout
         self.connection = None
         self.at_monitor = False
         self.cleanup_confirmed = False
         self._command_deadline = None
 
     def command_timeout(self):
-        return TIMEOUT
+        return TIMEOUT if self._io_timeout is None else self._io_timeout
 
     @property
     def at_monitor(self):
@@ -134,7 +138,7 @@ class NativeInspector:
             self._command_deadline = None
 
     def receive(self, marker):
-        deadline = self._command_deadline or time.monotonic() + TIMEOUT
+        deadline = self._command_deadline or time.monotonic() + self.command_timeout()
         data = bytearray()
         while time.monotonic() < deadline:
             block = self.connection.read_until(marker, min(1, max(0, deadline - time.monotonic())))
@@ -212,7 +216,8 @@ class NativeInspector:
         self.cleanup_confirmed = False
         self.at_monitor = False
         try:
-            self.connection = telnetlib.Telnet('127.0.0.1', self.port, TIMEOUT)
+            self.connection = telnetlib.Telnet('127.0.0.1', self.port,
+                                             TIMEOUT if self._io_timeout is None else self._io_timeout)
             self.receive(b'device, line ')
             self.receive(b'\n')
             time.sleep(TTY_SETTLE_SECONDS)

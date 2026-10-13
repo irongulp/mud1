@@ -16,7 +16,14 @@ _OPERATOR_TIME = rb' *[0-9]{1,2}:[0-9]{2}:[0-9]{2} +'
 _OPERATOR_MESSAGES = re.compile(
     rb'(?:\n*(?:' + _OPERATOR_TIME + rb'-- Begin auto take file --\n +File: SYS:SYSTEM\.CMD\[1,4\]\n|'
     + _OPERATOR_TIME + rb'-- End auto take file --\n +[0-9]+ lines processed\n|'
-    + _OPERATOR_TIME + rb'-- Message from the Accounting System --\n +Account validation is not required\n))+\n*')
+    + _OPERATOR_TIME + rb'-- Message from the Accounting System --\n +Account validation is not required\n|'
+    + _OPERATOR_TIME + rb'Batch-Stream [0-9]+ +-- Started --\n|'
+    + _OPERATOR_TIME + rb'Batch-Stream [0-9]+ +-- Begin --\n'
+      rb' +Job (?P<probe>MB[0-9A-F]{4}) Req #[0-9]+ for RICHARD \[2011,2776\]\n'
+      rb' +Control file: +DSKB:(?P=probe)\.CTL\[2011,2776\]\n'
+      rb' +Log file: +DSKB:(?P=probe)\.LOG\[2011,2776\]\n|'
+    + _OPERATOR_TIME + rb'Batch-Stream [0-9]+ +-- End --\n'
+      rb' +Job MB[0-9A-F]{4} Req #[0-9]+ for RICHARD \[2011,2776\]\n))+\n*')
 
 
 class ControlError(RuntimeError):

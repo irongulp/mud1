@@ -617,6 +617,25 @@
   Smoke now awaits the explicit arrival and refreshed prompt before editing;
   red regression, nine smoke tests and three native two-tab rounds passed.
   This is test synchronization, not a fix for concurrent-arrival redraws.
+  CI38282325093 at02c6e98 passed both browser modes, reboot, populated cutover,
+  and fresh external install/permission rerun. Fresh backup then saw correctly
+  queued KSYS but explicit BATCON startup failure/OPSER advice; backup guard
+  refused the unconfirmed snapshot. CI remains red; final SQL step skipped.
+  Local read-only attributes check found SYS:TTY.INI and BATCON.EXE both055;
+  local fixture clean shutdown passed. No verified native OPSER fallback yet.
+  Native batch preflight now runs after the private game/bootstrap probe and
+  before public readiness, then again before KSYS. Unique MBxxxx files + fresh
+  nonce + request ID bind actual USER output and completed logout under RICHARD,
+  not protected OPR. Wait for the named queue request to disappear before TYPE;
+  normalize native tabs (VT100 reuse) before structural log parsing. NOLOG means
+  never print, not no disk log; use SUPERSEDE/NORESTART/ASSISTANCE:NO. Keep native
+  default300s CPU allowance; the experimental10s cap killed a probe. Host45s
+  deadline and10s I/O waits stay bounded; failed preflight never makes a clean
+  backup marker.169 focused tests passed Mac/ARM Linux. Native success/reboot
+  and deliberately missing-BATCON failure controls passed, with binary restored
+  and source preserved; installed ARM rerun/login/backup/restart/editor passed
+  after retained parser/TTY/CPU-limit failures. See docs/batch-readiness.md.
+  Final native-x86 gate remains; no blanket native reliability claim.
 
 - Deployment release setup now pins pip26.2.1 in the release venv before locked
   requirements, including reruns; pip check follows optional hash-checked storage

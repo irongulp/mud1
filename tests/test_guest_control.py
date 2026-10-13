@@ -44,6 +44,26 @@ class EchoTerminal:
 
 
 class GuestControlTests(unittest.TestCase):
+    def test_owned_batch_probe_notification_requires_matching_filenames(self):
+        from tools.guest_control import operator_redraw
+        frame = (b'\r\n22:58:58        Batch-Stream 0  -- Begin --\r\n'
+                 b'                Job MBABCD Req #6 for RICHARD [2011,2776]\r\n'
+                 b'                Control file: DSKB:MBABCD.CTL[2011,2776]\r\n'
+                 b'                Log file:     DSKB:MBABCD.LOG[2011,2776]\r\n\r\nOPR>')
+        for corrupt in (False, True):
+            terminal = EchoTerminal()
+            notice = frame.replace(b'MBABCD.LOG', b'MBFFFF.LOG') if corrupt else frame
+            terminal.fault = lambda byte: notice + bytes(terminal.typed) if byte == b'w' else byte
+            if corrupt:
+                with self.assertRaises(ControlError):
+                    submit_line('set ksys now', terminal.write, terminal.read, timeout=1,
+                                clock=terminal.clock, redraw=operator_redraw)
+                self.assertEqual(terminal.executed, [])
+            else:
+                submit_line('set ksys now', terminal.write, terminal.read, timeout=1,
+                            clock=terminal.clock, redraw=operator_redraw)
+                self.assertEqual(terminal.executed, [b'set ksys now'])
+
     def test_operator_notice_requires_exact_full_line_redraw(self):
         from tools.guest_control import operator_redraw
         frame = (b'\r\n15:53:15        -- Begin auto take file --\r\n'

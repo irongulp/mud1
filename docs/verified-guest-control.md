@@ -125,3 +125,21 @@ editing. Its new regression failed before implementation; all nine smoke-client
 tests and three disposable original-engine two-browser rounds passed afterward
 (`browser-arrival-barrier`). No production terminal filtering was introduced and
 this does not claim correct editing during arbitrary asynchronous game output.
+
+Run `38282325093` at `02c6e98` subsequently passed native install/rerun/backup,
+HTTP and HTTPS browsers, reboot, populated native-to-external cutover, and the
+fresh external install/permission rerun. Fresh external backup then failed:
+KSYS was correctly echoed and queued, but TOPS-10 reported `BATCON failed to
+startup` and `Use OPSER for KSYS logouts since BATCON didn't start`. No clean
+marker was fabricated and the backup was refused. Final SQL acceptance was
+skipped. Full CI is therefore **not green**.
+
+A read-only check of the local staged fixture found active `SYS:TTY.INI` and
+`SYS:BATCON.EXE` at `<055>`; no loss of read access from staged activation was
+observed. That local fixture subsequently completed a clean shutdown. Keep
+`ci-02c6e98-batcon-failure` and `control-attributes-shutdown.json` in the private
+OpenCode evidence directory. Native BATCON/OPSER shutdown recovery needs separate
+validation; the controller patch does not establish a safe fallback procedure.
+
+The subsequent [native batch-readiness check](batch-readiness.md) exercises
+BATCON before admission and before shutdown; it retains the KSYS/backup guard.

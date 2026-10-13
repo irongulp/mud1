@@ -22,7 +22,7 @@ DEPLOYMENT_MIPS = 5
 LISTENER_WAIT=90
 MONITOR_PROMPT = r'\n\.'
 OPERATOR_PROMPT = 'OPR>'
-MAX_OPERATOR_NOTICES = 8
+MAX_OPERATOR_NOTICES = 16  # Startup/accounting plus completed readiness probes.
 
 
 def wait_listener(port,timeout=LISTENER_WAIT):
@@ -81,6 +81,16 @@ class Runtime:
         self.persona_config=persona_config
         self.bridge=self.store=None
         self.control_prompt = None
+        self.batch_ready = False
+
+    def verify_batch(self):
+        from tools.batch_readiness import BatchReadinessError, ensure_batch_ready
+        try:
+            proof = ensure_batch_ready(self.port)
+        except BatchReadinessError as error:
+            print(str(error), flush=True)
+            raise
+        print(f'Native batch readiness verified: {proof["name"]} request {proof["request"]}', flush=True)
 
     def _submit_control(self, text, deadline, *, operator=False):
         delay = self.child.delaybeforesend
@@ -148,6 +158,7 @@ class Runtime:
         import pexpect
         wait_listener(self.port)
         self.control_prompt = None
+        self.batch_ready = False
         config = self.state / 'runtime.ini'
         ports=None
         if self.persona_config:
@@ -184,6 +195,10 @@ class Runtime:
             self.bridge=PersonaBridge(self,ports,self.store).__enter__()
             probe_external(self.port,self.store)
         else: probe_game(self.port)
+        # Preserve the existing private transport/bootstrap check first. Public
+        # readiness is still withheld until native batch execution also passes.
+        self.verify_batch()
+        self.batch_ready = True
 
     def stop(self):
         clean = False
@@ -191,6 +206,14 @@ class Runtime:
             try:
                 if self.child.isalive():
                     if self.booted:
+                        batch_verified = False
+                        if self.batch_ready:
+                            try:
+                                self.verify_batch()
+                                batch_verified = True
+                            except Exception as error:
+                                print('Native batch shutdown preflight failed: ' + type(error).__name__ +
+                                      '; backup remains blocked.', flush=True)
                         try:
                             deadline = time.monotonic() + SHUTDOWN_TIMEOUT
                             if self.control_prompt not in (MONITOR_PROMPT, OPERATOR_PROMPT):
@@ -206,7 +229,7 @@ class Runtime:
                                              timeout=max(0, deadline - time.monotonic()))
                             self.command('set ksys now', 'KSYS processing completed',
                                          timeout=max(0, deadline - time.monotonic()))
-                            clean = True
+                            clean = batch_verified
                         except Exception:
                             print('Guest shutdown did not complete; next start must recover the disk.', flush=True)
                     try: self.child.expect_exact('sim>',timeout=1)
@@ -220,6 +243,7 @@ class Runtime:
                 self.child = None
                 self.booted = False
                 self.control_prompt = None
+                self.batch_ready = False
                 if self.bridge is not None: self.bridge.__exit__(None,None,None); self.bridge=None
                 if self.store is not None: self.store.close(); self.store=None
         (self.state / 'shutdown.json').write_text(json.dumps({'clean': clean}) + '\n')
