@@ -605,8 +605,11 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
         original_socket = web.WebSocketResponse
         server_sockets = []
 
+        heartbeat_seconds = 1
         def short_heartbeat(**kwargs):
-            kwargs['heartbeat'] = 0.1
+            # A real browser/shared CI scheduler cannot guarantee a 50-ms PONG
+            # during startup. Keep this test real and observe several cycles.
+            kwargs['heartbeat'] = heartbeat_seconds
             result = original_socket(**kwargs)
             server_sockets.append(result)
             return result
@@ -629,7 +632,7 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
                         pages.append(page)
                     # Real Chromium supplies protocol PONG automatically. No fake
                     # WebSocket or virtual browser clock participates in this test.
-                    await asyncio.sleep(0.5)
+                    await asyncio.sleep(3 * heartbeat_seconds)
                     self.assertEqual(len(server_sockets), 2)
                     self.assertTrue(all(not socket.closed for socket in server_sockets))
                     self.assertTrue(self.inputs.empty())

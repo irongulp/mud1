@@ -1,0 +1,56 @@
+name: Fast tests
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main, setup-almalinux9]
+    paths-ignore: ['**/*.md']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: fast-tests-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  host-tests:
+    name: Host and Chromium tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/runtime/browsers
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: |
+            requirements-dev.txt
+            requirements.lock
+      - name: Install test dependencies
+        run: |
+          python3 -m venv .venv
+          .venv/bin/python -m pip install --upgrade pip==26.2.1
+          .venv/bin/python -m pip install -r requirements-dev.txt
+          .venv/bin/python -m pip check
+      - name: Cache matching Chromium
+        id: chromium-cache
+        uses: actions/cache@v4
+        with:
+          path: runtime/browsers
+          key: chromium-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('requirements-dev.txt', 'requirements.lock') }}
+      - name: Install Chromium and OS dependencies
+        if: steps.chromium-cache.outputs.cache-hit != 'true'
+        run: .venv/bin/python -m playwright install --with-deps chromium
+      - name: Install Chromium OS dependencies on cache hit
+        if: steps.chromium-cache.outputs.cache-hit == 'true'
+        run: .venv/bin/python -m playwright install-deps chromium
+      - name: Fetch pinned preparation sources
+        run: |
+          git clone --no-checkout https://github.com/PDP-10/MUD1.git upstream/mud1
+          git -C upstream/mud1 fetch --depth 1 origin 8d2ce6ee5ca1ae3d835538de20aeb87acaae3df1
+          git -C upstream/mud1 checkout --detach 8d2ce6ee5ca1ae3d835538de20aeb87acaae3df1
+      - name: Run host and real-Chromium regression tests
+        run: .venv/bin/python -m unittest discover -s tests -v
