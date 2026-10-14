@@ -274,12 +274,16 @@ copies; the published starter never contains test-created credentials.
 .venv/bin/python -m tests.integration_runtime --state runtime/new-boot-check
 ```
 
-The `AlmaLinux deployment` workflow runs native x86 tests on a Linux GitHub runner:
+The manually dispatched `Manual AlmaLinux deployment acceptance` workflow runs
+native x86 tests on a Linux GitHub runner:
 an AlmaLinux 9 systemd container limited to one CPU and 2 GB, real setup/rerun,
 saved-persona re-entry, original sleep timing, stopped backups, Chromium multiplayer
 through Nginx and container restart. Logs redact generated credential lines.
 Public ACME issuance, SELinux enforcing-kernel behavior and the actual IONOS host
 reboot need verification on the target VPS; a container is not evidence of those.
+Fast host/Chromium PR checks and dependency audits run independently. See
+[CI and deployment acceptance](ci.md) for triggers, caching, required-check
+configuration and when to run full acceptance before shipping.
 
 ### Deployment pip version
 
@@ -350,7 +354,8 @@ alone does not replace browser binaries, so rerun `playwright install chromium`.
 
 On 2026-10-11, pip-audit 2.10.1 found no known vulnerabilities in the resolved
 development/deployment Python dependency set using both its PyPI and OSV services.
-The same OSV audit runs in deployment CI, in a separate audit-tool environment:
+The same OSV audit runs in the independent `Dependency audit` workflow on
+dependency changes, weekly and on manual dispatch, in a separate tool environment:
 
 ```sh
 python3.12 -m venv .audit-venv
