@@ -567,6 +567,16 @@
 
 ## Hosting / idle measurements
 
+- PR6 was narrowed at35ca761 back to the exact925155c RESET-permission tree.
+  Reliability work is preserved on fix/deployment-startup-reliability, based on
+  the narrowed branch with a separate restoration commit. Narrowed CI38568927339
+  failed all three permitted executions: HTTPS initial monitor timeout; unchanged
+  provisioner COPY source line23 timeout; unchanged terminal_config sent tty.ini
+  but received tyt.ini, then unconfirmed shutdown. Native/HTTPS/reboot/populated
+  cutover passed on the last two attempts.82 focused tests passed, but no full
+  green acceptance for narrowed PR. Artifacts ci-reset-narrow-attempt1/2/3 retained.
+  Retry budget exhausted: do not keep rerunning or claim those failures repaired.
+
 - CI/local lifecycle work uses `tests.deployment_lifecycle`, including final clean
   shutdown; prior install reports could pass before teardown failed. Local ARM is
   not native-x86 CI. Pinned SIMH RDTIM used the next WRINT interval to interpolate
