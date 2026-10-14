@@ -16,8 +16,10 @@ cannot silently use an old browser. OS libraries are installed even on cache hit
 Only downloads/browser binaries are cached, not virtual environments or game state.
 Superseded fast runs are canceled; a run has a 15-minute upper bound.
 
-The initial performance target is under five minutes including setup, not a
-measured guarantee. Test execution itself previously took about one to two minutes.
+The performance target is under five minutes including setup, not a guarantee.
+Native-x86 GitHub run38647077477 passed cold-cache in2m1s and with matching Chromium
+cache restored in1m50s; tests themselves took about80s. The independent audit
+run38647077411 passed in23s. No native deployment job ran for this CI-split PR.
 The real-Chromium heartbeat regression observes three one-second cycles rather
 than requiring a 50-ms PONG response during browser startup; production heartbeat
 settings and the direct protocol regressions are unchanged.

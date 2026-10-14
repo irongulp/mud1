@@ -551,6 +551,11 @@
   filtered audit/manual job. Real Chromium heartbeat test uses1-second heartbeat
   and three cycles instead of flaky50-ms startup PONG allowance; production timing
   unchanged. See docs/ci.md. Native reliability issues remain, not masked/fixed.
+  CI-split validation:357 host/browser tests passed locally; actionlint1.7.12 and
+  parsed trigger/permission contracts passed. GitHub fast run38647077477 passed
+  cold2m1s/warm1m50s with real Chromium cache hit; audit38647077411 passed23s.
+  PR8 is independent of RESET6/guest-control7; merge CI split before refreshing
+  those branches if they should use the new PR checks. No auto-merge was performed.
 
 - Deployment release setup now pins pip26.2.1 in the release venv before locked
   requirements, including reruns; pip check follows optional hash-checked storage
