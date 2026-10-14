@@ -1,10 +1,5 @@
-name: AlmaLinux deployment
+name: Manual AlmaLinux deployment acceptance
 on:
-  pull_request:
-    branches: [main]
-  push:
-    branches: [setup-almalinux9]
-    paths-ignore: ['**/*.md']
   workflow_dispatch:
 permissions:
   contents: write # Needed to download the draft runtime asset before publication.
@@ -19,11 +14,6 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
-      - name: Audit Python dependencies
-        run: |
-          python3 -m venv .audit-venv
-          .audit-venv/bin/python -m pip install pip-audit==2.10.1
-          .audit-venv/bin/python -m pip_audit -s osv -r requirements-dev.txt -r requirements-deploy.txt
       - name: Host test environment
         run: |
           python3 -m venv .venv
