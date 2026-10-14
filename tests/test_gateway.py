@@ -3,7 +3,7 @@ import os
 import unittest
 import tempfile
 from pathlib import Path
-from unittest.mock import AsyncMock, call, patch
+from unittest.mock import AsyncMock, Mock, call, patch
 
 import telnetlib3
 from aiohttp import ClientSession, WSMessage, WSMsgType, web
@@ -88,7 +88,8 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
                         writer.write("\r\n.")
                     elif "kjob\r" in data:
                         await self.allow_logout.wait()
-                        writer.write("Logged-off\r\n.")
+                        writer.write("Logged-off TTY0\r\nRuntime: 0:00:00\r\n"
+                                     "Disk Reads:1, Writes:0, Blocks saved:10\r\n\r\n.")
                         break
                     else:
                         writer.write(data)
@@ -605,8 +606,11 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
         original_socket = web.WebSocketResponse
         server_sockets = []
 
+        heartbeat_seconds = 1
         def short_heartbeat(**kwargs):
-            kwargs['heartbeat'] = 0.1
+            # Real Chromium startup and shared CI scheduling can exceed a 50-ms
+            # PONG allowance. Still require several actual heartbeat cycles.
+            kwargs['heartbeat'] = heartbeat_seconds
             result = original_socket(**kwargs)
             server_sockets.append(result)
             return result
@@ -629,7 +633,7 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
                         pages.append(page)
                     # Real Chromium supplies protocol PONG automatically. No fake
                     # WebSocket or virtual browser clock participates in this test.
-                    await asyncio.sleep(0.5)
+                    await asyncio.sleep(3 * heartbeat_seconds)
                     self.assertEqual(len(server_sockets), 2)
                     self.assertTrue(all(not socket.closed for socket in server_sockets))
                     self.assertTrue(self.inputs.empty())
@@ -641,6 +645,24 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
                                      ['north\r', 'north\r'])
             finally:
                 await browser.close()
+
+    async def test_logout_owns_terminal_until_accounting_and_final_prompt(self):
+        from server.gateway import logout_guest
+        reader = asyncio.StreamReader()
+        writer = Mock()
+        reader.feed_data(b'\r\nLogged-off TTY0\r\n')
+        task = asyncio.create_task(logout_guest(reader, writer, entered=False, monitor=True,
+                                                connection_id='logout-regression'))
+        try:
+            await asyncio.sleep(0.01)
+            self.assertFalse(task.done(), 'Logged-off prefix released a still-writing terminal')
+            reader.feed_data(b'Runtime: 0:00:00\r\nDisk Reads:1, Writes:0, Blocks saved:10\r\n\r\n.')
+            await asyncio.wait_for(task, 1)
+            writer.write.assert_called_once_with('kjob\r')
+        finally:
+            if not task.done():
+                task.cancel()
+                await asyncio.gather(task, return_exceptions=True)
 
     async def test_pasted_commands_cannot_continue_after_rejected_entry(self):
         self.reject_entry = True
@@ -838,7 +860,8 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
                 await reader.read(100)
                 writer.write(b"\r\n.")
                 await reader.readuntil(b"kjob\r")
-                writer.write(b"Logged-off")
+                writer.write(b"Logged-off TTY0\r\nRuntime: 0:00:00\r\n"
+                             b"Disk Reads:1, Writes:0, Blocks saved:10\r\n\r\n.")
             finally:
                 writer.close()
                 await writer.wait_closed()

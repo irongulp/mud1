@@ -163,11 +163,13 @@ class Guest:
         # account. Avoid repeated unlogged-in intervals/TTY-stomper races.
 
 
-def logoff(connection):
+def logoff(connection, *, complete=False):
     try:
         connection.write(b"kjob\r")
-        data = connection.read_until(b"Logged-off", TIMEOUT)
-        if b"Logged-off" not in data:
+        data = connection.read_until(b"\n." if complete else b"Logged-off", TIMEOUT)
+        from tools.guest_control import completed_logout
+        if (complete and not completed_logout(data.decode('ascii', errors='replace'))
+                or not complete and b"Logged-off" not in data):
             raise TimeoutError("Private test account did not log off")
     finally:
         connection.close()

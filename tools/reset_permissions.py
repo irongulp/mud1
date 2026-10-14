@@ -6,13 +6,16 @@ TOPS-10 <051> also permits other-project write/rename/delete/attribute operation
 it is not a reset-only permission. Keep guest Telnet access private.
 """
 import argparse
+import logging
 import re
 
-from tools.inspect_game import NativeInspector
+from tools.inspect_game import InspectionError, NativeInspector
 
 EXECUTABLE = 'DSKB:MUD.EXE[2011,2776]'
 READ_ONLY_PROTECTION = '055'
 RESET_PROTECTION = '051'
+RECONCILIATION_ATTEMPTS = 2
+LOG = logging.getLogger(__name__)
 
 
 def protection(listing):
@@ -44,10 +47,30 @@ def main():
     args = parser.parse_args()
     if not 0 < args.port < 65536:
         parser.error('Supply a valid TCP port')
-    with NativeInspector(args.port) as native:
-        changed = configure(native, enable=not args.disable)
+    changed = configure_port(args.port, enable=not args.disable)
     target = READ_ONLY_PROTECTION if args.disable else RESET_PROTECTION
     print(EXECUTABLE + ' <' + target + '> ' + ('configured' if changed else 'already configured'))
+
+
+def configure_port(port, *, enable=True):
+    """Reconcile uncertain metadata through a fresh read after confirmed logout.
+
+    configure always reads before PROTECT. Thus a lost successful reply is
+    resolved by observing the target, not by blindly replaying the mutation.
+    Unexpected protections and read-back mismatches remain hard failures.
+    """
+    for attempt in range(RECONCILIATION_ATTEMPTS):
+        native = NativeInspector(port)
+        admitted = False
+        try:
+            with native:
+                admitted = True
+                return configure(native, enable=enable)
+        except (InspectionError, OSError, EOFError) as error:
+            if not admitted or not native.cleanup_confirmed or attempt + 1 == RECONCILIATION_ATTEMPTS:
+                raise
+            LOG.warning('Reconnecting for permission read-back after %s; prior logout confirmed',
+                        type(error).__name__)
 
 
 if __name__ == '__main__':

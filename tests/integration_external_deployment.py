@@ -9,6 +9,7 @@ import subprocess
 import time
 
 from tests.deployment_http import fixture_client
+from tests.deployment_diagnostics import decode_output
 from tests.integration_web import Browser
 from tools.persona_protocol import MAX_NAME_LENGTH
 
@@ -23,10 +24,22 @@ def native_fixture_name(report):
     return name
 
 
-def invoke(container,*command):
+def redacted_output(stdout,stderr):
+    # A timeout can interrupt the password field itself. Redact each stream
+    # before concatenating, without requiring the complete credential suffix.
+    pattern=r'(?m)^(Richard|Roy|Brian|Ronan|Friday|Yawn|Debugger): [a-z0-9]+'
+    return ''.join(re.sub(pattern,r'\1: [redacted]',decode_output(part)) for part in (stdout,stderr))
+
+
+def invoke(container,*command,log=None):
     if command and command[0]=='sudo': command=command[1:]
-    result=subprocess.run(['docker','exec','-w','/checkout',container,*map(str,command)],capture_output=True,text=True,timeout=3600)
-    text=re.sub(r'(?m)^(Richard|Roy|Brian|Ronan|Friday|Yawn|Debugger): [a-z0-9]{8} —',r'\1: [redacted] —',result.stdout+result.stderr)
+    try:
+        result=subprocess.run(['docker','exec','-w','/checkout',container,*map(str,command)],capture_output=True,text=True,timeout=3600)
+    except subprocess.TimeoutExpired as error:
+        if log is not None: log.write_text(redacted_output(error.stdout,error.stderr))
+        raise
+    text=redacted_output(result.stdout,result.stderr)
+    if log is not None: log.write_text(text)
     if result.returncode: raise AssertionError(text)
     return text
 
@@ -64,7 +77,7 @@ def run(container,url,fresh,native_url=None):
             before=json.loads(invoke(container,'mud86ctl','persona',name,'--json'))
             assert before['personas'][0]['password_set'], 'Native cutover fixture was not saved'
         command=['bash','/checkout/setup.sh','--domain','mud.etimbo.com','--http-only','--image','/artifacts/mud86-runtime.tar.gz','--persona-storage','mariadb']
-        (output/'install.log').write_text(invoke(container,*command))
+        invoke(container,*command,log=output/'install.log')
         (output/'login.log').write_text(asyncio.run(login(url,name,'testpass',fresh)))
         (output/'personas.log').write_text(invoke(container,'mud86ctl','personas','--json'))
         profile=json.loads(invoke(container,'sudo','mud86ctl','persona',name,'--json'))
@@ -76,9 +89,9 @@ def run(container,url,fresh,native_url=None):
         (output/'editor.log').write_text(invoke(container,'/opt/mud86/current/.venv/bin/python',
                                               '-m','tests.deployed_database_editor',name))
         invoke(container,'systemctl','is-active','mud86-database','mud86-runtime','mud86-gateway')
-        (output/'rerun.log').write_text(invoke(container,*command))
+        invoke(container,*command,log=output/'rerun.log')
         asyncio.run(login(url,name,'testpass'))
-        (output/'backup.log').write_text(invoke(container,'sudo','mud86ctl','backup'))
+        invoke(container,'sudo','mud86ctl','backup',log=output/'backup.log')
         asyncio.run(login(url,name,'testpass'))
         invoke(container,'sudo','mud86ctl','restart'); asyncio.run(login(url,name,'testpass'))
         (output/'editor-restart.log').write_text(invoke(container,'/opt/mud86/current/.venv/bin/python',
