@@ -17,6 +17,13 @@ a one-way cutover of an existing native server, see
 `--persona-storage mariadb`; omitting it on subsequent reruns preserves the selected
 backend. World data and gameplay remain in the original native engine.
 
+Setup configures `MUD.EXE` protection `<051>` so the original wizard `RESET`
+works under the browser's MUDGUEST account. This grants cumulative TOPS-10
+file-modification access on that executable; it does not add a browser operator
+login or change game authorization. See [browser RESET](browser-reset.md) for
+the policy, verification evidence, deferred external solo-wizard handover issue,
+and reversible configuration command.
+
 Point `mud.etimbo.com`'s DNS A record at the VPS's IPv4 address. Allow inbound TCP
 80 and 443 in the IONOS firewall; keep SSH access enabled. Only add an AAAA record
 if IPv6 routing to this VPS works. These provider/DNS settings are outside the
