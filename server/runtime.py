@@ -1,6 +1,6 @@
 """Foreground, systemd-notifying supervisor for the original TOPS-10 runtime."""
 import argparse
-from contextlib import contextmanager
+from contextlib import contextmanager, ExitStack
 from datetime import datetime, timezone
 import fcntl
 import json
@@ -76,6 +76,24 @@ def batch_pty_jobs(output):
     if table is None:
         raise RuntimeError('Native batch drain needs a complete SYSTAT job table')
     return [int(job) for job in re.findall(r'(?m)^ *([0-9]+) +\S+ +P[0-9]+J[0-9]+(?: +|$)', table[1])]
+
+
+@contextmanager
+def runtime_lease(state, *, lock_fd=None):
+    """Own a lease or borrow the installer's inherited open-file description."""
+    path = Path(state) / 'runtime.lock'
+    with ExitStack() as stack:
+        if lock_fd is None:
+            lock_fd = stack.enter_context(path.open('a')).fileno()
+        if type(lock_fd) is not int or lock_fd < 0:
+            raise ValueError('Invalid runtime lock descriptor')
+        actual, expected = os.fstat(lock_fd), path.stat()
+        if (actual.st_dev, actual.st_ino) != (expected.st_dev, expected.st_ino):
+            raise ValueError('Descriptor does not refer to this runtime lock')
+        fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        # Never unlock/close a borrowed descriptor: parent retains the lease
+        # across the child's private session and its subsequent import.
+        yield lock_fd
 
 
 def probe_game(port):
@@ -279,6 +297,13 @@ class Runtime:
             output = self.child.before
             if isinstance(output, str):
                 evidence['pending_output'] = output[-BOOT_DIAGNOSTIC_CHARS:]
+        if self.boot_phase == 'private-readiness':
+            from tools.batch_readiness import BatchReadinessError
+            if isinstance(failure, BatchReadinessError):
+                evidence['batch_phase'] = failure.phase
+                tail = getattr(failure, 'response_tail', '')
+                if isinstance(tail, str):
+                    evidence['private_batch_response'] = tail[-BOOT_DIAGNOSTIC_CHARS:]
         descriptor, filename = tempfile.mkstemp(prefix='attempt-', suffix='.json', dir=directory)
         with os.fdopen(descriptor, 'w') as stream:
             os.fchmod(stream.fileno(), 0o600)
@@ -318,10 +343,9 @@ class Runtime:
                 time.sleep(RETRY_DELAY)
 
     @contextmanager
-    def session(self):
+    def session(self, *, runtime_lock_fd=None):
         """Private controller scope: recover startup, never replay its body."""
-        with (self.state / 'runtime.lock').open('a') as lock:
-            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        with runtime_lease(self.state, lock_fd=runtime_lock_fd):
             started = False
             try:
                 self.start()

@@ -8,6 +8,16 @@ from tools import inspect_game as inspect
 
 
 class InspectionTests(unittest.TestCase):
+    def test_timed_out_reply_is_retained_privately_not_in_error_message(self):
+        native = inspect.NativeInspector(timeout=1)
+        native.connection = MagicMock()
+        native.connection.read_until.return_value = b'PRIVATE partial reply\r.'
+        with patch('tools.inspect_game.time.monotonic', side_effect=[0, 0, 0, 2]), \
+                self.assertRaises(inspect.InspectionError) as raised:
+            native.receive(b'\n.')
+        self.assertNotIn('PRIVATE', str(raised.exception))
+        self.assertIn('PRIVATE', raised.exception.response_tail)
+
     def test_personas_decode_saved_state_without_password_words(self):
         text = ('MVPER 1\r\nTOTAL 2\r\n'
                 'PERSON Roy 7 1234 40 41 42 43 100 12 4 1 0\r\n'

@@ -1,8 +1,12 @@
 """Startup recovery is separate from migration work and keeps its original error."""
 import json
+import fcntl
+import os
 from pathlib import Path
 import tempfile
 import stat
+import subprocess
+import sys
 import unittest
 from unittest.mock import Mock, patch
 
@@ -11,6 +15,55 @@ from server.runtime import BOOT_ATTEMPTS, Runtime
 
 
 class RuntimeStartupTests(unittest.TestCase):
+    def test_batch_timeout_tail_is_private_and_does_not_include_other_readiness_output(self):
+        from tools.batch_readiness import BatchReadinessError
+        with tempfile.TemporaryDirectory() as directory:
+            runtime = Runtime(Path(directory), '/unused')
+            runtime.boot_phase = 'private-readiness'
+            runtime.child = Mock(before='unrelated private output')
+            failure = BatchReadinessError('allocation failed', phase='allocation')
+            failure.response_tail = 'directory reply without final prompt'
+            path = runtime.record_startup_failure(1, failure)
+            record = json.loads(path.read_text())
+            self.assertEqual(record['private_batch_response'], failure.response_tail)
+            self.assertNotIn('unrelated private output', path.read_text())
+
+    def test_inherited_lease_is_usable_by_child_and_stays_held_by_parent(self):
+        with tempfile.TemporaryDirectory() as directory:
+            with (Path(directory) / 'runtime.lock').open('a') as parent:
+                fcntl.flock(parent, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                program = ('import sys; from pathlib import Path; from server.runtime import runtime_lease\n'
+                           'with runtime_lease(Path(sys.argv[1]), lock_fd=int(sys.argv[2])):\n'
+                           ' print("lease verified")\n')
+                result = subprocess.run([sys.executable, '-c', program, directory, str(parent.fileno())],
+                                        pass_fds=(parent.fileno(),), capture_output=True, text=True)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                with (Path(directory) / 'runtime.lock').open('a') as competing, \
+                        self.assertRaises(BlockingIOError):
+                    fcntl.flock(competing, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    def test_session_can_borrow_installer_lease_without_releasing_it(self):
+        with tempfile.TemporaryDirectory() as directory:
+            runtime = Runtime(Path(directory), '/unused')
+            with (Path(directory) / 'runtime.lock').open('a') as parent:
+                fcntl.flock(parent, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                with patch.object(runtime, 'start'), patch.object(runtime, 'stop', return_value=True):
+                    with runtime.session(runtime_lock_fd=parent.fileno()):
+                        pass
+                os.fstat(parent.fileno())  # Borrowing must not close the parent's descriptor.
+                with (Path(directory) / 'runtime.lock').open('a') as competing, \
+                        self.assertRaises(BlockingIOError):
+                    fcntl.flock(competing, fcntl.LOCK_EX | fcntl.LOCK_NB)
+
+    def test_unrelated_descriptor_cannot_bypass_runtime_lock(self):
+        with tempfile.TemporaryDirectory() as directory:
+            runtime = Runtime(Path(directory), '/unused')
+            (Path(directory) / 'runtime.lock').touch()
+            with (Path(directory) / 'unrelated.lock').open('a') as unrelated, \
+                    patch.object(runtime, 'start') as start, self.assertRaises(ValueError):
+                with runtime.session(runtime_lock_fd=unrelated.fileno()):
+                    pass
+            start.assert_not_called()
+
     def test_service_final_cleanup_retains_original_startup_error(self):
         with tempfile.TemporaryDirectory() as directory:
             runtime = Runtime(Path(directory), '/unused')

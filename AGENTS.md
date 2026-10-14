@@ -602,6 +602,13 @@
   passed recovery (one body/clean shutdown) and exhaustion (three attempts/no
   body/false marker), source unchanged. These are transport-fault controls, not
   proof of the native stall's cause/fix. Keep ci-9c0931e-cutover-boot-failure.
+  Installer already holds runtime.lock across backup/cutover/import: pass that
+  descriptor into the child with pass_fds and verify device/inode. Never reacquire
+  via a separate open-file description or unlock a borrowed lease. Local parity9
+  caught the double-lock mistake; actual child-process lease tests cover it.
+  CI38534654564 failed native batch allocation before cutover (downloaded under
+  historical ci-79e03e7-lock-failure name). Private bounded batch-timeout tails are
+  retained; public boot summaries whitelist metadata only.455 host tests passed.
 
 - PR6 CI run38172587681 at925155c failed HTTPS smoke at `stage=monitor` before
   LOGIN; HTTPS assets/WSS101 reached the gateway. A preceding TTY STOMPER TTY0

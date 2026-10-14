@@ -139,7 +139,11 @@ Stopping/cancellation or cleanup failure prevents further attempts. Each new
 startup invalidates the previous clean marker before launching a guest.
 
 `Runtime.session()` holds the runtime lock across private startup, controller
-work and shutdown. Its body runs only after startup returns, and is never replayed
+work and shutdown. The installer passes its existing lease descriptor into the
+cutover child (`pass_fds`); device/inode validation rejects unrelated descriptors.
+Borrowed leases are neither unlocked nor closed by the private session, retaining
+the parent's protection through backup and import. Direct CLI cutover acquires its
+own lease and checks the stopped marker before any cutover work. Its body runs only after startup returns, and is never replayed
 on a capture/build/shutdown error. Import remains after confirmed clean shutdown.
 Startup, controller and service failures retain their original exception even if
 cleanup fails. Failed-start cleanup is owned by `start()`, not repeated by the
@@ -147,8 +151,9 @@ private context manager.
 
 Boot failures retain phase/type/readiness metadata and at most 8192 prompt
 characters in `boot-diagnostics/attempt-*.json` (`0600`, private directory).
-Excerpts are restricted to initial boot prompts; readiness/game payloads and
-exception messages are excluded. CI diagnostics publish only validated metadata
+Excerpts are restricted to initial boot prompts and bounded batch-probe timeout
+responses; unrelated readiness/game payloads and exception messages are excluded.
+CI diagnostics publish only validated metadata
 through `tests.deployment_boot_status`, never the private excerpts.
 
 `tests.integration_startup_recovery` deliberately withholds an actual native OPR
@@ -161,6 +166,13 @@ it does **not** establish the cause or a fix for the underlying native OPR stall
 Cutover regressions additionally assert capture/build are not retried and import
 is blocked on unconfirmed shutdown. Private failed CI evidence is retained at
 `ci-9c0931e-cutover-boot-failure`.
+The initial follow-up's local `deployment-parity-9` caught a double-lock mistake
+before private startup; inherited-descriptor regressions and a real child-process
+lease check now cover that installer boundary. CI run38534654564 independently
+exhausted native startup on a batch allocation timeout, before reaching cutover;
+private batch-response tails now retain evidence for that distinct failure.
+Its downloaded directory `ci-79e03e7-lock-failure` retains the historical filename,
+but its actual CI failure was batch allocation, not the local lease error.
 
 Full acceptance passed for code commit `93478975b4dfb2fdc13fabe8b537caeb81560355`:
 

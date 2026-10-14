@@ -13,6 +13,7 @@ class BootStatusTests(unittest.TestCase):
             path.write_text(json.dumps({'version': 1, 'attempt': 1, 'phase': 'OPR>',
                                         'error': 'TIMEOUT', 'booted': False, 'batch_ready': False,
                                         'pending_output': 'PRIVATE CONTROL TEXT',
+                                        'private_batch_response': 'PRIVATE BATCH RESPONSE',
                                         'exception': 'PRIVATE EXCEPTION TEXT'}))
             report = summarize(Path(directory))
             self.assertEqual(report['attempts'][0]['phase'], 'OPR>')

@@ -164,7 +164,9 @@ def ensure_batch_ready(port, *, timeout=READY_TIMEOUT):
     except Exception as error:
         # Only controlled identifiers and an exception type, never a terminal
         # transcript, reach the public service log. Failed probe files remain.
-        raise BatchReadinessError(
+        failure = BatchReadinessError(
             f'Native batch readiness failed at {progress["phase"]} '
             f'({progress["name"]}, request {progress["request"]}): {type(error).__name__}',
-            **progress) from error
+            **progress)
+        failure.response_tail = getattr(error, 'response_tail', '')
+        raise failure from error

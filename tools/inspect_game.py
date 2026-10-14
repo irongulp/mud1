@@ -17,6 +17,7 @@ SCHEMA_VERSION = 1
 PORT = 2020
 TIMEOUT = 90
 MAX_RESPONSE = 4 * 1024 * 1024
+MAX_PRIVATE_RESPONSE_TAIL = 8192
 MAX_PERSONAS = 2048
 SOURCE_LINE_DELAY = 0.05
 TTY_SETTLE_SECONDS = 0.25
@@ -147,7 +148,9 @@ class NativeInspector:
                 raise InspectionError('Maintenance response exceeded its size limit')
             if data.endswith(marker):
                 return data.decode('ascii', errors='replace')
-        raise InspectionError('Maintenance query timed out; check runtime logs')
+        error = InspectionError('Maintenance query timed out; check runtime logs')
+        error.response_tail = data[-MAX_PRIVATE_RESPONSE_TAIL:].decode('ascii', errors='replace')
+        raise error
 
     def send(self, text):
         self.at_monitor = False

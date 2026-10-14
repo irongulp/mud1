@@ -398,7 +398,8 @@ def install(args):
             if not json.loads((STATE/'shutdown.json').read_text())['clean']:
                 raise RuntimeError('A confirmed stopped native snapshot is required for cutover')
             # Execute from the installed release, never this checkout's test helpers.
-            run(release/'.venv/bin/python','-m','tools.external_cutover','--state',STATE,'--config-dir',CONFIG,'--simh',executable,cwd=release)
+            run(release/'.venv/bin/python','-m','tools.external_cutover','--state',STATE,'--config-dir',CONFIG,
+                '--simh',executable,'--runtime-lock-fd',lock.fileno(),cwd=release,pass_fds=(lock.fileno(),))
         for path in [external,*external.rglob('*')]: shutil.chown(path,user='mud86',group='mud86')
         shutil.chown(CONFIG/'personas.json',user='mud86',group='mud86')
         configure_external_units(release)
