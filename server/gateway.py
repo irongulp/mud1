@@ -15,6 +15,7 @@ from telnetlib3.telopt import DONT, LINEMODE
 from aiohttp import WSMsgType, web
 
 from server.password_input import PasswordInput
+from server.terminal_prompts import NATIVE_PROMPT_REDRAW
 from server.maintenance import MAINTENANCE_FILE, MESSAGE, RETRY_SECONDS, CLOSE_CODE
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -42,12 +43,16 @@ TERMINAL_STYLES = {
     "bbc0": (80, 32),
 }
 READ_SIZE = 4096
+RECENT_OUTPUT_SIZE = 256
 MAX_INPUT_SIZE = 8192
 MAX_PENDING_INPUT_SIZE = MAX_INPUT_SIZE
 LOGOUT_TIMEOUT = 3
 INTERRUPT_SEQUENCE = "\x03" * 4  # Controlled TOPS-10 monitor recovery, never browser input.
 SAFE_CONTROLS = frozenset('\b\t\n\r\x12\x15\x17')
-GAME_PROMPT = re.compile(r'(?:^|[\r\n])\(?(?:----)?[*>"]\)?$')
+# TOPS-10 may coalesce a complete prompt with this terminal redraw. Recognize
+# the witnessed suffix for input credit without stripping other terminal output.
+GAME_PROMPT = re.compile(
+    r'(?:^|[\r\n])\(?(?:----)?(?P<marker>[*>"])\)?(?:' + NATIVE_PROMPT_REDRAW + r')?$')
 LOG = logging.getLogger(__name__)
 
 
@@ -264,11 +269,15 @@ def create_app(upstream_host="127.0.0.1", upstream_port=2020, *, session_bootstr
             async def to_browser():
                 nonlocal entered, monitor
                 recent = ""
+                received_chars = 0
+                last_credited_prompt = -1
                 while True:
                     data = await reader.read(READ_SIZE)
                     if not data:
                         return
-                    recent = (recent + data)[-256:]
+                    received_chars += len(data)
+                    recent = (recent + data)[-RECENT_OUTPUT_SIZE:]
+                    recent_start = received_chars - len(recent)
                     if re.search(r"Hello(?: again)?,", recent):
                         entered = True
                         password_input.clear()
@@ -278,8 +287,21 @@ def create_app(upstream_host="127.0.0.1", upstream_port=2020, *, session_bootstr
                     await send_browser(socket, data)
                     if monitor:
                         return
-                    if GAME_PROMPT.search(recent) or recent.replace('\r', '').endswith(
+                    prompt_position = None
+                    match = GAME_PROMPT.search(recent)
+                    if match:
+                        # The marker's absolute position survives redraw growth,
+                        # temporary partial matches and rolling-window trimming.
+                        prompt_position = recent_start + match.start('marker')
+                    elif recent.replace('\r', '').endswith(
                             ("What's the password for this persona?\n", "Save, delete or finish? ")):
+                        # The final non-CR character stays at the same absolute
+                        # position when later reads append ignored CRs.
+                        prompt_position = recent_start + len(recent.rstrip('\r')) - 1
+                    if prompt_position is not None and prompt_position > last_credited_prompt:
+                        # Consuming input_ready must not let later redraw bytes
+                        # grant this same prompt's credit a second time.
+                        last_credited_prompt = prompt_position
                         input_ready.set()
 
             async def from_browser():

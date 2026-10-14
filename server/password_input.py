@@ -6,6 +6,8 @@ input line avoids that path; the original game still checks the password.
 """
 import re
 
+from server.terminal_prompts import NATIVE_PROMPT_REDRAW_PREFIX
+
 
 class PasswordInput:
     MAX_LINE_LENGTH = 8192
@@ -13,7 +15,8 @@ class PasswordInput:
     PROMPT = re.compile(
         r"(?:This persona already exists - what's the password\?|"
         r"(?:Give me a password for this persona|No password on this persona - give me one)"
-        r" of up to \d+ letters, please\.)[\r\n]+\*$"
+        r" of up to \d+ letters, please\.)[\r\n]+\*(?:"
+        + NATIVE_PROMPT_REDRAW_PREFIX + r")?$"
     )
 
     def __init__(self):
@@ -22,11 +25,15 @@ class PasswordInput:
         self.recent = ''
 
     def observe(self, data):
-        self.recent = (self.recent + data)[-self.PROMPT_WINDOW:]
-        if not self.active and self.PROMPT.search(self.recent):
+        recent = self.recent + data
+        # Classify before trimming: one coalesced read may contain a complete
+        # question followed by more than a window's worth of redraw fragments.
+        if not self.active and self.PROMPT.search(recent):
             self.active = True
             self.line = ''
             self.recent = ''
+        else:
+            self.recent = recent[-self.PROMPT_WINDOW:]
 
     def feed(self, data):
         output = []

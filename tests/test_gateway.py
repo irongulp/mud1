@@ -2,6 +2,7 @@ import asyncio
 import os
 import unittest
 import tempfile
+from contextlib import asynccontextmanager
 from pathlib import Path
 from unittest.mock import AsyncMock, call, patch
 
@@ -26,6 +27,7 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
         self.allow_logout.set()
         self.handler_errors = []
         self.backend_writers = {}
+        self.silent_commands = set()
         self.admission_mode = False
         self.release_name_answer = asyncio.Event()
         self.release_password_prompt = asyncio.Event()
@@ -54,6 +56,8 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
                     if not data:
                         break
                     await self.inputs.put(data)
+                    if data in self.silent_commands:
+                        continue
                     if (self.admission_mode and admission_step < 3
                             and 'quit\r' not in data and 'kjob\r' not in data and '\x03' not in data):
                         admission_step += 1
@@ -567,6 +571,201 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
         await asyncio.wait_for(self.closed.get(), 5)
         commands = ''.join(self.inputs.get_nowait() for _ in range(self.inputs.qsize()))
         self.assertNotIn('login richard', commands)
+
+    @asynccontextmanager
+    async def controlled_guest_frames(self):
+        original_connect = telnetlib3.open_connection
+        frame = None
+
+        async def connect(*args, **kwargs):
+            reader, writer = await original_connect(*args, **kwargs)
+            original_read = reader.read
+
+            async def read(size):
+                nonlocal frame
+                data = await original_read(size)
+                if frame is not None:
+                    # Control each read deterministically so both coalesced
+                    # and fragmented native redraws are reproducible.
+                    replacement, frame = frame, None
+                    return replacement
+                return data
+
+            reader.read = read
+            return reader, writer
+
+        with patch('server.gateway.telnetlib3.open_connection', connect):
+            socket = await self.client.ws_connect(self.server.make_url('/terminal'))
+            try:
+                await self.receive_until(socket, '*')
+                self.assertEqual(await self.inputs.get(), 'login mudguest\r')
+                identifier = self.count
+
+                async def deliver(data):
+                    nonlocal frame
+                    frame = data
+                    self.backend_writers[identifier].write('frame')
+                    await self.receive_until(socket, data)
+
+                yield socket, deliver
+            finally:
+                self.release_name_answer.set()
+                self.release_password_prompt.set()
+                await socket.close()
+
+    async def check_prompt_tail_credit(self, tail, releases_input):
+        chunks = (tail,) if isinstance(tail, str) else tail
+        async with self.controlled_guest_frames() as (socket, deliver):
+            await socket.send_str('look\r')
+            self.assertEqual(await asyncio.wait_for(self.inputs.get(), 5), 'look\r')
+            await self.receive_until(socket, 'look\r')
+            for index, chunk in enumerate(chunks):
+                await deliver(('\r\nRoom.\r\n*' if index == 0 else '') + chunk)
+            await socket.send_str('score\r')
+            if releases_input:
+                self.assertEqual(await asyncio.wait_for(self.inputs.get(), 1), 'score\r')
+            else:
+                with self.assertRaises(asyncio.TimeoutError):
+                    await asyncio.wait_for(self.inputs.get(), 0.1)
+
+    async def test_native_redraw_prompt_releases_next_line(self):
+        await self.check_prompt_tail_credit(
+            '\x12^R\x12\x7f\r' + '\x1b[C' * 4 + '\x1b[K', True)
+
+    async def test_fragmented_native_redraw_prompt_releases_next_line(self):
+        await self.check_prompt_tail_credit(
+            ('\x12^R\x12\x7f', '\r\x1b[C\x1b', '[C\x1b', '[C', '\x1b[K'), True)
+
+    async def test_arbitrary_terminal_tail_does_not_release_next_line(self):
+        await self.check_prompt_tail_credit('\x12^R\x12\x7f\r\x1b[H', False)
+
+    async def test_incomplete_redraw_tail_does_not_release_next_line(self):
+        await self.check_prompt_tail_credit('\x12^R\x12\x7f', False)
+
+    async def check_prompt_occurrence_credit(self, first_frame, extensions,
+                                            next_prompt='\r\nResult.\r\n*', quitting=False):
+        middle, last = ('quit\r', 'login richard\r') if quitting else ('score\r', 'north\r')
+        self.silent_commands.add(middle)
+        async with self.controlled_guest_frames() as (socket, deliver):
+            await socket.send_str('look\r' + middle + last)
+            self.assertEqual(await asyncio.wait_for(self.inputs.get(), 5), 'look\r')
+            await self.receive_until(socket, 'look\r')
+            await deliver(first_frame)
+            # Wait until the sender has used and cleared this prompt's credit.
+            # The fixture deliberately withholds the middle command's output.
+            self.assertEqual(await asyncio.wait_for(self.inputs.get(), 5), middle)
+            for extension in extensions:
+                await deliver(extension)
+                with self.assertRaises(asyncio.TimeoutError):
+                    await asyncio.wait_for(self.inputs.get(), 0.1)
+            if quitting:
+                await deliver('\r\n.')
+                while (await asyncio.wait_for(socket.receive(), 5)).type == WSMsgType.TEXT:
+                    pass
+                await asyncio.wait_for(self.closed.get(), 5)
+                remaining = ''.join(self.inputs.get_nowait() for _ in range(self.inputs.qsize()))
+                self.assertNotIn(last, remaining)
+                self.assertIn('kjob\r', remaining)
+            else:
+                await deliver(next_prompt)
+                self.assertEqual(await asyncio.wait_for(self.inputs.get(), 5), last)
+
+    async def test_consumed_redraw_prompt_cannot_release_another_queued_line(self):
+        await self.check_prompt_occurrence_credit(
+            '\r\nRoom.\r\n*\x12^R\x12\x7f\r\x1b[C', ['\x1b[C\x1b[K'])
+
+    async def test_partial_csi_does_not_reset_consumed_prompt_identity(self):
+        await self.check_prompt_occurrence_credit(
+            '\r\nRoom.\r\n*\x12^R\x12\x7f\r\x1b[C', ['\x1b[', 'C', '\x1b[K'])
+
+    async def test_window_truncation_preserves_consumed_prompt_identity(self):
+        # Extensions fill the 256-character window, then drop the prompt's leading
+        # CR/LF while retaining its marker and redraw. Buffer-relative positions
+        # and even the absolute start of the whole regex match are not stable.
+        await self.check_prompt_occurrence_credit(
+            '\r\n(----*)\x12^R\x12\x7f\r' + '\x1b[C' * 79, ['\x1b[C', '\x1b[C'])
+
+    async def test_new_identical_prompt_gets_fresh_credit(self):
+        await self.check_prompt_occurrence_credit('\r\n*', [], next_prompt='\r\n*')
+
+    async def test_trailing_newline_does_not_recredit_plain_prompt(self):
+        await self.check_prompt_occurrence_credit('\r\n*', ['\n'])
+
+    async def test_carriage_returns_do_not_recredit_unstarred_password_prompt(self):
+        await self.check_prompt_occurrence_credit(
+            "\r\nWhat's the password for this persona?\r\n", ['\r', '\r'])
+
+    async def test_carriage_returns_do_not_recredit_purge_menu(self):
+        await self.check_prompt_occurrence_credit('\r\nSave, delete or finish? ', ['\r', '\r'])
+
+    async def test_redraw_after_quit_does_not_release_monitor_command(self):
+        await self.check_prompt_occurrence_credit(
+            '\r\nRoom.\r\n*\x12^R\x12\x7f\r\x1b[C', ['\x1b[C\x1b[K'], quitting=True)
+
+    async def test_redraw_does_not_dispatch_password_before_its_prompt(self):
+        self.admission_mode = True
+        self.silent_commands.update(('candidate\r', 'm\r', 'ac\r', 'ab\x7fc\r'))
+        async with self.controlled_guest_frames() as (socket, deliver):
+            await socket.send_str('candidate\rm\rab\x7fc\r')
+            self.assertEqual(await asyncio.wait_for(self.inputs.get(), 5), 'candidate\r')
+            await deliver('\r\nWhat sex do you wish to be?\r\n*\x12^R\x12\x7f\r\x1b[C')
+            self.assertEqual(await asyncio.wait_for(self.inputs.get(), 5), 'm\r')
+            await deliver('\x1b[C\x1b[K')
+            with self.assertRaises(asyncio.TimeoutError):
+                await asyncio.wait_for(self.inputs.get(), 0.1)
+            await deliver('\r\nGive me a password for this persona of up to 9 letters, please.\r\n*')
+            self.assertEqual(await asyncio.wait_for(self.inputs.get(), 5), 'ac\r')
+
+    async def check_redraw_password_dispatch(self, chunks, fragmented_input=False):
+        self.admission_mode = True
+        self.silent_commands.update(('candidate\r', 'm\r', 'ac\r', 'ab\x7fc\r', 'ab'))
+        async with self.controlled_guest_frames() as (socket, deliver):
+            queued = 'candidate\rm\r' + ('' if fragmented_input else 'ab\x7fc\rlook\r')
+            await socket.send_str(queued)
+            self.assertEqual(await asyncio.wait_for(self.inputs.get(), 5), 'candidate\r')
+            await deliver('\r\nWhat sex do you wish to be?\r\n*')
+            self.assertEqual(await asyncio.wait_for(self.inputs.get(), 5), 'm\r')
+            for chunk in chunks:
+                await deliver(chunk)
+            if fragmented_input:
+                await socket.send_str('ab')
+                with self.assertRaises(asyncio.TimeoutError):
+                    await asyncio.wait_for(self.inputs.get(), 0.1)
+                await deliver('\x1b[C\x1b[K')
+                await socket.send_str('\x7fc\rlook\r')
+            self.assertEqual(await asyncio.wait_for(self.inputs.get(), 5), 'ac\r')
+            # Finishing/extending the same redraw must neither rearm the editor
+            # nor release the queued command after the completed password line.
+            await deliver('\x1b[C\x1b[K')
+            with self.assertRaises(asyncio.TimeoutError):
+                await asyncio.wait_for(self.inputs.get(), 0.1)
+            await deliver('\r\nHello, candidate!\r\n*')
+            self.assertEqual(await asyncio.wait_for(self.inputs.get(), 5), 'look\r')
+
+    async def test_coalesced_password_redraw_filters_queued_rubout(self):
+        await self.check_redraw_password_dispatch([
+            '\r\nGive me a password for this persona of up to 9 letters, please.\r\n*'
+            '\x12^R\x12\x7f\r\x1b[C\x1b[K'])
+
+    async def test_fragmented_password_redraw_filters_queued_rubout(self):
+        await self.check_redraw_password_dispatch([
+            '\r\nGive me a password for this persona of up to 9 letters, ',
+            'please.\r\n*\x12^R\x12\x7f', '\r\x1b[', 'C'])
+
+    async def test_long_password_redraw_keeps_context_before_credit(self):
+        await self.check_redraw_password_dispatch([
+            '\r\nGive me a password for this persona of up to 9 letters, please.\r\n*'
+            '\x12^R\x12\x7f\r' + '\x1b[C' * 80])
+
+    async def test_long_partial_password_redraw_keeps_context_before_credit(self):
+        await self.check_redraw_password_dispatch([
+            '\r\nGive me a password for this persona of up to 9 letters, please.\r\n*'
+            '\x12^R\x12\x7f\r' + '\x1b[C' * 80 + '\x1b[', 'C'])
+
+    async def test_password_redraw_does_not_reset_silent_fragment_edits(self):
+        await self.check_redraw_password_dispatch([
+            '\r\nGive me a password for this persona of up to 9 letters, please.\r\n*'
+            '\x12^R\x12\x7f\r\x1b[C'], fragmented_input=True)
 
     async def test_waiting_for_guest_prompt_keeps_reading_browser_pongs(self):
         original_socket = web.WebSocketResponse
