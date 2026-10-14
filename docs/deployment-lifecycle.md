@@ -123,6 +123,28 @@ protocol coverage remains in place.
 
 ## Retained evidence and limitations
 
+Full acceptance passed for code commit `93478975b4dfb2fdc13fabe8b537caeb81560355`:
+
+- Local native ARM AlmaLinux: `runtime/deployment-parity-8/report.json` records
+  every stage completed, clean working tree, matching pinned runtime checksum,
+  and both final guest shutdowns clean.
+- Native-x86 GitHub: [run 38501086454](https://github.com/irongulp/mud1/actions/runs/38501086454)
+  passed in 1h7m57s. GitHub checked out PR merge commit
+  `01c649c7e76c7c1b6ed998e3f45760c0434d68f0`; its lifecycle report also records
+  every stage and both final clean shutdowns. Both populated cutover and fresh
+  external reports confirm installer rerun, backup/restart and editor checks.
+  Private downloaded evidence: `ci-9347897-lifecycle-green`.
+- 429 host tests passed locally after installing the same pinned upstream
+  preparation assets as CI. Thirty installed external maintenance admissions,
+  hourly-announcement controls, missing-BATCON rejection and native shutdown
+  controls passed separately. Test fixtures and containers are stopped.
+
+The successful local/CI service journals still contain isolated startup retries,
+conservative failed intermediate batch preflights and gateway logout timeouts.
+Those are retained follow-up evidence, not claimed fixed by a successful final
+run. Backup/migration guards and both final shutdown proofs passed; this does not
+establish exhaustive startup or arbitrary-disconnect reliability.
+
 Private evidence includes `runtime/deployment-parity-1` (local backup failure),
 `-2/-3` (patch packaging failures), `-4` (TTY0 HTTPS failure), and `-5` (native,
 HTTP/HTTPS/reboot passed; host execution window interrupted the cutover driver).

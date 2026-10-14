@@ -579,7 +579,12 @@
   `--browser-terminals` removes only STOMP via staged/read-back-verified SYS:TTY.INI
   and requires clean reboot before admission. Default standalone configs retain
   their behavior. See docs/deployment-lifecycle.md for evidence and unresolved
-  boot/admission failures; no full new native-x86 acceptance claim yet.
+  boot/admission failures. Full shared acceptance passed at9347897 on local ARM
+  (deployment-parity-8) and native-x86 CI run38501086454 (PR merge01c649c), including
+  HTTP/HTTPS/reboot, populated cutover, fresh external setup, editor and both final
+  clean shutdowns. Successful journals retain startup retries, conservative failed
+  intermediate preflights and isolated gateway logout warnings; do not claim all
+  historical reliability issues fixed. Private CI evidence:ci-9347897-lifecycle-green.
   External admission traces proved `Logged-off` alone releases connections too
   early: later clients inherited the old accounting tail/dot and lost a first
   byte during ownership transition. Inspectors, readiness cleanup and gateway now
