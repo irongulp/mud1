@@ -716,6 +716,57 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
             await deliver('\r\nGive me a password for this persona of up to 9 letters, please.\r\n*')
             self.assertEqual(await asyncio.wait_for(self.inputs.get(), 5), 'ac\r')
 
+    async def check_redraw_password_dispatch(self, chunks, fragmented_input=False):
+        self.admission_mode = True
+        self.silent_commands.update(('candidate\r', 'm\r', 'ac\r', 'ab\x7fc\r', 'ab'))
+        async with self.controlled_guest_frames() as (socket, deliver):
+            queued = 'candidate\rm\r' + ('' if fragmented_input else 'ab\x7fc\rlook\r')
+            await socket.send_str(queued)
+            self.assertEqual(await asyncio.wait_for(self.inputs.get(), 5), 'candidate\r')
+            await deliver('\r\nWhat sex do you wish to be?\r\n*')
+            self.assertEqual(await asyncio.wait_for(self.inputs.get(), 5), 'm\r')
+            for chunk in chunks:
+                await deliver(chunk)
+            if fragmented_input:
+                await socket.send_str('ab')
+                with self.assertRaises(asyncio.TimeoutError):
+                    await asyncio.wait_for(self.inputs.get(), 0.1)
+                await deliver('\x1b[C\x1b[K')
+                await socket.send_str('\x7fc\rlook\r')
+            self.assertEqual(await asyncio.wait_for(self.inputs.get(), 5), 'ac\r')
+            # Finishing/extending the same redraw must neither rearm the editor
+            # nor release the queued command after the completed password line.
+            await deliver('\x1b[C\x1b[K')
+            with self.assertRaises(asyncio.TimeoutError):
+                await asyncio.wait_for(self.inputs.get(), 0.1)
+            await deliver('\r\nHello, candidate!\r\n*')
+            self.assertEqual(await asyncio.wait_for(self.inputs.get(), 5), 'look\r')
+
+    async def test_coalesced_password_redraw_filters_queued_rubout(self):
+        await self.check_redraw_password_dispatch([
+            '\r\nGive me a password for this persona of up to 9 letters, please.\r\n*'
+            '\x12^R\x12\x7f\r\x1b[C\x1b[K'])
+
+    async def test_fragmented_password_redraw_filters_queued_rubout(self):
+        await self.check_redraw_password_dispatch([
+            '\r\nGive me a password for this persona of up to 9 letters, ',
+            'please.\r\n*\x12^R\x12\x7f', '\r\x1b[', 'C'])
+
+    async def test_long_password_redraw_keeps_context_before_credit(self):
+        await self.check_redraw_password_dispatch([
+            '\r\nGive me a password for this persona of up to 9 letters, please.\r\n*'
+            '\x12^R\x12\x7f\r' + '\x1b[C' * 80])
+
+    async def test_long_partial_password_redraw_keeps_context_before_credit(self):
+        await self.check_redraw_password_dispatch([
+            '\r\nGive me a password for this persona of up to 9 letters, please.\r\n*'
+            '\x12^R\x12\x7f\r' + '\x1b[C' * 80 + '\x1b[', 'C'])
+
+    async def test_password_redraw_does_not_reset_silent_fragment_edits(self):
+        await self.check_redraw_password_dispatch([
+            '\r\nGive me a password for this persona of up to 9 letters, please.\r\n*'
+            '\x12^R\x12\x7f\r\x1b[C'], fragmented_input=True)
+
     async def test_waiting_for_guest_prompt_keeps_reading_browser_pongs(self):
         original_socket = web.WebSocketResponse
 

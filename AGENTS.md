@@ -820,14 +820,20 @@
 - TOPS-10 can append DC2/`^R`/DC2/DEL/CR and CSI-C/K redraw sequences to a
   completed game prompt. Gateway input credit must recognize that witnessed
   suffix, including fragmented reads; otherwise a displayed prompt can leave
-  the next command queued forever. Preserve terminal output and reject arbitrary
-  or unfinished tails. `tests.test_gateway` covers these protocol boundaries.
+  the next command queued forever. Preserve terminal output and grant no credit
+  for arbitrary or unfinished tails. `tests.test_gateway` covers these boundaries.
   Grant credit once per prompt occurrence, using the marker's absolute stream
   position rather than the match end/text or buffer-relative offset. Retain the
   credited identity across sender consumption, incomplete CSI fragments and
   rolling-window trimming. Apply the same rule to unstarred password/PURGE
   prompts; tests must queue multiple lines before extending a consumed redraw
   while the next command's output is withheld.
+  Password classification must precede that credit grant and use the same redraw
+  vocabulary (`server.terminal_prompts`). Latch a known password question on a
+  valid redraw prefix, and inspect a coalesced read before trimming context;
+  otherwise the star can survive after the question is lost. Incomplete tails
+  may establish silent editing but must not grant credit. Preserve buffered edits
+  across later fragments and test all three native password question forms.
 
 - The Settings modal has four tabs in order: Settings, About, Licences, Links.
   The selected tab visually joins the bordered, scrollable content panel.

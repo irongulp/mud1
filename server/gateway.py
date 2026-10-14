@@ -15,6 +15,7 @@ from telnetlib3.telopt import DONT, LINEMODE
 from aiohttp import WSMsgType, web
 
 from server.password_input import PasswordInput
+from server.terminal_prompts import NATIVE_PROMPT_REDRAW
 from server.maintenance import MAINTENANCE_FILE, MESSAGE, RETRY_SECONDS, CLOSE_CODE
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -48,7 +49,6 @@ MAX_PENDING_INPUT_SIZE = MAX_INPUT_SIZE
 LOGOUT_TIMEOUT = 3
 INTERRUPT_SEQUENCE = "\x03" * 4  # Controlled TOPS-10 monitor recovery, never browser input.
 SAFE_CONTROLS = frozenset('\b\t\n\r\x12\x15\x17')
-NATIVE_PROMPT_REDRAW = r'\x12\^R\x12\x7f\r(?:\x1b\[[0-9;]*[CK])*'
 # TOPS-10 may coalesce a complete prompt with this terminal redraw. Recognize
 # the witnessed suffix for input credit without stripping other terminal output.
 GAME_PROMPT = re.compile(
