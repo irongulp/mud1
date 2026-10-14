@@ -541,6 +541,17 @@
 
 ## Hosting / idle measurements
 
+- CI scope: tests.yml runs host/unittest/real-Chromium fake-backend regressions
+  on PRs and code pushes, with pip/browser caches and no guest boot/DB/systemd.
+  dependency-audit.yml runs independently on dependency changes, weekly/manual.
+  deployment.yml is manual-only; retain native setup/HTTPS/reboot/cutover/external
+  acceptance before releases/deployments, including its real shutdown guards.
+  Green fast CI is not deployment validation. main currently has no protection or
+  ruleset; if enforcing checks, require Host and Chromium tests rather than the
+  filtered audit/manual job. Real Chromium heartbeat test uses1-second heartbeat
+  and three cycles instead of flaky50-ms startup PONG allowance; production timing
+  unchanged. See docs/ci.md. Native reliability issues remain, not masked/fixed.
+
 - Deployment release setup now pins pip26.2.1 in the release venv before locked
   requirements, including reruns; pip check follows optional hash-checked storage
   installation. System pip stays distro-managed. Python>=3.10 required (installer
