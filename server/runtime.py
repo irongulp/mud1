@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 import fcntl
 import json
 import os
+import re
 from pathlib import Path
 import signal
 import socket
@@ -23,6 +24,9 @@ LISTENER_WAIT=90
 MONITOR_PROMPT = r'\n\.'
 OPERATOR_PROMPT = 'OPR>'
 MAX_OPERATOR_NOTICES = 16  # Startup/accounting plus completed readiness probes.
+BATCH_DRAIN_TIMEOUT = 10
+BATCH_DRAIN_POLL = .25
+_BATCH_SHUTDOWN = r'\r?\n *[0-9]{1,2}:[0-9]{2}:[0-9]{2} +Batch-Stream ([01]) +-- Shutdown --\r?\n'
 
 
 def wait_listener(port,timeout=LISTENER_WAIT):
@@ -60,6 +64,16 @@ def notify(message):
             connection.sendto(message.encode(), address)
 
 
+def batch_pty_jobs(output):
+    """Read the native SYSTAT job table, including BATCON's reusable PTY jobs."""
+    text = output.replace('\r', '').expandtabs(8)
+    table = re.search(r'(?m)^Job +Who +Line# +What +Size\(P\) +State +Run Time\n'
+                      r'([\s\S]*?)^High Segments:', text)
+    if table is None:
+        raise RuntimeError('Native batch drain needs a complete SYSTAT job table')
+    return [int(job) for job in re.findall(r'(?m)^ *([0-9]+) +\S+ +P[0-9]+J[0-9]+(?: +|$)', table[1])]
+
+
 def probe_game(port):
     from tools.audit_archwizards import Guest, logoff
     guest = Guest(port, 'mudguest', [])
@@ -72,7 +86,7 @@ def probe_game(port):
 
 
 class Runtime:
-    def __init__(self, state, executable, port=2020, idle=False,persona_config=None):
+    def __init__(self, state, executable, port=2020, idle=False,persona_config=None, *, browser_terminals=False):
         self.state, self.executable = Path(state), str(executable)
         self.port, self.idle = port, idle
         self.child = None
@@ -82,6 +96,8 @@ class Runtime:
         self.bridge=self.store=None
         self.control_prompt = None
         self.batch_ready = False
+        self.browser_terminals = browser_terminals
+        self.terminal_rebooted = False
 
     def verify_batch(self):
         from tools.batch_readiness import BatchReadinessError, ensure_batch_ready
@@ -154,6 +170,34 @@ class Runtime:
         self.child.expect(MONITOR_PROMPT, timeout=max(0, deadline - time.monotonic()))
         self.control_prompt = MONITOR_PROMPT
 
+    def drain_batch(self, *, timeout=BATCH_DRAIN_TIMEOUT):
+        """Release the supplied SYSTEM.CMD's two ordinary streams before KSYS.
+
+        A completed probe leaves reusable logged-in PTY jobs owned by BATCON.
+        The independent KSYS worker cannot seize them while that owner retains
+        them. Native SHUTDOWN releases them; never kill or impersonate the jobs.
+        """
+        deadline = time.monotonic() + min(timeout, BATCH_DRAIN_TIMEOUT)
+        output = self.command('shutdown batch-stream 0:1', OPERATOR_PROMPT,
+                              timeout=max(0, deadline - time.monotonic()))
+        self.control_prompt = None
+        seen = set(re.findall(_BATCH_SHUTDOWN, output))
+        while seen != {'0', '1'}:
+            self.child.expect(_BATCH_SHUTDOWN, timeout=max(0, deadline - time.monotonic()))
+            output = self.child.before + self.child.after
+            seen.update(re.findall(_BATCH_SHUTDOWN, output))
+        if not output.endswith(OPERATOR_PROMPT):
+            self.child.expect_exact(OPERATOR_PROMPT, timeout=max(0, deadline - time.monotonic()))
+        self.control_prompt = OPERATOR_PROMPT
+        self.command('exit', timeout=max(0, deadline - time.monotonic()))
+        # SHUTDOWN acknowledges its request before BATCON finishes P$CLOS.
+        # Witness job release, rather than replacing that race with a sleep.
+        while batch_pty_jobs(self.command('systat', timeout=max(0, deadline - time.monotonic()))):
+            if time.monotonic() >= deadline:
+                raise TimeoutError('Native batch jobs were not released before KSYS')
+            time.sleep(min(BATCH_DRAIN_POLL, max(0, deadline - time.monotonic())))
+        self.command('r opr', OPERATOR_PROMPT, timeout=max(0, deadline - time.monotonic()))
+
     def boot(self):
         import pexpect
         wait_listener(self.port)
@@ -184,6 +228,20 @@ class Runtime:
             else:
                 self.child.send(response + '\r')
         self.booted = True
+        if self.browser_terminals:
+            from tools.terminal_config import protect_bridge_terminals
+            if protect_bridge_terminals(self):
+                if self.terminal_rebooted:
+                    raise RuntimeError('Browser terminal configuration did not survive reboot')
+                self.terminal_rebooted = True
+                self.verify_batch()
+                self.batch_ready = True
+                if not self.stop():
+                    raise RuntimeError('Browser terminal setup requires a confirmed clean shutdown')
+                self.boot()
+                return
+            if 'STOMPR' in self.command('systat'):
+                raise RuntimeError('Terminal initializer still owns browser lines; admission blocked')
         if self.persona_config:
             from server.persona_bridge import PersonaBridge
             from tools.persona_migrate import load_config
@@ -227,6 +285,8 @@ class Runtime:
                             if self.control_prompt == MONITOR_PROMPT:
                                 self.command('r opr', OPERATOR_PROMPT,
                                              timeout=max(0, deadline - time.monotonic()))
+                            if self.batch_ready:
+                                self.drain_batch(timeout=max(0, deadline - time.monotonic()))
                             self.command('set ksys now', 'KSYS processing completed',
                                          timeout=max(0, deadline - time.monotonic()))
                             clean = batch_verified
@@ -298,8 +358,11 @@ def main():
     parser.add_argument('--port', type=int, default=2020)
     parser.add_argument('--idle', action='store_true', help='Experimental; validate lifecycle on the target host first')
     parser.add_argument('--persona-config',type=Path,default=os.environ.get('MUD86_PERSONA_CONFIG'))
+    parser.add_argument('--browser-terminals', action='store_true',
+                        help='Disable the optional line-claiming initializer on this deployed browser guest')
     args = parser.parse_args()
-    Runtime(args.state.resolve(), args.simh.resolve(), args.port, args.idle,args.persona_config).run()
+    Runtime(args.state.resolve(), args.simh.resolve(), args.port, args.idle,args.persona_config,
+            browser_terminals=args.browser_terminals).run()
 
 
 if __name__ == '__main__':

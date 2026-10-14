@@ -1,4 +1,4 @@
-"""Terminal initializer setup for an explicitly selected external guest."""
+"""Terminal initializer setup for an explicitly selected browser/external guest."""
 import re
 
 STAGED_TTY = 'sys:xtty.tmp'
@@ -7,7 +7,7 @@ STAGED_TTY = 'sys:xtty.tmp'
 def local_tty_config(text):
     lines=text.replace('\r','').splitlines()
     if not any(line.startswith('ALL ') for line in lines) or not any(line.startswith('CTY:') for line in lines):
-        raise RuntimeError('Unrecognized external guest terminal configuration')
+        raise RuntimeError('Unrecognized guest terminal configuration')
     return '\n'.join(line for line in lines if not line.lstrip().upper().startswith('STOMP '))+'\n'
 
 
@@ -27,5 +27,5 @@ def protect_bridge_terminals(machine):
     machine.command('copy xtty.ini=sys:tty.ini')
     machine.command('copy sys:tty.ini='+STAGED_TTY)
     actual=machine.command('type sys:tty.ini').replace('\r','').split('\n',1)[1].rsplit('\n.',1)[0]
-    if actual.strip()!=desired.strip(): raise RuntimeError('External terminal configuration verification failed')
+    if actual.strip()!=desired.strip(): raise RuntimeError('Guest terminal configuration verification failed')
     return True

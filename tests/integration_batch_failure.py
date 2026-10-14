@@ -14,7 +14,7 @@ from tests.integration_provisioning import require, source_hashes
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def run(output, assets):
+def run(output, assets, simh=None):
     output.mkdir(mode=0o700)
     state = output / 'machine'
     state.mkdir(mode=0o700)
@@ -44,7 +44,7 @@ def run(output, assets):
                 self.command('rename sys:batcon.exe=sys:batbad.exe')
                 report['binary_restored'] = 'BATCON' in self.command('directory sys:batcon.exe')
 
-    machine = FaultRuntime(state, assets / 'upstream/simh/BIN/pdp10', port=port)
+    machine = FaultRuntime(state, simh or assets / 'upstream/simh/BIN/pdp10', port=port)
     with (output / 'console.log').open('w') as console, redirect_stdout(console):
         try:
             try:
@@ -67,5 +67,6 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--assets', type=Path, default=ROOT)
+    parser.add_argument('--simh', type=Path, help='Explicit diagnostic emulator on the host architecture')
     args = parser.parse_args()
-    run(args.output.resolve(), args.assets.resolve())
+    run(args.output.resolve(), args.assets.resolve(), args.simh)

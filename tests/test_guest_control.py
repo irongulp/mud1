@@ -44,6 +44,50 @@ class EchoTerminal:
 
 
 class GuestControlTests(unittest.TestCase):
+    def test_batch_idle_logout_notice_requires_full_command_redraw(self):
+        from tools.guest_control import operator_redraw
+        frame = (b'\r\n 0:46:30          -- BATCON logging out --\r\n'
+                 b'                All streams have been idle for 10 minutes\r\n\r\nOPR>')
+        for corrupt in (False, True):
+            terminal = EchoTerminal()
+            def echo(byte):
+                if bytes(terminal.typed) == b'shutdown batch-':
+                    return frame + (b'shutdown bacht-' if corrupt else bytes(terminal.typed))
+                return byte
+            terminal.fault = echo
+            if corrupt:
+                with self.assertRaises(ControlError):
+                    submit_line('shutdown batch-stream 0:1', terminal.write, terminal.read,
+                                timeout=1, clock=terminal.clock, redraw=operator_redraw)
+                self.assertEqual(terminal.executed, [])
+            else:
+                submit_line('shutdown batch-stream 0:1', terminal.write, terminal.read,
+                            timeout=1, clock=terminal.clock, redraw=operator_redraw)
+                self.assertEqual(terminal.executed, [b'shutdown batch-stream 0:1'])
+
+    def test_hourly_console_status_preserves_exact_echo(self):
+        from tools.guest_control import console_notice
+        for uptime in (b':01:13', b'34.66', b'12:01:13'):
+            notice = (b'\r\nMonitor KS10\r\nSystem uptime ' + uptime +
+                      b'\r\nCurrent date/time Tuesday 13-Oct-126 21:00:00\r\n\r\n')
+            terminal = EchoTerminal(stale=notice)
+            submit_line('r opr', terminal.write, terminal.read, timeout=1,
+                        clock=terminal.clock, notice=console_notice)
+            self.assertEqual(terminal.executed, [b'r opr'])
+
+    def test_hourly_console_status_rejects_incomplete_or_unexpected_output(self):
+        from tools.guest_control import console_notice
+        notice = (b'\r\nMonitor KS10\r\nSystem uptime :01:13\r\n'
+                  b'Current date/time Tuesday 13-Oct-126 21:00:00\r\n\r\n')
+        for data in (notice[:-2], notice.replace(b'System uptime', b'?System failure'),
+                     notice + b'?', notice.replace(b'KS10', b'OTHER'), b'\r\n.'):
+            terminal = EchoTerminal(stale=data)
+            with self.subTest(data=data), self.assertRaises(ControlError):
+                submit_line('r opr', terminal.write, terminal.read, timeout=1,
+                            clock=terminal.clock, notice=console_notice)
+            self.assertEqual(terminal.sent, [])
+            self.assertLessEqual(terminal.now, 1)
+
     def test_owned_batch_probe_notification_requires_matching_filenames(self):
         from tools.guest_control import operator_redraw
         frame = (b'\r\n22:58:58        Batch-Stream 0  -- Begin --\r\n'

@@ -39,66 +39,8 @@ jobs:
         run: |
           mkdir -p runtime/release-v1
           gh release download runtime-v1 --pattern mud86-runtime.tar.gz --dir runtime/release-v1
-      - name: Start native x86 AlmaLinux with systemd
-        run: |
-          docker build -t mud86-alma9 -f deploy/Dockerfile.alma9 .
-          docker run -d --name mud86-install-test --privileged --cgroupns=host \
-            --cpus=1 --memory=2g --tmpfs /run --tmpfs /tmp \
-            -v /sys/fs/cgroup:/sys/fs/cgroup:rw \
-            -v "$PWD:/checkout:ro" -v "$PWD/runtime/release-v1:/artifacts:ro" \
-            -p 127.0.0.1:38080:80 -p 127.0.0.1:38443:443 mud86-alma9
-          for attempt in $(seq 1 30); do
-            docker exec mud86-install-test systemctl is-system-running && break
-            sleep 1
-          done
-      - name: Install, rerun, saved login, timing, backup and restart
-        run: .venv/bin/python -m tests.integration_deployment
-      - name: Chromium multiplayer through Nginx
-        run: |
-          .venv/bin/python -c "import asyncio; from tests.browser_smoke import main; asyncio.run(main('http://mud.etimbo.com:38080', launch_args=['--host-resolver-rules=MAP mud.etimbo.com 127.0.0.1']))"
-      - name: HTTPS and secure WebSockets with a test certificate
-        run: |
-          docker exec -w /checkout mud86-install-test /opt/mud86/current/.venv/bin/python -m tests.deployment_tls_fixture
-          .venv/bin/python -c "import asyncio; from tests.browser_smoke import main; asyncio.run(main('https://mud.etimbo.com:38443', launch_args=['--host-resolver-rules=MAP mud.etimbo.com 127.0.0.1'], ignore_https_errors=True))"
-      - name: Reboot container and recheck browser
-        run: |
-          docker exec mud86-install-test systemctl stop mud86-runtime.service
-          docker restart --timeout 180 mud86-install-test
-          for attempt in $(seq 1 60); do
-            docker exec mud86-install-test systemctl show-environment >/dev/null 2>&1 && break
-            sleep 1
-          done
-          docker exec mud86-install-test systemctl start mud86-runtime.service mud86-gateway.service nginx
-          .venv/bin/python -c "import asyncio; from tests.browser_smoke import main; asyncio.run(main('https://mud.etimbo.com:38443', launch_args=['--host-resolver-rules=MAP mud.etimbo.com 127.0.0.1'], ignore_https_errors=True))"
-          docker stats --no-stream mud86-install-test
-      # Both a populated native cutover and an empty external installation
-      # use the real installer on native x86, never a Mac lab disk.
-      - name: Native-to-MariaDB cutover and external rerun/backup
-        run: .venv/bin/python -m tests.integration_external_deployment --native-url https://127.0.0.1:38443
-      - name: Start fresh external installation container
-        run: |
-          docker run -d --name mud86-external-fresh --privileged --cgroupns=host \
-            --cpus=1 --memory=2g --tmpfs /run --tmpfs /tmp \
-            -v /sys/fs/cgroup:/sys/fs/cgroup:rw \
-            -v "$PWD:/checkout:ro" -v "$PWD/runtime/release-v1:/artifacts:ro" \
-            -p 127.0.0.1:48080:80 mud86-alma9
-          for attempt in $(seq 1 60); do
-            docker exec mud86-external-fresh systemctl show-environment >/dev/null 2>&1 && break
-            sleep 1
-          done
-      - name: Fresh external installation and persistence
-        run: .venv/bin/python -m tests.integration_external_deployment --fresh --container mud86-external-fresh --url http://127.0.0.1:48080
-      - name: Database editor permissions, concurrency and recovery
-        run: |
-          docker exec -w /checkout mud86-install-test runuser -u mud86 -- /opt/mud86/current/.venv/bin/python -m tests.integration_database_access --output /var/lib/mud86/editor-acceptance
-          mkdir -p runtime/database-editor-ci
-          docker cp mud86-install-test:/var/lib/mud86/editor-acceptance/report.json runtime/database-editor-ci/report.json
-      - name: Service diagnostics
-        if: always()
-        run: |
-          .venv/bin/python -m tests.deployment_diagnostics || true
-          docker exec mud86-install-test systemctl stop mud86-runtime.service || true
-          docker exec mud86-external-fresh systemctl stop mud86-runtime.service || true
+      - name: Fresh native and external lifecycle, including confirmed final shutdown
+        run: .venv/bin/python -m tests.deployment_lifecycle --output runtime/deployment-lifecycle
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -111,3 +53,5 @@ jobs:
             runtime/external-deployment-*/**/*.log
             runtime/external-deployment-*/**/report.json
             runtime/database-editor-ci/report.json
+            runtime/deployment-lifecycle/**/*.json
+            runtime/deployment-lifecycle/*.png

@@ -13,8 +13,8 @@ def decode_output(value):
     return value.decode('utf-8', errors='replace') if isinstance(value, bytes) else value or ''
 
 
-def collect_all(output):
-    for container in CONTAINERS:
+def collect_all(output, *, containers=None, guest=True):
+    for container in CONTAINERS if containers is None else containers:
         directory = output / container
         directory.mkdir(mode=0o700, parents=True, exist_ok=True)
         prefix = ['docker', 'exec', '-w', '/checkout', container]
@@ -29,6 +29,8 @@ def collect_all(output):
                               'tests.deployment_guest_status'], GUEST_TIMEOUT),
         )
         for name, command, timeout in commands:
+            if name == 'guest-systat' and not guest:
+                continue
             try:
                 result = subprocess.run(prefix + command, capture_output=True, text=True, timeout=timeout)
                 evidence = decode_output(result.stdout) + decode_output(result.stderr)

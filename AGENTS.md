@@ -567,6 +567,20 @@
 
 ## Hosting / idle measurements
 
+- CI/local lifecycle work uses `tests.deployment_lifecycle`, including final clean
+  shutdown; prior install reports could pass before teardown failed. Local ARM is
+  not native-x86 CI. Pinned SIMH RDTIM used the next WRINT interval to interpolate
+  the still-active tick, producing backwards reads; `tools.simh_timer` supplies
+  an exact-checksummed active-tick correction in a separate deployment build cache.
+  Normal BATCON workers retain reusable logged-in PTY jobs: SHUTDOWN streams0/1
+  acknowledgements precede release, so SYSTAT must confirm PTY jobs gone before
+  KSYS. Hourly CTY monitor announcements have a narrow verified parser. Native
+  deployed STOMPR also claimed browser TTY0 and broke HTTPS-stage admission;
+  `--browser-terminals` removes only STOMP via staged/read-back-verified SYS:TTY.INI
+  and requires clean reboot before admission. Default standalone configs retain
+  their behavior. See docs/deployment-lifecycle.md for evidence and unresolved
+  boot/admission failures; no full new native-x86 acceptance claim yet.
+
 - PR6 CI run38172587681 at925155c failed HTTPS smoke at `stage=monitor` before
   LOGIN; HTTPS assets/WSS101 reached the gateway. A preceding TTY STOMPER TTY0
   warning is a lead, not established cause. Browser initial-admission failures

@@ -32,6 +32,10 @@ normal five-minute batch CPU allowance. The host deadline is 45 seconds; guest
 accounting ticks do not define that deadline. Individual maintenance operations
 are bounded at 10 seconds, with bounded logout still permitted on failure.
 The existing 90-second KSYS phase and 180-second systemd stop bound remain.
+After the probe, shutdown drains SYSTEM.CMD's ordinary streams 0/1 and verifies
+their reusable PTY jobs are released before KSYS. Stream acknowledgements alone
+do not prove release. See [deployment lifecycle](deployment-lifecycle.md) for the
+timer correction, hourly announcements, release check and shared CI/local runner.
 
 Only the three exact files belonging to a completed, nonce-bound probe are
 deleted. Collisions are checked before writing; failed files are retained for

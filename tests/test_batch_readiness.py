@@ -139,6 +139,71 @@ class BatchProofTests(unittest.TestCase):
 
 
 class RuntimeBatchTests(unittest.TestCase):
+    def test_drain_requires_both_native_stream_acknowledgements(self):
+        for streams in (('0', '1'), ('1', '0'), ('0', '0')):
+            with self.subTest(streams=streams):
+                machine = Runtime(Path('/unused'), '/unused')
+                machine.child = Mock(before='')
+                machine.control_prompt = 'OPR>'
+                frames = iter(streams)
+                def acknowledge(*args, **kwargs):
+                    try:
+                        stream = next(frames)
+                    except StopIteration:
+                        raise TimeoutError('missing stream shutdown')
+                    machine.child.after = '\r\n12:00:00        Batch-Stream ' + stream + '  -- Shutdown --\r\n'
+                machine.child.expect.side_effect = acknowledge
+                table = '\nJob Who Line# What Size(P) State Run Time\n 3 [OPR] CTY SYSTAT 22 RN 0\nHigh Segments:\n'
+                def command_result(text, *args, **kwargs):
+                    return table if text == 'systat' else 'shutdown batch-stream 0:1\r\nOPR>'
+                with patch.object(machine, 'command', side_effect=command_result) as command:
+                    if streams == ('0', '0'):
+                        with self.assertRaises(TimeoutError):
+                            machine.drain_batch()
+                        self.assertIsNone(machine.control_prompt)
+                    else:
+                        machine.drain_batch()
+                        self.assertEqual(machine.control_prompt, 'OPR>')
+                        machine.child.expect_exact.assert_called_once()
+                    self.assertEqual(sum(call.args[0].startswith('shutdown') for call in command.call_args_list), 1)
+
+    def test_batch_pty_job_must_disappear_after_shutdown_acknowledgement(self):
+        from server.runtime import batch_pty_jobs
+        table = '\nJob Who Line# What Size(P) State Run Time\n 2 2011,2776 P0J12 10 ^C 0 $\nHigh Segments:\n'
+        self.assertEqual(batch_pty_jobs(table), [2])
+        self.assertEqual(batch_pty_jobs(table.replace('P0J12', '1')), [])
+        with self.assertRaises(RuntimeError):
+            batch_pty_jobs('incomplete SYSTAT output')
+
+    def test_browser_terminal_setup_requires_clean_reboot_before_admission(self):
+        with tempfile.TemporaryDirectory() as directory:
+            machine = Runtime(Path(directory), '/unused', browser_terminals=True)
+            events = []
+            def prepare(runtime):
+                events.append('prepare')
+                return events.count('prepare') == 1
+            with patch('server.runtime.wait_listener'), patch('pexpect.spawn'), \
+                    patch.object(machine.stopping, 'wait', return_value=False), \
+                    patch.object(machine, 'command', return_value=''), \
+                    patch('tools.terminal_config.protect_bridge_terminals', side_effect=prepare), \
+                    patch('server.runtime.probe_game', side_effect=lambda port: events.append('game')), \
+                    patch.object(machine, 'verify_batch', side_effect=lambda: events.append('batch')), \
+                    patch.object(machine, 'stop', side_effect=lambda: events.append('stop') or True):
+                machine.boot()
+            self.assertEqual(events, ['prepare', 'batch', 'stop', 'prepare', 'game', 'batch'])
+
+    def test_failed_terminal_setup_shutdown_never_admits_players(self):
+        with tempfile.TemporaryDirectory() as directory:
+            machine = Runtime(Path(directory), '/unused', browser_terminals=True)
+            with patch('server.runtime.wait_listener'), patch('pexpect.spawn'), \
+                    patch.object(machine.stopping, 'wait', return_value=False), \
+                    patch.object(machine, 'command'), \
+                    patch('tools.terminal_config.protect_bridge_terminals', return_value=True), \
+                    patch.object(machine, 'verify_batch'), patch.object(machine, 'stop', return_value=False), \
+                    patch('server.runtime.probe_game') as game, self.assertRaises(RuntimeError):
+                machine.boot()
+            game.assert_not_called()
+
     def test_batch_check_follows_private_transport_probe_and_blocks_readiness(self):
         with tempfile.TemporaryDirectory() as directory:
             machine = Runtime(Path(directory), '/unused')
@@ -170,9 +235,10 @@ class RuntimeBatchTests(unittest.TestCase):
                 machine.control_prompt = prompt
                 return prompt
             with patch.object(machine, 'verify_batch', side_effect=lambda: events.append('batch-ready')), \
+                    patch.object(machine, 'drain_batch', side_effect=lambda **kwargs: events.append('batch-drained')), \
                     patch.object(machine, 'command', side_effect=command):
                 self.assertTrue(machine.stop())
-            self.assertEqual(events, ['batch-ready', 'r opr', 'set ksys now'])
+            self.assertEqual(events, ['batch-ready', 'r opr', 'batch-drained', 'set ksys now'])
             self.assertTrue(json.loads((Path(directory)/'shutdown.json').read_text())['clean'])
 
     def test_failed_batch_check_cannot_publish_clean_backup_marker(self):
@@ -185,6 +251,20 @@ class RuntimeBatchTests(unittest.TestCase):
                 machine.control_prompt = prompt
                 return prompt
             with patch.object(machine, 'verify_batch', side_effect=RuntimeError('batch unavailable')), \
+                    patch.object(machine, 'drain_batch'), \
                     patch.object(machine, 'command', side_effect=command):
                 self.assertFalse(machine.stop())
+            self.assertFalse(json.loads((Path(directory)/'shutdown.json').read_text())['clean'])
+
+    def test_unconfirmed_batch_drain_blocks_ksys_and_clean_marker(self):
+        with tempfile.TemporaryDirectory() as directory:
+            machine = Runtime(Path(directory), '/unused')
+            machine.child = Mock()
+            machine.booted = machine.batch_ready = True
+            machine.control_prompt = MONITOR_PROMPT
+            with patch.object(machine, 'verify_batch'), \
+                    patch.object(machine, 'drain_batch', side_effect=TimeoutError('missing acknowledgement')), \
+                    patch.object(machine, 'command') as commands:
+                self.assertFalse(machine.stop())
+            self.assertNotIn('set ksys now', [call.args[0] for call in commands.call_args_list])
             self.assertFalse(json.loads((Path(directory)/'shutdown.json').read_text())['clean'])

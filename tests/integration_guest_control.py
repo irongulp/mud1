@@ -15,7 +15,7 @@ from tests.integration_provisioning import require, source_hashes
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def run(output, assets, rounds):
+def run(output, assets, rounds, simh=None):
     output.mkdir(mode=0o700)
     state = output / 'machine'
     state.mkdir(mode=0o700)
@@ -26,7 +26,7 @@ def run(output, assets, rounds):
         port = probe.getsockname()[1]
     original = source_hashes()
     report = {'complete': False, 'rounds': 0}
-    machine = Runtime(state, assets / 'upstream/simh/BIN/pdp10', port=port)
+    machine = Runtime(state, simh or assets / 'upstream/simh/BIN/pdp10', port=port)
     try:
         with (output / 'console.log').open('w') as console, redirect_stdout(console):
             machine.boot()
@@ -70,7 +70,8 @@ if __name__ == '__main__':
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--assets', type=Path, default=ROOT)
     parser.add_argument('--rounds', type=int, default=200)
+    parser.add_argument('--simh', type=Path, help='Explicit diagnostic emulator; guest disk is still copied fresh')
     args = parser.parse_args()
     if args.rounds < 1:
         parser.error('--rounds must be positive')
-    run(args.output.resolve(), args.assets.resolve(), args.rounds)
+    run(args.output.resolve(), args.assets.resolve(), args.rounds, args.simh)

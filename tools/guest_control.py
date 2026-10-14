@@ -12,12 +12,20 @@ MAX_CONSOLE_NOTICE = 160
 MAX_MONITOR_PADDING = 16
 MAX_OPERATOR_FRAME = 4096
 MAX_OPERATOR_FRAMES = 8
+_HOURLY_STATUS = re.compile(
+    rb'\r\nMonitor KS10\r\nSystem uptime '
+    rb'(?:[0-9]*:[0-5][0-9]:[0-5][0-9]|[0-5]?[0-9]\.[0-9]{2})\r\n'
+    rb'Current date/time (?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday) '
+    rb'[0-9]{1,2}-(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)-[0-9]{3,4} '
+    rb'[0-9]{1,2}:[0-5][0-9]:[0-5][0-9]\r\n\r\n')
 _OPERATOR_TIME = rb' *[0-9]{1,2}:[0-9]{2}:[0-9]{2} +'
 _OPERATOR_MESSAGES = re.compile(
     rb'(?:\n*(?:' + _OPERATOR_TIME + rb'-- Begin auto take file --\n +File: SYS:SYSTEM\.CMD\[1,4\]\n|'
     + _OPERATOR_TIME + rb'-- End auto take file --\n +[0-9]+ lines processed\n|'
     + _OPERATOR_TIME + rb'-- Message from the Accounting System --\n +Account validation is not required\n|'
     + _OPERATOR_TIME + rb'Batch-Stream [0-9]+ +-- Started --\n|'
+    + _OPERATOR_TIME + rb'-- BATCON logging out --\n +All streams have been idle for 10 minutes\n|'
+    + _OPERATOR_TIME + rb'Batch-Stream [01] +-- Shutdown --\n|'
     + _OPERATOR_TIME + rb'Batch-Stream [0-9]+ +-- Begin --\n'
       rb' +Job (?P<probe>MB[0-9A-F]{4}) Req #[0-9]+ for RICHARD \[2011,2776\]\n'
       rb' +Control file: +DSKB:(?P=probe)\.CTL\[2011,2776\]\n'
@@ -155,13 +163,13 @@ def operator_redraw(first, prefix, read_one, deadline, clock):
 
 
 def console_notice(first, read_one, deadline, clock):
-    """Recognize only the witnessed asynchronous CTY stomper notice.
+    """Recognize the witnessed CTY stomper and hourly monitor announcements.
 
     This is not a search for the next matching echo. Unrecognized diagnostics,
     stale prompts and incomplete notices still abort submission. Pexpect's
     console transcript retains this notice; it is not hidden from operators.
     """
-    if first != b'%':
+    if first not in (b'%', b'\r'):
         return False
     data = bytearray(first)
     while len(data) < MAX_CONSOLE_NOTICE and clock() < deadline:
@@ -169,6 +177,10 @@ def console_notice(first, read_one, deadline, clock):
         if not byte:
             return False
         data.extend(byte)
+        if first == b'\r':
+            if data.endswith(b'\r\n\r\n'):
+                return _HOURLY_STATUS.fullmatch(data) is not None
+            continue
         if byte == b'\n':
             return re.fullmatch(rb'%%TTY STOMPER: Quieting open line on TTY[0-7]+ at  NODE\. '
                                 rb'failed, code 0\r?\n', data) is not None
