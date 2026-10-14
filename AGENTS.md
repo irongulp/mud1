@@ -822,6 +822,12 @@
   suffix, including fragmented reads; otherwise a displayed prompt can leave
   the next command queued forever. Preserve terminal output and reject arbitrary
   or unfinished tails. `tests.test_gateway` covers these protocol boundaries.
+  Grant credit once per prompt occurrence, using the marker's absolute stream
+  position rather than the match end/text or buffer-relative offset. Retain the
+  credited identity across sender consumption, incomplete CSI fragments and
+  rolling-window trimming. Apply the same rule to unstarred password/PURGE
+  prompts; tests must queue multiple lines before extending a consumed redraw
+  while the next command's output is withheld.
 
 - The Settings modal has four tabs in order: Settings, About, Licences, Links.
   The selected tab visually joins the bordered, scrollable content panel.
