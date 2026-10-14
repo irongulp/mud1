@@ -47,7 +47,11 @@ MAX_PENDING_INPUT_SIZE = MAX_INPUT_SIZE
 LOGOUT_TIMEOUT = 3
 INTERRUPT_SEQUENCE = "\x03" * 4  # Controlled TOPS-10 monitor recovery, never browser input.
 SAFE_CONTROLS = frozenset('\b\t\n\r\x12\x15\x17')
-GAME_PROMPT = re.compile(r'(?:^|[\r\n])\(?(?:----)?[*>"]\)?$')
+NATIVE_PROMPT_REDRAW = r'\x12\^R\x12\x7f\r(?:\x1b\[[0-9;]*[CK])*'
+# TOPS-10 may coalesce a complete prompt with this terminal redraw. Recognize
+# the witnessed suffix for input credit without stripping other terminal output.
+GAME_PROMPT = re.compile(
+    r'(?:^|[\r\n])\(?(?:----)?[*>"]\)?(?:' + NATIVE_PROMPT_REDRAW + r')?$')
 LOG = logging.getLogger(__name__)
 
 

@@ -817,6 +817,12 @@
 
 ## Validation
 
+- TOPS-10 can append DC2/`^R`/DC2/DEL/CR and CSI-C/K redraw sequences to a
+  completed game prompt. Gateway input credit must recognize that witnessed
+  suffix, including fragmented reads; otherwise a displayed prompt can leave
+  the next command queued forever. Preserve terminal output and reject arbitrary
+  or unfinished tails. `tests.test_gateway` covers these protocol boundaries.
+
 - The Settings modal has four tabs in order: Settings, About, Licences, Links.
   The selected tab visually joins the bordered, scrollable content panel.
   Tab headings have no extra focus outline; focus follows the selected tab.

@@ -568,6 +568,63 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
         commands = ''.join(self.inputs.get_nowait() for _ in range(self.inputs.qsize()))
         self.assertNotIn('login richard', commands)
 
+    async def check_prompt_tail_credit(self, tail, releases_input):
+        original_connect = telnetlib3.open_connection
+        chunks = (tail,) if isinstance(tail, str) else tail
+        frame = None
+
+        async def connect(*args, **kwargs):
+            reader, writer = await original_connect(*args, **kwargs)
+            original_read = reader.read
+
+            async def read(size):
+                nonlocal frame
+                data = await original_read(size)
+                if frame is not None:
+                    # Control each read deterministically so both coalesced
+                    # and fragmented native redraws are reproducible.
+                    replacement, frame = frame, None
+                    return replacement
+                return data
+
+            reader.read = read
+            return reader, writer
+
+        with patch('server.gateway.telnetlib3.open_connection', connect):
+            socket = await self.client.ws_connect(self.server.make_url('/terminal'))
+            try:
+                await self.receive_until(socket, '*')
+                self.assertEqual(await self.inputs.get(), 'login mudguest\r')
+                await socket.send_str('look\r')
+                self.assertEqual(await asyncio.wait_for(self.inputs.get(), 5), 'look\r')
+                await self.receive_until(socket, 'look\r')
+                for index, chunk in enumerate(chunks):
+                    frame = ('\r\nRoom.\r\n*' if index == 0 else '') + chunk
+                    self.backend_writers[1].write('frame')
+                    await self.receive_until(socket, chunk)
+                await socket.send_str('score\r')
+                if releases_input:
+                    self.assertEqual(await asyncio.wait_for(self.inputs.get(), 1), 'score\r')
+                else:
+                    with self.assertRaises(asyncio.TimeoutError):
+                        await asyncio.wait_for(self.inputs.get(), 0.1)
+            finally:
+                await socket.close()
+
+    async def test_native_redraw_prompt_releases_next_line(self):
+        await self.check_prompt_tail_credit(
+            '\x12^R\x12\x7f\r' + '\x1b[C' * 4 + '\x1b[K', True)
+
+    async def test_fragmented_native_redraw_prompt_releases_next_line(self):
+        await self.check_prompt_tail_credit(
+            ('\x12^R\x12\x7f', '\r\x1b[C\x1b', '[C\x1b', '[C', '\x1b[K'), True)
+
+    async def test_arbitrary_terminal_tail_does_not_release_next_line(self):
+        await self.check_prompt_tail_credit('\x12^R\x12\x7f\r\x1b[H', False)
+
+    async def test_incomplete_redraw_tail_does_not_release_next_line(self):
+        await self.check_prompt_tail_credit('\x12^R\x12\x7f', False)
+
     async def test_waiting_for_guest_prompt_keeps_reading_browser_pongs(self):
         original_socket = web.WebSocketResponse
 
