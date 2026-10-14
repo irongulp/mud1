@@ -80,7 +80,7 @@ def probe_game(port):
     try:
         guest.connection.write(b'\x03\x03')
         guest.expect(b'\n.')
-        logoff(guest.connection)
+        logoff(guest.connection, complete=True)
     finally:
         guest.connection.close()
 

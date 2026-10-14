@@ -41,6 +41,14 @@ class ControlError(RuntimeError):
         self.input_started = input_started
 
 
+def completed_logout(text):
+    """Logged-off is a prefix; terminal reuse waits for accounting and prompt."""
+    text = text.replace('\r', '').expandtabs(8)
+    return re.search(r'Logged-off[^\n]*\n[\s\S]*?'
+                     r'^Disk Reads:[0-9]+, Writes:[0-9]+, Blocks saved:[0-9]+\n\n\.$',
+                     text, re.M) is not None
+
+
 def submit_line(text, write, read_one, *, timeout, clock=None, notice=None, monitor_padding=False, redraw=None):
     """Acknowledge every byte before Enter; never search past unexpected data.
 

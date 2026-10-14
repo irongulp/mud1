@@ -580,6 +580,14 @@
   and requires clean reboot before admission. Default standalone configs retain
   their behavior. See docs/deployment-lifecycle.md for evidence and unresolved
   boot/admission failures; no full new native-x86 acceptance claim yet.
+  External admission traces proved `Logged-off` alone releases connections too
+  early: later clients inherited the old accounting tail/dot and lost a first
+  byte during ownership transition. Inspectors, readiness cleanup and gateway now
+  await full accounting plus final monitor; thirty installed external maintenance
+  admissions and clean KSYS passed. Real-Chromium heartbeat testing uses1-second
+  heartbeat/three cycles instead of a flaky50-ms PONG deadline during startup;
+  production deadlines unchanged.429 host tests passed locally with CI's pinned
+  upstream preparation assets present. Keep earlier failed/interrupted parity runs.
 
 - PR6 CI run38172587681 at925155c failed HTTPS smoke at `stage=monitor` before
   LOGIN; HTTPS assets/WSS101 reached the gateway. A preceding TTY STOMPER TTY0

@@ -107,11 +107,22 @@ class InspectionTests(unittest.TestCase):
         wire.write.side_effect = write
         wire.expect.side_effect = expect
         native.connection = wire
-        with patch.object(native, 'receive', side_effect=['\r\n.', 'Logged-off']):
+        logout = ('Logged-off TTY0\r\nRuntime: 0:00:00\r\n'
+                  'Disk Reads:1, Writes:0, Blocks saved:10\r\n\r\n.')
+        with patch.object(native, 'receive', side_effect=['\r\n.', logout]):
             native.__exit__(inspect.InspectionError, inspect.InspectionError('timeout'), None)
         self.assertEqual(b''.join(call.args[0] for call in wire.write.call_args_list), b'\x03\x03kjob\r')
         self.assertTrue(native.cleanup_confirmed)
         wire.close.assert_called_once()
+
+    def test_logout_prefix_cannot_confirm_terminal_release(self):
+        native = inspect.NativeInspector()
+        native.connection = MagicMock()
+        native.at_monitor = True
+        with patch.object(native, 'command', return_value='kjob\r\nLogged-off'), \
+                self.assertRaises(inspect.InspectionError):
+            native.__exit__(None, None, None)
+        self.assertFalse(native.cleanup_confirmed)
 
     def test_queries_do_not_install_or_create_personas(self):
         native = inspect.NativeInspector()

@@ -102,6 +102,25 @@ only STOMP, preserves other settings and XTTY.INI, and requires a clean reboot
 before admission. The gateway already sets terminal type and width per connection.
 Standalone/default native Runtime configurations retain their existing behavior.
 
+### Terminal reuse before logout output finished
+
+The external backup failure was reproduced with private admission tracing. After
+a maintenance connection closed at the words `Logged-off`, a new SIMH connection
+received the preceding job's remaining `Runtime / Disk Reads` output. Its final
+dot was mistaken for readiness; the next command's first byte was lost while
+the line finished changing ownership. Native inspectors, runtime readiness
+cleanup and the gateway now require the complete accounting report and final
+monitor prompt before releasing their connection. No failed command is replayed.
+Thirty consecutive maintenance admissions on the installed external fixture then
+passed, followed by actual clean KSYS. Protocol regressions reject a logout prefix
+alone and hold gateway cleanup open until its tail arrives.
+
+The real-Chromium heartbeat regression now uses a one-second heartbeat and watches
+three cycles. Its former 100-ms heartbeat imposed a 50-ms PONG allowance during
+browser startup; shared native-x86 CI failed that test before deployment began.
+Production heartbeat/deadline settings are unchanged, and prompt-starvation
+protocol coverage remains in place.
+
 ## Retained evidence and limitations
 
 Private evidence includes `runtime/deployment-parity-1` (local backup failure),
@@ -116,3 +135,7 @@ do not establish that every historical failure has the same cause.
 finished external guest compilation but rejected the idle BATCON notice during
 shutdown input. That exact notification now has a failing-before/passing-after
 regression. It is retained as a failed run, not complete cutover acceptance.
+`deployment-parity-7` reached installed external login/rerun but failed backup on
+the incomplete-logout admission race. Its evidence and private
+`external-admission-trace-{1,2}` failures are retained. The corrected fixture's
+`admission-logout-green` verified the thirty-admission control above.

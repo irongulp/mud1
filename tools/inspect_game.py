@@ -240,7 +240,9 @@ class NativeInspector:
                 self.connection.write(b'\x03\x03')
                 self.receive(b'\n.')
                 self.at_monitor = True
-            self.command('kjob', b'Logged-off')
+            from tools.guest_control import completed_logout
+            if not completed_logout(self.command('kjob', b'\n.')):
+                raise InspectionError('Maintenance logout report was incomplete')
             self.cleanup_confirmed = True
         except Exception:
             if kind is None:
