@@ -541,6 +541,19 @@
 
 ## Hosting / idle measurements
 
+- Focused guest-control foundation: submit_line verifies each printable control
+  byte before Enter at known monitor/OPR prompts; no replay after partial input
+  or uncertain submission. Long source payloads retain pacing/full read-back.
+  External SYS:TTY.INI activation stages/checks SYS:XTTY.TMP before replacement;
+  existing/bad stages are preserved. Failed COPY cleanup needs a witnessed monitor
+  before OS commands. Native200 COPY rounds, reboot, FILCOM persona preservation
+  and two clean shutdowns passed at control-focused-native-4;378 host tests passed.
+  FILCOM cannot accept wildcard/double-extension inputs: copy .PM to ordinary
+  snapshot names for comparison. Earlier harness errors retained. RESET remains
+  a separate PR; wider work is on fix/deployment-startup-reliability. No timer,
+  startup recovery, batch preflight, logout-tail or game-permission changes here.
+  See docs/verified-guest-control.md; do not claim native stalls eliminated.
+
 - CI scope: tests.yml runs host/unittest/real-Chromium fake-backend regressions
   on PRs and code pushes, with pip/browser caches and no guest boot/DB/systemd.
   dependency-audit.yml runs independently on dependency changes, weekly/manual.
