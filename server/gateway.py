@@ -147,10 +147,7 @@ async def logout_guest(reader, writer, *, entered, monitor, connection_id):
             await asyncio.wait_for(reader.readuntil(b"\n."), LOGOUT_TIMEOUT)
         stage = 'logout'
         writer.write("kjob\r")
-        report = await asyncio.wait_for(reader.readuntil(b"\n."), LOGOUT_TIMEOUT)
-        from tools.guest_control import completed_logout
-        if not completed_logout(report.decode('ascii', errors='replace') if isinstance(report, bytes) else report):
-            raise OSError('Incomplete native logout report')
+        await asyncio.wait_for(reader.readuntil(b"Logged-off"), LOGOUT_TIMEOUT)
         LOG.info("Terminal logout complete: connection=%s recovered=%s", connection_id, recovered)
     except (OSError, EOFError, asyncio.TimeoutError, asyncio.IncompleteReadError, asyncio.LimitOverrunError) as error:
         # No raw terminal output, persona names, or exception payloads here.

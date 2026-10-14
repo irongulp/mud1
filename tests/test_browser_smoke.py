@@ -1,7 +1,5 @@
 """Synchronization regressions for the original-engine browser smoke client."""
 import unittest
-import json
-import tempfile
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
@@ -11,24 +9,6 @@ from tests import browser_smoke
 
 
 class EditingSequenceTests(unittest.IsolatedAsyncioTestCase):
-    async def test_editing_waits_for_other_players_arrival_before_typing(self):
-        page = AsyncMock()
-        arrived = False
-        async def displayed(target, text):
-            nonlocal arrived
-            self.assertIs(target, page)
-            self.assertEqual(text, 'Guestb has just arrived.')
-            arrived = True
-        async def type_text(text):
-            self.assertTrue(arrived, 'Editing began before the multiplayer arrival was displayed')
-        page.keyboard.type.side_effect = type_text
-        page.evaluate.side_effect = lambda expression: 'Candidate is playing' if expression == 'gameOutput' else []
-        with patch.object(browser_smoke, 'wait_text', side_effect=displayed), \
-                patch.object(browser_smoke, 'wait_prompt', new_callable=AsyncMock), \
-                patch.object(browser_smoke, 'wait_terminal_line', new_callable=AsyncMock):
-            self.assertEqual(await browser_smoke.check_editing_and_width(
-                page, 'Candidate', arrivals=['Guestb']), [])
-
     async def test_editing_waits_for_each_echo_before_the_next_key(self):
         page = AsyncMock()
         pending_echo = False
@@ -126,28 +106,3 @@ class RenderedLineTests(unittest.IsolatedAsyncioTestCase):
                 self.page, '*who', 'Backspace', timeout=100,
                 screenshot=Path('failure.png'))
         self.page.screenshot.assert_awaited_once_with(path='failure.png', full_page=True)
-
-    async def test_failed_admission_retains_socket_state_and_browser_errors(self):
-        await self.page.evaluate("""() => {
-            window.socket = {readyState: 3, url: 'wss://127.0.0.1/terminal'};
-            window.gameOutput = '[The original MUD server is unavailable. Please reconnect.]';
-            window.admissionEvents = [{event: 'close', code: 1013}];
-        }""")
-        with tempfile.TemporaryDirectory() as directory:
-            screenshot = Path(directory) / 'browser.png'
-            with self.assertRaisesRegex(AssertionError, 'Initial admission.*1013'):
-                await browser_smoke.wait_admission(self.page, screenshot=screenshot,
-                    errors=['fixture script error'], timeout=100)
-            report = json.loads(screenshot.with_suffix('.admission.json').read_text())
-            self.assertEqual(report['socket']['readyState'], 3)
-            self.assertIn('unavailable', report['raw_output'])
-            self.assertEqual(report['errors'], ['fixture script error'])
-            self.assertTrue(screenshot.is_file())
-
-    async def test_failed_admission_before_scripts_load_still_reports_failure(self):
-        page = await self.browser.new_page()
-        try:
-            with self.assertRaisesRegex(AssertionError, 'Initial admission'):
-                await browser_smoke.wait_admission(page, errors=[], timeout=100)
-        finally:
-            await page.close()

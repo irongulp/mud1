@@ -76,7 +76,7 @@ def prepare_sources(directory):
     return build
 
 
-def cutover(state,config_dir,executable,port=2020, *, runtime_lock_fd=None):
+def cutover(state,config_dir,executable,port=2020):
     directory=state/'external'; directory.mkdir(mode=0o700,parents=True,exist_ok=True)
     marker=directory/'cutover.json'
     current=json.loads(marker.read_text()) if marker.exists() else {'phase':'planned'}
@@ -92,9 +92,10 @@ def cutover(state,config_dir,executable,port=2020, *, runtime_lock_fd=None):
     snapshot_path=directory/'native-personas.json'
     build=prepare_sources(directory)
     machine=Runtime(state,executable,port=port)
-    with machine.session(runtime_lock_fd=runtime_lock_fd):
+    try:
         # Until capture/build is finished this is a controlled native runtime,
         # not a public service; the maintenance lock must be held by the caller.
+        machine.boot()
         with SnapshotInspector(port) as native:
             if not snapshot_path.exists():
                 snapshot=capture(native,install=True); write_snapshot(snapshot_path,snapshot)
@@ -108,6 +109,8 @@ def cutover(state,config_dir,executable,port=2020, *, runtime_lock_fd=None):
                 build_external(native,build)
                 phase(marker,{'phase':'built','snapshot_sha256':snapshot.sha256})
         protect_bridge_terminals(machine)
+    finally:
+        if not machine.stop(): raise RuntimeError('Cutover guest shutdown not confirmed; preserve state before admission')
     # Imports are atomic and receipt-idempotent; no public guest can write yet.
     import_snapshot(admin_config,snapshot); verify_import(admin_config,snapshot)
     with isolated_writer(runtime_config) as store:

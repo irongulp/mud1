@@ -26,15 +26,15 @@ def read_back(native,filename,expected):
         count+=1
         if count>len(lines): raise RuntimeError('No unambiguous source end marker')
         last='\n'.join(lines[-count:])
-    echo=native.send_control('type '+filename)
-    output=echo+native.receive((last.replace('\n','\r\n')+'\r\n').encode('ascii'))
+    native.send('type '+filename)
+    output=native.receive((last.replace('\n','\r\n')+'\r\n').encode('ascii'))
     tail=native.receive(b'.'); native.at_monitor=True
     return (output+tail).replace('\r','').split('\n',1)[1].rsplit('\n.',1)[0]
 
 
 def transfer(native,filename,text):
     native.connection.get_socket().setsockopt(socket.IPPROTO_TCP,socket.TCP_NODELAY,1)
-    native.begin_copy(filename)
+    native.send('copy '+filename+'=tty:'); native.receive(('copy '+filename+'=tty:\r\n').encode())
     for line in text.splitlines():
         native.send(line)
         if not native.connection.read_until(b'\n',10).endswith(b'\n'): raise RuntimeError('Paced guest transfer stalled')
@@ -83,7 +83,7 @@ def build_external(native,prepared):
     native.command(f'/set:.high.:{DATA_BASE:o}',b'\n*'); native.command('dbadat/g'); native.command('ssave mud')
     native.command('r link',b'\n*'); native.command('/set:.high.:430000',b'\n*')
     native.command(f'dbase,sys:bcplib/search/set:.high.:{DATA_BASE:o},dbadat/g'); native.command('save dbase')
-    native.send_control('run dbase'); generated=native.connection.read_until(b'MUD saved',120)
+    native.send('run dbase'); generated=native.connection.read_until(b'MUD saved',120)
     if b'Total space used 25247' not in generated or not generated.endswith(b'MUD saved'):
         raise RuntimeError('Original DBASE did not regenerate the expected world')
     native.receive(b'\n.'); native.at_monitor=True

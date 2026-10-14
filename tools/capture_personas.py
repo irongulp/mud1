@@ -12,11 +12,8 @@ CAPTURE_TIMEOUT = 600
 
 
 class SnapshotInspector(NativeInspector):
-    def command_timeout(self):
-        return CAPTURE_TIMEOUT
-
     def receive(self, marker):
-        deadline, data = self._command_deadline or time.monotonic() + CAPTURE_TIMEOUT, bytearray()
+        deadline, data = time.monotonic() + CAPTURE_TIMEOUT, bytearray()
         while time.monotonic() < deadline:
             data.extend(self.connection.read_until(marker, 1))
             if len(data) > MAX_SNAPSHOT_BYTES: raise InspectionError('Native snapshot exceeded size bound')

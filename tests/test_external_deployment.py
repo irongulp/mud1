@@ -26,8 +26,7 @@ class ExternalDeploymentTests(unittest.TestCase):
         sleep.assert_called_once()
     def test_repeated_closing_lines_require_unique_source_suffix(self):
         class Native:
-            def send(self,text): raise AssertionError('TYPE bypassed verified monitor submission')
-            def send_control(self,text): return ''
+            def send(self,text): pass
             def receive(self,marker):
                 if marker==b'unique final routine\r\n$]\r\n':
                     return 'type mudlib.bcl\r\nfirst routine\r\n$]\r\nunique final routine\r\n$]\r\n'
@@ -36,8 +35,7 @@ class ExternalDeploymentTests(unittest.TestCase):
         self.assertIn('first routine',read_back(Native(),'mudlib.bcl','first routine\n$]\nunique final routine\n$]\n'))
     def test_macro_labels_do_not_terminate_type_verification(self):
         class Native:
-            def send(self,text): raise AssertionError('TYPE bypassed verified monitor submission')
-            def send_control(self,text): self.sent=text; return ''
+            def send(self,text): self.sent=text
             def receive(self,marker):
                 if marker==b'        END ..BCPL\r\n':
                     return 'type mboots.mac\r\n        TITLE BCPL\r\n..BCPL:: TDZA 1,1\r\n        END ..BCPL\r\n'

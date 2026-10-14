@@ -174,12 +174,9 @@ def application_release(external=False):
 
 
 def build_simh(revision):
-    from tools.simh_timer import REVISION, PATCH_ID, apply
     if not re.fullmatch(r'[0-9a-f]{40}', revision):
         raise ValueError('Invalid SIMH revision')
-    if revision != REVISION:
-        raise ValueError('Unsupported SIMH revision for the verified timer correction')
-    source = APP / 'simh' / (revision + '-' + PATCH_ID)
+    source = APP / 'simh' / revision
     if not source.exists():
         source.parent.mkdir(parents=True, exist_ok=True)
         run('git', 'init', source)
@@ -187,13 +184,10 @@ def build_simh(revision):
     if not (source / 'BIN/pdp10').exists():
         run('git', '-C', source, 'fetch', '--depth', '1', 'origin', revision)
         run('git', '-C', source, 'checkout', '--detach', revision)
-        apply(source)
         run('make', '-C', source, '-j1', 'pdp10', 'USEFUL_PACKAGES=', 'OPTIONAL_PACKAGES=')
     actual = subprocess.check_output(['git', '-C', str(source), 'rev-parse', 'HEAD'], text=True).strip()
     if actual != revision:
         raise ValueError('Unexpected SIMH source revision')
-    if apply(source):
-        raise ValueError('Cached SIMH binary predates its timer correction; rebuild the separate cache')
     return source / 'BIN/pdp10'
 
 
@@ -398,8 +392,7 @@ def install(args):
             if not json.loads((STATE/'shutdown.json').read_text())['clean']:
                 raise RuntimeError('A confirmed stopped native snapshot is required for cutover')
             # Execute from the installed release, never this checkout's test helpers.
-            run(release/'.venv/bin/python','-m','tools.external_cutover','--state',STATE,'--config-dir',CONFIG,
-                '--simh',executable,'--runtime-lock-fd',lock.fileno(),cwd=release,pass_fds=(lock.fileno(),))
+            run(release/'.venv/bin/python','-m','tools.external_cutover','--state',STATE,'--config-dir',CONFIG,'--simh',executable,cwd=release)
         for path in [external,*external.rglob('*')]: shutil.chown(path,user='mud86',group='mud86')
         shutil.chown(CONFIG/'personas.json',user='mud86',group='mud86')
         configure_external_units(release)

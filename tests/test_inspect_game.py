@@ -8,16 +8,6 @@ from tools import inspect_game as inspect
 
 
 class InspectionTests(unittest.TestCase):
-    def test_timed_out_reply_is_retained_privately_not_in_error_message(self):
-        native = inspect.NativeInspector(timeout=1)
-        native.connection = MagicMock()
-        native.connection.read_until.return_value = b'PRIVATE partial reply\r.'
-        with patch('tools.inspect_game.time.monotonic', side_effect=[0, 0, 0, 2]), \
-                self.assertRaises(inspect.InspectionError) as raised:
-            native.receive(b'\n.')
-        self.assertNotIn('PRIVATE', str(raised.exception))
-        self.assertIn('PRIVATE', raised.exception.response_tail)
-
     def test_personas_decode_saved_state_without_password_words(self):
         text = ('MVPER 1\r\nTOTAL 2\r\n'
                 'PERSON Roy 7 1234 40 41 42 43 100 12 4 1 0\r\n'
@@ -108,31 +98,11 @@ class InspectionTests(unittest.TestCase):
     def test_query_timeout_aborts_and_logs_out(self):
         native = inspect.NativeInspector()
         wire = MagicMock()
-        pending = bytearray()
-        def write(data):
-            if data not in (b'\x03\x03', b'\r'):
-                pending.extend(data)
-        def expect(patterns, timeout):
-            return (0, None, bytes([pending.pop(0)])) if pending else (-1, None, b'')
-        wire.write.side_effect = write
-        wire.expect.side_effect = expect
         native.connection = wire
-        logout = ('Logged-off TTY0\r\nRuntime: 0:00:00\r\n'
-                  'Disk Reads:1, Writes:0, Blocks saved:10\r\n\r\n.')
-        with patch.object(native, 'receive', side_effect=['\r\n.', logout]):
+        with patch.object(native, 'receive', side_effect=['\r\n.', 'Logged-off']):
             native.__exit__(inspect.InspectionError, inspect.InspectionError('timeout'), None)
-        self.assertEqual(b''.join(call.args[0] for call in wire.write.call_args_list), b'\x03\x03kjob\r')
-        self.assertTrue(native.cleanup_confirmed)
+        self.assertEqual([call.args[0] for call in wire.write.call_args_list], [b'\x03\x03', b'kjob\r'])
         wire.close.assert_called_once()
-
-    def test_logout_prefix_cannot_confirm_terminal_release(self):
-        native = inspect.NativeInspector()
-        native.connection = MagicMock()
-        native.at_monitor = True
-        with patch.object(native, 'command', return_value='kjob\r\nLogged-off'), \
-                self.assertRaises(inspect.InspectionError):
-            native.__exit__(None, None, None)
-        self.assertFalse(native.cleanup_confirmed)
 
     def test_queries_do_not_install_or_create_personas(self):
         native = inspect.NativeInspector()

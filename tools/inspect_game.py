@@ -3,21 +3,17 @@ import argparse
 from collections import deque
 from datetime import datetime, timezone
 import json
-import math
 from pathlib import Path
 import re
 import subprocess
 import sys
 import time
 
-from tools.guest_control import ControlError, COPY_READY_DELAY, submit_line, telnet_byte
-
 ROOT = Path(__file__).resolve().parents[1]
 SCHEMA_VERSION = 1
 PORT = 2020
 TIMEOUT = 90
 MAX_RESPONSE = 4 * 1024 * 1024
-MAX_PRIVATE_RESPONSE_TAIL = 8192
 MAX_PERSONAS = 2048
 SOURCE_LINE_DELAY = 0.05
 TTY_SETTLE_SECONDS = 0.25
@@ -115,31 +111,13 @@ def parse_text(text):
 
 class NativeInspector:
     """Short-lived maintenance job; queries never install code or enter the game."""
-    def __init__(self, port=PORT, *, timeout=None):
-        if timeout is not None and (not math.isfinite(timeout) or timeout <= 0):
-            raise ValueError('Maintenance timeout must be finite and positive')
+    def __init__(self, port=PORT):
         self.port = port
-        self._io_timeout = timeout
         self.connection = None
         self.at_monitor = False
-        self.cleanup_confirmed = False
-        self._command_deadline = None
-
-    def command_timeout(self):
-        return TIMEOUT if self._io_timeout is None else self._io_timeout
-
-    @property
-    def at_monitor(self):
-        return self._at_monitor
-
-    @at_monitor.setter
-    def at_monitor(self, value):
-        self._at_monitor = value
-        if value:
-            self._command_deadline = None
 
     def receive(self, marker):
-        deadline = self._command_deadline or time.monotonic() + self.command_timeout()
+        deadline = time.monotonic() + TIMEOUT
         data = bytearray()
         while time.monotonic() < deadline:
             block = self.connection.read_until(marker, min(1, max(0, deadline - time.monotonic())))
@@ -148,85 +126,29 @@ class NativeInspector:
                 raise InspectionError('Maintenance response exceeded its size limit')
             if data.endswith(marker):
                 return data.decode('ascii', errors='replace')
-        error = InspectionError('Maintenance query timed out; check runtime logs')
-        error.response_tail = data[-MAX_PRIVATE_RESPONSE_TAIL:].decode('ascii', errors='replace')
-        raise error
+        raise InspectionError('Maintenance query timed out; check runtime logs')
 
     def send(self, text):
-        self.at_monitor = False
         self.connection.write(text.encode('ascii') + b'\r')
 
     def command(self, text, marker=b'\n.'):
-        was_monitor = self.at_monitor
         self.at_monitor = False
-        self._command_deadline = time.monotonic() + self.command_timeout()
-        try:
-            if was_monitor:
-                echo = self._submit_control(text, self._command_deadline)
-            else:
-                # Explicit program-dialogue path: compilers and seed/snapshot
-                # companions may use a different echo/response protocol.
-                self.send(text)
-                echo = ''
-            output = echo + self.receive(marker)
-        finally:
-            self._command_deadline = None
+        self.send(text)
+        output = self.receive(marker)
         self.at_monitor = marker == b'\n.'
         if re.search(r'(?m)^\?|undefined global|% .*Error', output):
             raise InspectionError('Native query failed; check the file or run inspection-install after updating')
         return output
 
-    def _submit_control(self, text, deadline):
-        try:
-            return submit_line(text, self.connection.write,
-                               lambda timeout: telnet_byte(self.connection, timeout),
-                               timeout=max(0, deadline - time.monotonic()), monitor_padding=True).decode('ascii')
-        except ControlError as error:
-            raise InspectionError(str(error)) from error
-
-    def send_control(self, text):
-        """Start a verified monitor request with a caller-specific response frame.
-
-        The caller must explicitly confirm at_monitor after its final frame.
-        TYPE's source terminator and DBASE's completion marker are examples.
-        """
-        if not self.at_monitor:
-            raise InspectionError('Control submission requires a confirmed monitor prompt')
-        self.at_monitor = False
-        self._command_deadline = time.monotonic() + self.command_timeout()
-        try:
-            return self._submit_control(text, self._command_deadline)
-        except BaseException:
-            self._command_deadline = None
-            raise
-
-    def begin_copy(self, filename):
-        if not self.at_monitor:
-            raise InspectionError('COPY requires a confirmed monitor prompt')
-        self.at_monitor = False
-        self._command_deadline = time.monotonic() + self.command_timeout()
-        try:
-            self._submit_control('copy ' + filename + '=tty:', self._command_deadline)
-            self.receive(b'\r\n')
-        finally:
-            self._command_deadline = None
-        # An echoed header is not COPY-consumption acknowledgement. Transfers
-        # retain their existing settling and independent full-content checks.
-        time.sleep(COPY_READY_DELAY)
-
     def __enter__(self):
         import telnetlib
-        self.cleanup_confirmed = False
-        self.at_monitor = False
         try:
-            self.connection = telnetlib.Telnet('127.0.0.1', self.port,
-                                             TIMEOUT if self._io_timeout is None else self._io_timeout)
+            self.connection = telnetlib.Telnet('127.0.0.1', self.port, TIMEOUT)
             self.receive(b'device, line ')
             self.receive(b'\n')
             time.sleep(TTY_SETTLE_SECONDS)
             self.send('')
             self.receive(b'.')
-            self.at_monitor = True
             self.command('set tty width 255')
             self.command('login richard')
             return self
@@ -237,16 +159,12 @@ class NativeInspector:
     def __exit__(self, kind, value, traceback):
         if self.connection is None:
             return
-        self._command_deadline = None
         try:
             if not self.at_monitor:
                 self.connection.write(b'\x03\x03')
                 self.receive(b'\n.')
-                self.at_monitor = True
-            from tools.guest_control import completed_logout
-            if not completed_logout(self.command('kjob', b'\n.')):
-                raise InspectionError('Maintenance logout report was incomplete')
-            self.cleanup_confirmed = True
+            self.send('kjob')
+            self.receive(b'Logged-off')
         except Exception:
             if kind is None:
                 raise InspectionError('Maintenance logout failed; inspect the guest job') from None
@@ -295,19 +213,19 @@ class NativeInspector:
         """Installation-only transfer; never called by inspection queries."""
         if not re.fullmatch(r'[a-z]{1,6}', program):
             raise ValueError('Invalid companion name')
-        self.begin_copy(f'{program}.bcl')
+        self.at_monitor = False
+        self.send(f'copy {program}.bcl=tty:')
+        self.receive(f'copy {program}.bcl=tty:\r\n'.encode())
         for line in source.splitlines():
             self.send(line)
             self.receive(b'\n')
             time.sleep(SOURCE_LINE_DELAY)
         self.connection.write(b'\x1a')
         self.receive(b'\n.')
-        self.at_monitor = True
         self.command('r bcpl', b'\n*')
         self.command(f'{program}/o', b'\n*')
         self.connection.write(b'\x1a')
         self.receive(b'\n.')
-        self.at_monitor = True
         self.command('r link', b'\n*')
         self.command(f'{program}/g')
         self.command(f'save {program}')
