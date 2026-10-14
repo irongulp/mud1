@@ -1,5 +1,6 @@
 """Foreground, systemd-notifying supervisor for the original TOPS-10 runtime."""
 import argparse
+from contextlib import contextmanager
 from datetime import datetime, timezone
 import fcntl
 import json
@@ -10,6 +11,7 @@ import signal
 import socket
 import sys
 import threading
+import tempfile
 import time
 
 from tools.guest_control import ControlError, COPY_READY_DELAY, console_byte, console_notice, operator_redraw, submit_line
@@ -27,6 +29,8 @@ MAX_OPERATOR_NOTICES = 16  # Startup/accounting plus completed readiness probes.
 BATCH_DRAIN_TIMEOUT = 10
 BATCH_DRAIN_POLL = .25
 _BATCH_SHUTDOWN = r'\r?\n *[0-9]{1,2}:[0-9]{2}:[0-9]{2} +Batch-Stream ([01]) +-- Shutdown --\r?\n'
+BOOT_DIAGNOSTIC_CHARS = 8192
+BOOT_PROMPTS = frozenset(('BOOT>', 'Why reload:', 'Date:', 'Time:', 'Startup option:', OPERATOR_PROMPT))
 
 
 def wait_listener(port,timeout=LISTENER_WAIT):
@@ -98,6 +102,7 @@ class Runtime:
         self.batch_ready = False
         self.browser_terminals = browser_terminals
         self.terminal_rebooted = False
+        self.boot_phase = None
 
     def verify_batch(self):
         from tools.batch_readiness import BatchReadinessError, ensure_batch_ready
@@ -200,6 +205,7 @@ class Runtime:
 
     def boot(self):
         import pexpect
+        self.boot_phase = 'listener'
         wait_listener(self.port)
         self.control_prompt = None
         self.batch_ready = False
@@ -209,6 +215,7 @@ class Runtime:
             from server.persona_bridge import reserve_ports
             ports=reserve_ports()
         config.write_text(simulator_config(self.state, self.port, self.idle,bridge_ports=ports))
+        self.boot_phase = 'spawn'
         self.child = pexpect.spawn(self.executable, [str(config)], cwd=str(self.state),
                                    encoding='ascii', codec_errors='replace', timeout=BOOT_TIMEOUT)
         self.child.logfile_read = sys.stdout
@@ -217,6 +224,7 @@ class Runtime:
                                  ('Date:', clock.strftime('%m-%d-%Y')),
                                  ('Time:', clock.strftime('%H%M%S')),
                                  ('Startup option:', 'g'), ('OPR>', 'exit')):
+            self.boot_phase = prompt
             self.child.expect_exact(prompt)
             if self.stopping.is_set():
                 raise InterruptedError('Shutdown requested during boot')
@@ -228,6 +236,7 @@ class Runtime:
             else:
                 self.child.send(response + '\r')
         self.booted = True
+        self.boot_phase = 'private-readiness'
         if self.browser_terminals:
             from tools.terminal_config import protect_bridge_terminals
             if protect_bridge_terminals(self):
@@ -257,6 +266,84 @@ class Runtime:
         # readiness is still withheld until native batch execution also passes.
         self.verify_batch()
         self.batch_ready = True
+        self.boot_phase = 'ready'
+
+    def record_startup_failure(self, attempt, failure):
+        """Private bounded prompt evidence, never exception payloads or game data."""
+        directory = self.state / 'boot-diagnostics'
+        directory.mkdir(mode=0o700, exist_ok=True)
+        evidence = {'version': 1, 'attempt': attempt, 'phase': self.boot_phase,
+                    'error': type(failure).__name__, 'booted': self.booted,
+                    'batch_ready': self.batch_ready}
+        if self.boot_phase in BOOT_PROMPTS and self.child is not None:
+            output = self.child.before
+            if isinstance(output, str):
+                evidence['pending_output'] = output[-BOOT_DIAGNOSTIC_CHARS:]
+        descriptor, filename = tempfile.mkstemp(prefix='attempt-', suffix='.json', dir=directory)
+        with os.fdopen(descriptor, 'w') as stream:
+            os.fchmod(stream.fileno(), 0o600)
+            json.dump(evidence, stream)
+            stream.write('\n')
+        return Path(filename)
+
+    def start(self):
+        """Bounded cold-boot recovery only; caller work starts after this returns."""
+        if self.child is not None or self.bridge is not None or self.store is not None:
+            raise RuntimeError('Cannot start another guest while runtime resources are owned')
+        (self.state / 'shutdown.json').write_text('{"clean": false}\n')
+        for attempt in range(BOOT_ATTEMPTS):
+            try:
+                self.boot()
+                return
+            except BaseException as failure:
+                print(f'Guest startup attempt {attempt + 1}/{BOOT_ATTEMPTS} failed '
+                      f'at {self.boot_phase or "unknown"}: {type(failure).__name__}', flush=True)
+                try:
+                    self.record_startup_failure(attempt + 1, failure)
+                except OSError as diagnostic:
+                    print('Startup evidence unavailable: ' + type(diagnostic).__name__, flush=True)
+                try:
+                    self.stop()
+                except Exception as cleanup:
+                    print('Startup cleanup failed: ' + type(cleanup).__name__ +
+                          '; original startup failure retained, no further guest started.', flush=True)
+                    raise failure from None
+                if self.child is not None or self.bridge is not None or self.store is not None:
+                    print('Startup resources remain; no further guest started.', flush=True)
+                    raise
+                if (not isinstance(failure, Exception) or self.stopping.is_set()
+                        or attempt + 1 == BOOT_ATTEMPTS):
+                    raise
+                print(f'Retrying guest boot ({attempt + 2}/{BOOT_ATTEMPTS})', flush=True)
+                time.sleep(RETRY_DELAY)
+
+    @contextmanager
+    def session(self):
+        """Private controller scope: recover startup, never replay its body."""
+        with (self.state / 'runtime.lock').open('a') as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            started = False
+            try:
+                self.start()
+                started = True
+                yield self
+            finally:
+                failure = sys.exc_info()[1]
+                # start owns failed-start cleanup. Never repeat that shutdown
+                # just because its original exception crossed this scope.
+                if started:
+                    try:
+                        clean = self.stop()
+                    except Exception as cleanup:
+                        if failure is None:
+                            raise
+                        print('Private guest cleanup failed: ' + type(cleanup).__name__ +
+                              '; original failure retained.', flush=True)
+                    else:
+                        if not clean:
+                            if failure is None:
+                                raise RuntimeError('Private guest shutdown was not confirmed clean')
+                            print('Private guest shutdown was not confirmed; original failure retained.', flush=True)
 
     def stop(self):
         clean = False
@@ -324,16 +411,7 @@ class Runtime:
             for sig in (signal.SIGTERM, signal.SIGINT):
                 signal.signal(sig, lambda *_: self.stopping.set())
             try:
-                for attempt in range(BOOT_ATTEMPTS):
-                    try:
-                        self.boot()
-                        break
-                    except Exception:
-                        self.stop()
-                        if self.stopping.is_set() or attempt + 1 == BOOT_ATTEMPTS:
-                            raise
-                        print(f'Retrying guest boot ({attempt + 2}/{BOOT_ATTEMPTS})', flush=True)
-                        time.sleep(RETRY_DELAY)
+                self.start()
                 ready.write_text(str(os.getpid()) + '\n')
                 notify('READY=1\nSTATUS=Original MUD is ready')
                 while not self.stopping.is_set():
@@ -348,7 +426,14 @@ class Runtime:
             finally:
                 ready.unlink(missing_ok=True)
                 notify('STOPPING=1')
-                self.stop()
+                failure = sys.exc_info()[1]
+                try:
+                    self.stop()
+                except Exception as cleanup:
+                    if failure is None:
+                        raise
+                    print('Runtime cleanup failed: ' + type(cleanup).__name__ +
+                          '; original failure retained.', flush=True)
 
 
 def main():

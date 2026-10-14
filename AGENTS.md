@@ -593,6 +593,15 @@
   heartbeat/three cycles instead of a flaky50-ms PONG deadline during startup;
   production deadlines unchanged.429 host tests passed locally with CI's pinned
   upstream preparation assets present. Keep earlier failed/interrupted parity runs.
+  Docs-only rerun38507721701 failed at cutover's first OPR prompt before capture;
+  its finally block masked the timeout. Runtime.start now shares the existing
+  three cold-boot attempts with cutover; Runtime.session owns its lock and requires
+  real clean shutdown before import. Capture/build/import are outside startup
+  recovery and never replayed. Private bounded boot diagnostics exclude readiness
+  payloads; CI exposes validated metadata only. Native suppressed-OPR controls
+  passed recovery (one body/clean shutdown) and exhaustion (three attempts/no
+  body/false marker), source unchanged. These are transport-fault controls, not
+  proof of the native stall's cause/fix. Keep ci-9c0931e-cutover-boot-failure.
 
 - PR6 CI run38172587681 at925155c failed HTTPS smoke at `stage=monitor` before
   LOGIN; HTTPS assets/WSS101 reached the gateway. A preceding TTY STOMPER TTY0

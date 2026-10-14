@@ -123,6 +123,45 @@ protocol coverage remains in place.
 
 ## Retained evidence and limitations
 
+### Cutover boot recovery follow-up
+
+The documentation-triggered rerun
+[38507721701](https://github.com/irongulp/mud1/actions/runs/38507721701) passed the
+429 host tests, native installation/backup, HTTP/HTTPS and reboot, but stalled
+waiting for the cutover guest's first `OPR>` prompt. It failed before capture or
+guest compilation. The cleanup exception obscured that original timeout.
+The earlier green run is historical evidence, not proof this stall was eliminated.
+
+`Runtime.start()` now shares the existing three-attempt cold-boot recovery policy
+between the foreground service and private cutover. No timeout or attempt count
+was increased. Failed guests/resources must be released before another boot.
+Stopping/cancellation or cleanup failure prevents further attempts. Each new
+startup invalidates the previous clean marker before launching a guest.
+
+`Runtime.session()` holds the runtime lock across private startup, controller
+work and shutdown. Its body runs only after startup returns, and is never replayed
+on a capture/build/shutdown error. Import remains after confirmed clean shutdown.
+Startup, controller and service failures retain their original exception even if
+cleanup fails. Failed-start cleanup is owned by `start()`, not repeated by the
+private context manager.
+
+Boot failures retain phase/type/readiness metadata and at most 8192 prompt
+characters in `boot-diagnostics/attempt-*.json` (`0600`, private directory).
+Excerpts are restricted to initial boot prompts; readiness/game payloads and
+exception messages are excluded. CI diagnostics publish only validated metadata
+through `tests.deployment_boot_status`, never the private excerpts.
+
+`tests.integration_startup_recovery` deliberately withholds an actual native OPR
+acknowledgement on copied private disks. Positive native control passed with one
+suppressed reply, one body execution and genuine clean shutdown; exhaustion passed
+with three suppressed replies, no body execution, reaped guests and `clean:false`.
+Both preserved original source hashes. Evidence: disposable `mud86-timer-arm`
+under `/tmp/startup-recovery-{green,exhausted}`. This models a transport failure;
+it does **not** establish the cause or a fix for the underlying native OPR stall.
+Cutover regressions additionally assert capture/build are not retried and import
+is blocked on unconfirmed shutdown. Private failed CI evidence is retained at
+`ci-9c0931e-cutover-boot-failure`.
+
 Full acceptance passed for code commit `93478975b4dfb2fdc13fabe8b537caeb81560355`:
 
 - Local native ARM AlmaLinux: `runtime/deployment-parity-8/report.json` records

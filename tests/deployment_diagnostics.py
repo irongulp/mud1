@@ -24,6 +24,7 @@ def collect_all(output, *, containers=None, guest=True):
             ('status', ['systemctl', 'status', 'mud86-runtime', 'mud86-gateway',
                         'mud86-database', 'nginx', '--no-pager', '--full'], HOST_TIMEOUT),
             ('nginx', ['nginx', '-T'], HOST_TIMEOUT),
+            ('boot-status', ['/usr/bin/python3.12', '-m', 'tests.deployment_boot_status'], HOST_TIMEOUT),
             ('guest-systat', ['timeout', '--signal=INT', '--kill-after=100s', '110s',
                               '/opt/mud86/current/.venv/bin/python', '-m',
                               'tests.deployment_guest_status'], GUEST_TIMEOUT),
