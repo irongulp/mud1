@@ -2,7 +2,6 @@
 import argparse
 from pathlib import Path
 import re
-import time
 
 from tools.inspect_game import NativeInspector, InspectionError, sixbit
 from tools.persona_snapshot import MigrationError, parse_native_dump, write_snapshot, MAX_SNAPSHOT_BYTES
@@ -16,12 +15,9 @@ class SnapshotInspector(NativeInspector):
         return CAPTURE_TIMEOUT
 
     def receive(self, marker):
-        deadline, data = self._command_deadline or time.monotonic() + CAPTURE_TIMEOUT, bytearray()
-        while time.monotonic() < deadline:
-            data.extend(self.connection.read_until(marker, 1))
-            if len(data) > MAX_SNAPSHOT_BYTES: raise InspectionError('Native snapshot exceeded size bound')
-            if data.endswith(marker): return data.decode('ascii', errors='strict')
-        raise InspectionError('Native snapshot timed out')
+        return self._receive_response(marker, CAPTURE_TIMEOUT, MAX_SNAPSHOT_BYTES,
+                                      'Native snapshot exceeded size bound',
+                                      'Native snapshot timed out', errors='strict')
 
 
 def capture(native, *, persona_name='mud', device='dskb', ppn=(0o2011 << 18) | 0o2776, install=False):

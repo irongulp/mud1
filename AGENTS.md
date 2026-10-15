@@ -567,6 +567,23 @@
 
 ## Hosting / idle measurements
 
+- Local source read-back repro: stdlib Telnet.read_until can return a marker
+  prefix on poll timeout, then its remainder plus prompt on the next call. Host
+  inspectors checked only accumulated endswith(marker), timing out despite full
+  source/marker/prompt delivery. Shared buffered framing now finds interior markers
+  and preserves surplus for receive/control-byte consumers; limits/deadlines and
+  strict snapshot decoding remain. readback-transfer-1 privately captured complete
+  117877-byte source, expected77-byte marker and PIP^C/no busy devices before
+  cleanup; same local lab passed two corrected rounds~272s each and clean KSYS.
+  Real Telnet/socketpair plus deterministic regressions cover this mechanism.
+  All397 host/browser tests passed after correction. Changes are on the separate
+  fix/native-source-readback worktree; existing PRs/live game were not modified.
+  Refreshed on main6824190;422 tests passed in a dedicated worktree Python3.12
+  environment. The earlier shared venv had lost dependencies; do not rely on it.
+  tests.integration_source_readback uses copied stopped private images and optional
+  MUD7 compiler state; donor has test password words, never publish it. This is
+  host framing, not an OPR/KSYS cause claim. See docs/native-source-readback.md.
+
 - Focused guest-control foundation: submit_line verifies each printable control
   byte before Enter at known monitor/OPR prompts; no replay after partial input
   or uncertain submission. Long source payloads retain pacing/full read-back.
