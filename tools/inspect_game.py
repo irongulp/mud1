@@ -118,6 +118,7 @@ class NativeInspector:
         self.connection = None
         self.at_monitor = False
         self._command_deadline = None
+        self._response_pending = bytearray()
 
     def command_timeout(self):
         return TIMEOUT
@@ -133,16 +134,36 @@ class NativeInspector:
             self._command_deadline = None
 
     def receive(self, marker):
-        deadline = self._command_deadline or time.monotonic() + self.command_timeout()
-        data = bytearray()
-        while time.monotonic() < deadline:
-            block = self.connection.read_until(marker, min(1, max(0, deadline - time.monotonic())))
-            data.extend(block)
-            if len(data) > MAX_RESPONSE:
-                raise InspectionError('Maintenance response exceeded its size limit')
-            if data.endswith(marker):
-                return data.decode('ascii', errors='replace')
-        raise InspectionError('Maintenance query timed out; check runtime logs')
+        return self._receive_response(marker, self.command_timeout(), MAX_RESPONSE,
+                                      'Maintenance response exceeded its size limit',
+                                      'Maintenance query timed out; check runtime logs')
+
+    def _receive_response(self, marker, timeout, limit, size_error, timeout_error, *, errors='replace'):
+        if not isinstance(marker, bytes) or not marker:
+            raise ValueError('Response marker must be nonempty bytes')
+        deadline = self._command_deadline or time.monotonic() + timeout
+        data = self._response_pending
+        self._response_pending = bytearray()
+        while True:
+            if len(data) > limit:
+                raise InspectionError(size_error)
+            position = data.find(marker)
+            if position >= 0:
+                end = position + len(marker)
+                self._response_pending.extend(data[end:])
+                return data[:end].decode('ascii', errors=errors)
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise InspectionError(timeout_error)
+            # read_until may time out mid-marker. Its next call can return the
+            # remainder plus a following prompt, so search the accumulated reply
+            # and keep the surplus instead of requiring endswith(marker).
+            data.extend(self.connection.read_until(marker, min(1, remaining)))
+
+    def _control_byte(self, timeout):
+        if self._response_pending:
+            return bytes([self._response_pending.pop(0)])
+        return telnet_byte(self.connection, timeout)
 
     def send(self, text):
         self.at_monitor = False
@@ -170,7 +191,7 @@ class NativeInspector:
     def _submit_control(self, text, deadline):
         try:
             return submit_line(text, self.connection.write,
-                               lambda timeout: telnet_byte(self.connection, timeout),
+                               self._control_byte,
                                timeout=max(0, deadline - time.monotonic()), monitor_padding=True).decode('ascii')
         except ControlError as error:
             raise InspectionError(str(error)) from error
@@ -203,6 +224,7 @@ class NativeInspector:
     def __enter__(self):
         import telnetlib
         self.at_monitor = False
+        self._response_pending.clear()
         try:
             self.connection = telnetlib.Telnet('127.0.0.1', self.port, TIMEOUT)
             self.receive(b'device, line ')
@@ -234,6 +256,7 @@ class NativeInspector:
         finally:
             self.connection.close()
             self.connection = None
+            self._response_pending.clear()
 
     def personas(self):
         return parse_personas(self.command('run mvper'))
