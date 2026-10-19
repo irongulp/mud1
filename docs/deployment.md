@@ -49,8 +49,9 @@ The command installs Python 3.12, the pinned Python dependencies in a venv,
 compiler/build tools, Nginx and Certbot (from EPEL with CRB enabled). Python 3.12
 is available in current AlmaLinux 9 repositories (introduced in the 9.4 family).
 SIMH is built from its pinned revision with automatic package installation
-disabled and a single build job. Docker and Chromium are test tools, not VPS
-runtime dependencies.
+disabled and a single build job. Its [active-interval timer correction](simh-timer.md)
+uses a separate versioned build cache. Docker and Chromium are test tools, not
+VPS runtime dependencies.
 
 ## Scheduled maintenance
 
@@ -125,7 +126,7 @@ and target-host SELinux acceptance remain separate deployment checks.
 |---|---|
 | `/opt/mud86/releases/<content-hash>/` | Application snapshot and its Python environment |
 | `/opt/mud86/current` | Active application symlink |
-| `/opt/mud86/simh/<revision>/BIN/pdp10` | Pinned, host-native emulator |
+| `/opt/mud86/simh/<revision>-active-tick-v1/BIN/pdp10` | Pinned, host-native emulator with timer correction |
 | `/etc/mud86/` | Runtime configuration and provisioning completion marker |
 | `/var/lib/mud86/game/guest.dsk` | Mutable TOPS-10 and game disk |
 | `/var/lib/mud86/game/t10boot.tap` | Original boot tape |

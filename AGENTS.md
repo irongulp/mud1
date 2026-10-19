@@ -52,6 +52,15 @@
 
 ## Important findings
 
+- Deployment SIMH uses the separate `<revision>-active-tick-v1` cache and
+  tools.simh_timer's checksum-verified WRINT/RDTIM interpolation correction,
+  extracted from reliability commit447f945. Keep the active scheduled duration
+  separate from WRINT's next duration. Cached source drift fails without editing
+  it; old caches and historical guest bytes stay intact. See docs/simh-timer.md
+  for deterministic regression and ARM AlmaLinux build/two-boot acceptance.
+  This is not a verified fix for R50's missing KSYS acknowledgement or the
+  independent native monitor startup failures; do not add shutdown retries.
+
 - External persona storage remains a proposal; its source-analysis milestone is
   in `docs/persona-storage-analysis.md`. The recommended boundary is a guest-side
   logical-record adapter, not generic disk I/O. Startup `access()` opens/creates
