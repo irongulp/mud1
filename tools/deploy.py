@@ -174,9 +174,12 @@ def application_release(external=False):
 
 
 def build_simh(revision):
+    from tools.simh_timer import REVISION, PATCH_ID, apply, verify
     if not re.fullmatch(r'[0-9a-f]{40}', revision):
         raise ValueError('Invalid SIMH revision')
-    source = APP / 'simh' / revision
+    if revision != REVISION:
+        raise ValueError('Unsupported SIMH revision for the verified timer correction')
+    source = APP / 'simh' / (revision + '-' + PATCH_ID)
     if not source.exists():
         source.parent.mkdir(parents=True, exist_ok=True)
         run('git', 'init', source)
@@ -184,10 +187,12 @@ def build_simh(revision):
     if not (source / 'BIN/pdp10').exists():
         run('git', '-C', source, 'fetch', '--depth', '1', 'origin', revision)
         run('git', '-C', source, 'checkout', '--detach', revision)
+        apply(source)
         run('make', '-C', source, '-j1', 'pdp10', 'USEFUL_PACKAGES=', 'OPTIONAL_PACKAGES=')
     actual = subprocess.check_output(['git', '-C', str(source), 'rev-parse', 'HEAD'], text=True).strip()
     if actual != revision:
         raise ValueError('Unexpected SIMH source revision')
+    verify(source)
     return source / 'BIN/pdp10'
 
 
