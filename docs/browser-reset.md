@@ -2,19 +2,17 @@
 
 Browser sessions continue to use TOPS-10 `MUDGUEST [2653,2653]`. The original
 engine authorizes and performs `RESET`; neither the gateway nor an operator
-proxy intercepts the command. No original or generated game code is patched.
+proxy intercepts the command. The permission change requires no game-code patch.
 
-**Known limitation (deferred):** on external storage, a solo ordinary wizard
-can reset the world successfully but then receive “External handover unavailable;
-resolve pending persistence first.” The subsequent automatic player transfer is
-blocked by the external adapter. The external acceptance below covers a saved
-archwizard, which bypasses that transfer; it does not prove ordinary-wizard
-external handover. Native-storage solo-wizard reset was verified separately.
-The adapter's message covers several checks and does not establish that a SAVE
-is pending. A packed-SIXBIT versus BCPL-string target mismatch is suspected from
-source inspection, but has not been reproduced in an isolated regression yet.
-The user has explicitly deferred this adapter fix. Normal QUIT/reconnect should
-enter the new world, subject to normal persistence handling.
+**External solo-wizard handover:** older external executables can reset the world
+but then print “External handover unavailable; resolve pending persistence first.”
+The adapter's allowed-target check incorrectly treated RESET's packed SIXBIT name
+as a BCPL string. Preparation now uses native filename conversion, with core
+original-engine and Chromium regression evidence on current main. See
+[external reset handover](external-reset-handover.md) for the fix, remaining
+acceptance limitations and executable-update requirement. PR #6's earlier external
+acceptance covered a saved archwizard, which bypasses this transfer path.
+Genuine unresolved persistence can still block transfer with that same message.
 
 ## Executable protection
 

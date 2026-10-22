@@ -13,7 +13,9 @@ def enable_chaining(files, targets):
     seven = files['MUD7.BCL'].decode('ascii')
     declarations, routines = (ROOT / 'tools/fixtures/WRCHAIN.BCL').read_text().split('// ROUTINES\n', 1)
     library = replace_once(library, 'let appendfile(', declarations + '\nlet appendfile(')
-    allowed = ' \\/ '.join('seq(target,"' + target + '")' for target in targets)
+    # RESET supplies packed MUD6; CHAIN/portals can supply BCPL strings.
+    # Use the same filename conversion as chain.out() and native RUN.
+    allowed = ' \\/ '.join('sixbit(target)=$6"' + target + '"' for target in targets)
     routines += '\nand chain.allowed(target)=' + allowed + '\n'
     library = replace_once(library, '/* rda, rdb, wrb, wrdmp, rddmp all jump to errstatus',
                            routines + '\n/* rda, rdb, wrb, wrdmp, rddmp all jump to errstatus')
