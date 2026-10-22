@@ -49,3 +49,26 @@ class LifecyclePreparationTests(unittest.TestCase):
                         {'external_lifecycle': True, 'chain_targets': ('../mud',)}):
             with tempfile.TemporaryDirectory() as directory, self.assertRaises(ValueError):
                 prepare(ROOT / 'source', ROOT / 'upstream/mud1', Path(directory) / 'bad', **options)
+
+    def test_reset_packed_and_portal_string_targets_use_native_filename_conversion(self):
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / 'chain'
+            prepare(ROOT / 'source', ROOT / 'upstream/mud1', output,
+                    external_lifecycle=True, chain_targets=('mud', 'valley'))
+            library = (output / 'MUDLIB.BCL').read_text()
+            allowed = library.split('and chain.allowed(target)=', 1)[1].split('\n', 1)[0]
+            self.assertEqual(allowed, 'sixbit(target)=$6"mud" \\/ sixbit(target)=$6"valley"')
+            self.assertIn('quit(mud6, !room)', (output / 'MUD5.BCL').read_text())
+            # Both guards use the same allowlist, without bypassing persistence.
+            permitted = library.split('and chain.permitted(target)=valof', 1)[1].split('and chain.out(', 1)[0]
+            for guard in ('life.current()', 'chain.allowed(target)', 'purge.recover()', 'xw.resolve()'):
+                self.assertIn(guard, permitted)
+
+    def test_allowlist_does_not_implicitly_add_reset_or_portal_targets(self):
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / 'chain'
+            prepare(ROOT / 'source', ROOT / 'upstream/mud1', output,
+                    external_lifecycle=True, chain_targets=('valley',))
+            library = (output / 'MUDLIB.BCL').read_text()
+            allowed = library.split('and chain.allowed(target)=', 1)[1].split('\n', 1)[0]
+            self.assertEqual(allowed, 'sixbit(target)=$6"valley"')

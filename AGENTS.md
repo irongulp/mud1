@@ -566,9 +566,19 @@
   reset but prints "External handover unavailable; resolve pending persistence
   first." Existing external acceptance used saved Roy, bypassing quit-and-chain;
   only native storage verified the ordinary-wizard solo path. WRCHAIN's generic
-  error does not prove pending SAVE. Suspect SIXBIT mud6 passed to string-based
-  chain.allowed, not isolated/reproduced yet. User explicitly deferred the adapter
-  fix; do not claim full external solo-wizard RESET support.
+  error does not prove pending SAVE. The suspected SIXBIT mud6/string-based
+  chain.allowed mismatch was confirmed at main c22828f in xrm-red (no pending SAVE).
+  fix/external-reset-handover-review changes generated allowlist to sixbit(target)
+  comparisons against explicit $6 names, matching chain.out/RUN. Original source/
+  and authorization remain unchanged. xrm-green3/verify passed original BCPL
+  probe, narrow library rebuild, PMHOLD FILCOM and native/Chromium terminal/Chat
+  solo transfer, same socket/room/password/GAMES. Code end507776<DBADAT520000.
+  green3 KSYS timed out; verify fault setup hit a prompt assertion (corrected).
+  Later startup/admission failures prevented completing pending-operation/portal/
+  restart checks on current main. Earlier xreset-* results are separate evidence,
+  not a current-main clean pass.165 focused host/browser tests reported OK.
+  All owned emulators exited; no disk promotion/live update/uncertain replay.
+  See docs/external-reset-handover.md; existing executables need a rebuild.
 - Do not edit an active SIMH .ini file: a running DO script can retain its file
   offset, and stopping simulation may execute newly shifted trailing content.
 - SIMH's makefile can auto-install packages. Build with USEFUL_PACKAGES= and

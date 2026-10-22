@@ -21,7 +21,7 @@ Setup configures `MUD.EXE` protection `<051>` so the original wizard `RESET`
 works under the browser's MUDGUEST account. This grants cumulative TOPS-10
 file-modification access on that executable; it does not add a browser operator
 login or change game authorization. See [browser RESET](browser-reset.md) for
-the policy, verification evidence, deferred external solo-wizard handover issue,
+the policy, verification evidence, external solo-wizard handover fix and its limitations,
 and reversible configuration command.
 
 Point `mud.etimbo.com`'s DNS A record at the VPS's IPv4 address. Allow inbound TCP
