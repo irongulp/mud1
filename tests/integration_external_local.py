@@ -34,7 +34,9 @@ async def browser_check(url, name, password, creating, output, expected_score=No
             command = page.get_by_label('Command', exact=True)
             async def expect(text):
                 await page.wait_for_function("text => document.getElementById('chat-output').textContent.includes(text)", arg=text, timeout=45000)
+                await wait_display(page)
             async def submit(text):
+                await wait_display(page)
                 await command.fill(text); await command.press('Enter')
             await expect('By what name shall I call you?')
             await submit(name)
@@ -59,6 +61,10 @@ async def browser_check(url, name, password, creating, output, expected_score=No
             require(password not in await page.locator('#chat-output').inner_text(), 'Browser exposed a password')
             require('newproof' not in await page.locator('#chat-output').inner_text(), 'Browser exposed the changed password')
             await page.screenshot(path=str(output / ('created.png' if creating else 'restored.png')))
+        except Exception:
+            if 'page' in locals():
+                await page.screenshot(path=str(output / ('create-failed.png' if creating else 'reentry-failed.png')))
+            raise
         finally: await browser.close()
 
 

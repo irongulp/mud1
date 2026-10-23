@@ -294,7 +294,8 @@ def create_app(upstream_host="127.0.0.1", upstream_port=2020, *, session_bootstr
                         # temporary partial matches and rolling-window trimming.
                         prompt_position = recent_start + match.start('marker')
                     elif recent.replace('\r', '').endswith(
-                            ("What's the password for this persona?\n", "Save, delete or finish? ")):
+                            ("What's the password for this persona?\n", "Save, delete or finish? ",
+                             "\nEnter it again to make sure it's correct, please.\n")):
                         # The final non-CR character stays at the same absolute
                         # position when later reads append ignored CRs.
                         prompt_position = recent_start + len(recent.rstrip('\r')) - 1

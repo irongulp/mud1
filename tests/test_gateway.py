@@ -695,6 +695,14 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
         await self.check_prompt_occurrence_credit(
             "\r\nWhat's the password for this persona?\r\n", ['\r', '\r'])
 
+    async def test_password_confirmation_releases_one_line_without_a_star(self):
+        await self.check_prompt_occurrence_credit(
+            "\r\nEnter it again to make sure it's correct, please.\r\n", ['\r', '\r'])
+
+    async def test_quoted_password_confirmation_does_not_release_input(self):
+        await self.check_prompt_tail_credit(
+            "\r\nSomeone says: Enter it again to make sure it's correct, please.\r\n", False)
+
     async def test_carriage_returns_do_not_recredit_purge_menu(self):
         await self.check_prompt_occurrence_credit('\r\nSave, delete or finish? ', ['\r', '\r'])
 
