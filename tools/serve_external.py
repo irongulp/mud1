@@ -47,6 +47,10 @@ CONFIG_LINE_DELAY = 0.1
 LOG = logging.getLogger(__name__)
 
 
+class UnconfirmedShutdownError(RuntimeError):
+    """The mutable disk must not be rebooted automatically after this gate fails."""
+
+
 class StateLock:
     def __init__(self, directory): self.directory = Path(directory)
     def __enter__(self):
@@ -270,9 +274,15 @@ def run(state, source, port):
                         machine.command('daytime')
                         if protect_bridge_terminals(machine):
                             LOG.info('Disabled optional terminal initializer on private lab disk; rebooting cleanly')
-                            if not machine.stop():
-                                raise RuntimeError('Private terminal update did not confirm clean shutdown')
+                            try:
+                                shutdown_clean = machine.stop()
+                            except Exception as error:
+                                raise UnconfirmedShutdownError(
+                                    'Private terminal update did not confirm clean shutdown') from error
                             machine = None
+                            if not shutdown_clean:
+                                raise UnconfirmedShutdownError(
+                                    'Private terminal update did not confirm clean shutdown')
                             ports = reserve_ports()
                             machine = start_guest(machine_dir, ports, executable=executable)
                             machine.command('daytime')
@@ -286,7 +296,7 @@ def run(state, source, port):
                     except Exception as error:
                         startup.close()
                         if machine is not None: machine.stop(); machine = None
-                        if isinstance(error, MonitorBootstrapError): raise
+                        if isinstance(error, (MonitorBootstrapError, UnconfirmedShutdownError)): raise
                         if attempt + 1 == BOOT_ATTEMPTS: raise
                         LOG.info('Retrying private guest startup (%s/%s)', attempt + 2, BOOT_ATTEMPTS)
                 with startup:

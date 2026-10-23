@@ -1,5 +1,7 @@
+from contextlib import contextmanager
 from pathlib import Path
 import tempfile
+from types import SimpleNamespace
 import unittest
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -9,6 +11,70 @@ from server.local_guest import LocalGuest
 
 
 class LocalGuestStartupTests(unittest.TestCase):
+    @contextmanager
+    def terminal_reboot_case(self):
+        from tools import serve_external as launcher
+        with tempfile.TemporaryDirectory() as directory:
+            state = Path(directory)
+            evidence = state/'shutdown.json'
+            evidence.write_text('{"clean":false}\n')
+            first, second = MagicMock(), MagicMock()
+            first.command.return_value = second.command.return_value = ''
+            second.stop.return_value = True
+            with patch.object(launcher, 'prepare_machine', return_value=state), \
+                    patch.object(launcher, 'LocalDatabase'), patch.object(launcher, 'isolated_writer'), \
+                    patch.object(launcher, 'start_guest', side_effect=[first]+[second]*(launcher.BOOT_ATTEMPTS*2)) as start, \
+                    patch.object(launcher, 'protect_bridge_terminals', return_value=True), \
+                    patch.object(launcher, 'prepare_batch') as batch, \
+                    patch.object(launcher, 'NativeInspector'), patch.object(launcher, 'configure_reset_permissions'), \
+                    patch.object(launcher, 'PersonaBridge') as bridge, \
+                    patch.object(launcher, 'serve', new_callable=MagicMock) as serve, \
+                    patch.object(launcher.asyncio, 'run'):
+                yield SimpleNamespace(launcher=launcher, state=state, evidence=evidence,
+                    first=first, second=second, start=start, batch=batch, bridge=bridge, serve=serve)
+
+    def assert_terminal_reboot_aborts(self, case, *, stop_calls=1):
+        with self.assertRaisesRegex(RuntimeError, 'did not confirm clean shutdown') as raised:
+            case.launcher.run(case.state, case.state, 0)
+        self.assertEqual(case.start.call_count, 1)
+        self.assertEqual(case.first.stop.call_count, stop_calls)
+        case.second.stop.assert_not_called()
+        case.batch.assert_not_called()
+        case.bridge.assert_not_called()
+        case.serve.assert_not_called()
+        self.assertFalse((case.state/'ready.json').exists())
+        self.assertEqual(case.evidence.read_text(), '{"clean":false}\n')
+        self.assertIsInstance(raised.exception, case.launcher.UnconfirmedShutdownError)
+        return raised.exception
+
+    def test_unconfirmed_terminal_shutdown_cannot_reboot_the_disk(self):
+        with self.terminal_reboot_case() as case:
+            case.first.stop.return_value = case.second.stop.return_value = False
+            self.assert_terminal_reboot_aborts(case)
+
+    def test_later_cleanup_success_cannot_override_failed_terminal_shutdown(self):
+        with self.terminal_reboot_case() as case:
+            case.first.stop.side_effect = [False, True]
+            self.assert_terminal_reboot_aborts(case)
+
+    def test_terminal_shutdown_exception_cannot_trigger_a_new_guest(self):
+        with self.terminal_reboot_case() as case:
+            failure = OSError('shutdown evidence unavailable')
+            case.first.stop.side_effect = [failure, False]
+            raised = self.assert_terminal_reboot_aborts(case, stop_calls=2)
+            self.assertIs(raised.__cause__, failure)
+
+    def test_confirmed_terminal_shutdown_allows_exactly_the_intended_reboot(self):
+        with self.terminal_reboot_case() as case:
+            case.first.stop.return_value = True
+            case.launcher.run(case.state, case.state, 0)
+            self.assertEqual(case.start.call_count, 2)
+            case.first.stop.assert_called_once_with()
+            case.batch.assert_called_once_with(case.second)
+            self.assertEqual(case.bridge.call_args.args[0], case.second)
+            self.assertEqual(case.serve.call_args.args[0], case.second)
+            case.second.stop.assert_called()
+
     def test_boot_evidence_failure_preserves_nonretryable_monitor_error(self):
         guest = LocalGuest.__new__(LocalGuest)
         guest.child = MagicMock()

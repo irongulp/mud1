@@ -75,6 +75,10 @@ Shutdown requires a semantic SHOW QUEUES response (empty **or nonempty** listing
 and the OPR prompt before one KSYS submission. A prompt alone cannot authorize it.
 Clean shutdown requires native KSYS completion, simulator Goodbye and actual
 process exit. Exit alone is not a clean native shutdown marker.
+If terminal configuration requires a reboot, a false shutdown result or shutdown
+exception aborts the launcher as a non-retryable `UnconfirmedShutdownError`.
+Cleanup cannot override that decision or authorize another boot against the same
+mutable disk. Retained shutdown evidence must be inspected before a new invocation.
 
 ## Private evidence and persistent state
 

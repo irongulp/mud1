@@ -70,6 +70,11 @@
   warnings/errors/retries. Native PASSWORD confirmation has no star: its exact
   full-line question must release one input line without CR-fragment recredit.
   lpr01/02 exposed that missing credit and remain failed pre-fix evidence.
+  The terminal-configuration clean-shutdown gate is non-retryable: false/raised
+  stop() aborts with UnconfirmedShutdownError, never another guest on that disk.
+  run()-level regressions cover false, later successful cleanup, stop exceptions,
+  and the confirmed-shutdown positive reboot path. Follow-up validation passed
+  148 focused tests, including those four run()-level shutdown-gate regressions.
 
 - Deployment SIMH uses the separate `<revision>-active-tick-v1` cache and
   tools.simh_timer's checksum-verified WRINT/RDTIM interpolation correction,
