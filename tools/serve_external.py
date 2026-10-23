@@ -4,6 +4,7 @@ import asyncio
 from contextlib import ExitStack
 from dataclasses import asdict
 import fcntl
+import hashlib
 import json
 import logging
 import os
@@ -24,6 +25,12 @@ from tools.persona_write_session import serve_personas
 from tools.persona_writes import isolated_writer
 from tools.inspect_game import NativeInspector
 from tools.reset_permissions import configure as configure_reset_permissions
+from server.local_guest import LocalGuest
+from server.monitor_scope import MonitorBootstrapError
+from server.monitor_scope import PATCH_ID as MONITOR_PATCH_ID
+from tools import benchmark_idle
+from tools.local_simulator import ensure_simulator
+from server.local_batch import BATCH_READINESS_ID, prepare_batch
 # Reuse verified disposable-runtime mechanics for this local research launcher.
 # This is not the systemd deployment entry point.
 from tests.integration_storage_bridge import private_emulator, BRIDGE_LINES
@@ -151,6 +158,32 @@ def reserve_ports():
         return ports
 
 
+def local_simulator():
+    return ensure_simulator(benchmark_idle.ROOT/'upstream/simh', ROOT/'build/local-simh')
+
+
+def start_guest(directory, ports, *, executable=None):
+    """Return only a live guest with a verified current-boot monitor correction."""
+    executable = executable or local_simulator()
+    raw = private_emulator(directory, ports, reuse=True, executable=executable)
+    machine = None
+    try:
+        machine = LocalGuest(raw)
+        if isinstance(raw.child.command, str):
+            machine.scope.report.update(simulator_path=raw.child.command,
+                simulator_binary_sha256=hashlib.sha256(Path(raw.child.command).read_bytes()).hexdigest())
+        machine.boot()
+        if not machine.monitor_scope_verified:
+            raise RuntimeError('Local guest monitor correction was not verified')
+        return machine
+    except BaseException:
+        try:
+            (machine if machine is not None else raw).stop()
+        except Exception as cleanup_error:
+            LOG.error('Local startup cleanup failed: %s', type(cleanup_error).__name__)
+        raise
+
+
 def local_tty_config(text):
     lines = text.replace('\r','').splitlines()
     if not any(line.startswith('ALL ') for line in lines) or not any(line.startswith('CTY:') for line in lines):
@@ -171,19 +204,27 @@ def protect_bridge_terminals(machine):
     if original.strip() == desired.strip(): return False
     # Keep the original lab configuration as a file in the operator's directory.
     machine.command('copy xtty.ini=sys:tty.ini')
-    machine.child.send('copy sys:tty.ini=tty:\r')
-    machine.child.expect_exact('copy sys:tty.ini=tty:\r\n')
-    for line in desired.splitlines():
-        machine.child.send(line+'\r')
-        machine.child.expect_exact('\r\n')
-        time.sleep(CONFIG_LINE_DELAY)
-    machine.child.sendcontrol('z'); machine.child.expect(r'\n\.')
+    if isinstance(machine, LocalGuest):
+        machine.copy_text('sys:tty.ini', desired)
+    else:
+        # Retain the standalone historical build fixture's original interface.
+        machine.child.send('copy sys:tty.ini=tty:\r')
+        machine.child.expect_exact('copy sys:tty.ini=tty:\r\n')
+        for line in desired.splitlines():
+            machine.child.send(line+'\r')
+            machine.child.expect_exact('\r\n')
+            time.sleep(CONFIG_LINE_DELAY)
+        machine.child.sendcontrol('z'); machine.child.expect(r'\n\.')
     actual = machine.command('type sys:tty.ini').replace('\r','').split('\n',1)[1].rsplit('\n.',1)[0]
     if actual.strip() != desired.strip(): raise RuntimeError('Private terminal configuration verification failed')
     return True
 
 
 async def serve(machine, bridge, state, port):
+    if not machine.monitor_scope_verified:
+        raise RuntimeError('Local guest monitor correction must be verified before HTTP admission')
+    if not machine.batch_ready:
+        raise RuntimeError('Current-boot native batch readiness must be verified before HTTP admission')
     runner = web.AppRunner(create_app(upstream_port=machine.port, session_bootstrap=ExternalBootstrap()))
     stop = asyncio.Event()
     loop = asyncio.get_running_loop()
@@ -195,7 +236,9 @@ async def serve(machine, bridge, state, port):
         ready.unlink(missing_ok=True)
         publish_private(ready, lambda stream: stream.write(json.dumps({
             'url': f'http://127.0.0.1:{port}', 'pid': os.getpid(), 'upstream_port': machine.port,
-            'state_dir': str(state), 'persona_storage': 'mariadb'}).encode()))
+            'state_dir': str(state), 'persona_storage': 'mariadb',
+            'monitor_scope': MONITOR_PATCH_ID, 'monitor_boot': machine.scope.evidence.name,
+            'batch_readiness': BATCH_READINESS_ID}).encode()))
         print(f'External persona lab: http://127.0.0.1:{port}', flush=True)
         print('Personas persist in ' + str(state) + '. Press Ctrl-C for clean shutdown.', flush=True)
         while not stop.is_set():
@@ -215,6 +258,7 @@ def run(state, source, port):
     with StateLock(state):
         (state / 'ready.json').unlink(missing_ok=True)
         machine_dir = prepare_machine(state, source)
+        executable = local_simulator()
         machine = None
         try:
             with LocalDatabase(state) as config, isolated_writer(config) as store:
@@ -222,33 +266,33 @@ def run(state, source, port):
                     startup = ExitStack()
                     try:
                         ports = reserve_ports()
-                        machine = private_emulator(machine_dir, ports, reuse=True)
-                        machine.boot(); machine.command('daytime')
+                        machine = start_guest(machine_dir, ports, executable=executable)
+                        machine.command('daytime')
                         if protect_bridge_terminals(machine):
                             LOG.info('Disabled optional terminal initializer on private lab disk; rebooting cleanly')
-                            machine.command('r opr','OPR>')
-                            machine.child.send('set ksys now\r')
-                            machine.child.expect_exact('KSYS processing completed',timeout=120)
-                            machine.stop(); machine = None
+                            if not machine.stop():
+                                raise RuntimeError('Private terminal update did not confirm clean shutdown')
+                            machine = None
                             ports = reserve_ports()
-                            machine = private_emulator(machine_dir, ports, reuse=True)
-                            machine.boot(); machine.command('daytime')
+                            machine = start_guest(machine_dir, ports, executable=executable)
+                            machine.command('daytime')
                         if 'STOMPR' in machine.command('systat'):
                             raise RuntimeError('Terminal initializer is still active on private bridge guest')
+                        prepare_batch(machine)
                         with NativeInspector(machine.port) as native:
                             configure_reset_permissions(native)
                         bridge = startup.enter_context(PersonaBridge(machine, ports, store))
                         break
-                    except Exception:
+                    except Exception as error:
                         startup.close()
                         if machine is not None: machine.stop(); machine = None
+                        if isinstance(error, MonitorBootstrapError): raise
                         if attempt + 1 == BOOT_ATTEMPTS: raise
                         LOG.info('Retrying private guest startup (%s/%s)', attempt + 2, BOOT_ATTEMPTS)
                 with startup:
                     asyncio.run(serve(machine, bridge, state, port))
-                machine.command('r opr', 'OPR>')
-                machine.child.send('set ksys now\r')
-                machine.child.expect_exact('KSYS processing completed', timeout=120)
+                if not machine.stop():
+                    raise RuntimeError('Local guest did not confirm native shutdown')
         finally:
             if machine is not None: machine.stop()
 
