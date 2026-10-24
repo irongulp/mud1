@@ -38,8 +38,12 @@ cd mud-server
 sudo ./setup.sh --domain mud.etimbo.com
 ```
 
-Setup asks for the certificate account email. For unattended installation, pass
-`--email you@example.com`. It uses Let's Encrypt, accepts the ACME terms for that
+Setup asks for the certificate account email when no certificate exists for the
+domain. HTTPS setup reruns reuse the existing certificate's Certbot account
+without prompting, while Certbot still checks whether renewal is due. For
+unattended first installation, pass `--email you@example.com`. An explicitly
+supplied email is also passed to Certbot on reruns.
+It uses Let's Encrypt, accepts the ACME terms for that
 account, enables the renewal timer, and reloads Nginx after renewed certificates.
 HTTP serves only the ACME challenge until HTTPS is configured. Afterward HTTP
 redirects to HTTPS. `--http-only` is an explicit private-test option, not the

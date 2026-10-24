@@ -288,12 +288,14 @@ def configure_proxy(domain, http_only, email):
             run('firewall-cmd', '--permanent', '--add-service=' + service)
             run('firewall-cmd', '--add-service=' + service)
     if not http_only:
-        if not email:
+        if not email and not existing_certificate:
             email = input('Email address for the HTTPS certificate account: ').strip()
-        if not email or '\n' in email:
+        if (not email and not existing_certificate) or (email and '\n' in email):
             raise ValueError('A certificate account email is required')
+        # Existing lineages retain their ACME account, including when renewal is due.
+        email_options = ['--email', email] if email else []
         run('certbot', 'certonly', '--webroot', '-w', ACME, '-d', domain,
-            '--non-interactive', '--agree-tos', '--email', email, '--keep-until-expiring')
+            '--non-interactive', '--agree-tos', *email_options, '--keep-until-expiring')
         site.write_text(nginx_config(domain, tls=True))
         run('nginx', '-t')
         run('systemctl', 'reload', 'nginx')

@@ -610,6 +610,12 @@
 
 ## Hosting / idle measurements
 
+- HTTPS setup reruns reuse the existing certificate's Certbot account without
+  prompting for email. Keep the Certbot `--keep-until-expiring` invocation and
+  renewal timer: existing certificates may still need renewal. First setup
+  requires email; an explicit `--email` remains supported on reruns. Regression
+  coverage is in `tests/test_deployment_certificates.py`.
+
 - Deployment pip pin is now26.2.2 (certifi-only upstream patch), enforced before
   requirements on initial setup/reruns. Command-order regressions cover the new
   version; prior AlmaLinux installation evidence used26.2.1, not26.2.2.
