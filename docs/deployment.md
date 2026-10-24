@@ -295,14 +295,18 @@ configuration and when to run full acceptance before shipping.
 
 ### Deployment pip version
 
-Setup pins pip to **26.2.1** inside each application release's virtual environment
+Setup pins pip to **26.2.2** inside each application release's virtual environment
 before installing the locked dependencies. Installer reruns enforce the same pin
 and run `pip check` after installation, including optional hash-checked MariaDB
 dependencies. A failed upgrade or dependency check stops setup. System pip is not
-upgraded. This uses the installer's Python 3.12; pip 26.2.1 requires Python 3.10 or
+upgraded. This uses the installer's Python 3.12; pip 26.2.2 requires Python 3.10 or
 newer. The security-updated dependencies also require Python 3.10+, so local
 development now uses Python 3.12; recreate legacy Python 3.9 environments as
 described in README host setup.
+
+The 26.2.2 patch updates pip's bundled certifi certificate bundle. The existing
+installation acceptance below used 26.2.1; the 26.2.2 pin has host regression
+coverage but has not yet been verified by a real AlmaLinux setup run.
 
 The real `application_release()` path passed fresh native dependency setup and an
 external-dependency rerun in disposable native-ARM AlmaLinux 9/Python 3.12.15

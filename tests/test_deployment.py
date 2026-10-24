@@ -77,7 +77,7 @@ class DeploymentTests(unittest.TestCase):
             python = release / '.venv/bin/python'
             self.assertEqual([call.args for call in run.call_args_list], [
                 (sys.executable, '-m', 'venv', release / '.venv'),
-                (python, '-m', 'pip', 'install', '--upgrade', 'pip==26.2.1'),
+                (python, '-m', 'pip', 'install', '--upgrade', 'pip==26.2.2'),
                 (python, '-m', 'pip', 'install', '-r', release / 'requirements-deploy.txt'),
                 (python, '-m', 'pip', 'check'),
             ])
@@ -86,7 +86,7 @@ class DeploymentTests(unittest.TestCase):
             run.reset_mock()
             self.assertEqual(application_release(external=True), release)
             self.assertEqual([call.args for call in run.call_args_list], [
-                (python, '-m', 'pip', 'install', '--upgrade', 'pip==26.2.1'),
+                (python, '-m', 'pip', 'install', '--upgrade', 'pip==26.2.2'),
                 (python, '-m', 'pip', 'install', '-r', release / 'requirements-deploy.txt'),
                 (python, '-m', 'pip', 'install', '--require-hashes', '-r', release / 'requirements-storage.txt'),
                 (python, '-m', 'pip', 'check'),

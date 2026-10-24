@@ -27,7 +27,7 @@ CONTROL_WRAPPER = '#!/bin/sh\nexec /opt/mud86/current/.venv/bin/python /opt/mud8
 PROXY_READY_TIMEOUT = 10
 PROXY_REQUEST_TIMEOUT = 1
 PROXY_POLL_INTERVAL = .1
-DEPLOY_PIP_VERSION = '26.2.1'
+DEPLOY_PIP_VERSION = '26.2.2'
 
 
 def selected_backend(requested,previous):
