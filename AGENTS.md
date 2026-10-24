@@ -610,6 +610,10 @@
 
 ## Hosting / idle measurements
 
+- Deployment pip pin is now26.2.2 (certifi-only upstream patch), enforced before
+  requirements on initial setup/reruns. Command-order regressions cover the new
+  version; prior AlmaLinux installation evidence used26.2.1, not26.2.2.
+
 - Local source read-back repro: stdlib Telnet.read_until can return a marker
   prefix on poll timeout, then its remainder plus prompt on the next call. Host
   inspectors checked only accumulated endswith(marker), timing out despite full
