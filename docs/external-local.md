@@ -12,6 +12,12 @@ system MariaDB service and port 8080 are not selected by this launcher.
 
 ## Requirements and state
 
+The local launcher uses a checksummed independent simulator cache under
+`build/local-simh`, installs a pinned monitor RAM correction on each boot, and
+verifies a native DAYTIME batch probe before browser admission. Git, make and a
+C compiler are required for the first cache build. See
+[Local startup guards](local-monitor-fix.md) for compatibility, evidence and scope.
+
 Use a Python 3.12 `.venv` (see README host setup for replacing the old Python 3.9
 environment), pinned SIMH, original boot tape and frontend assets. Install optional
 storage dependencies if necessary:

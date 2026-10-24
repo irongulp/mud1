@@ -47,16 +47,16 @@ def verify_reserved_lines(port):
             client.close()
 
 
-def private_emulator(directory, ports, *, reuse=False):
+def private_emulator(directory, ports, *, reuse=False, executable=None):
     # Finalize the configuration before SIMH opens its DO script.
     spawn = pexpect.spawn
-    def start(executable, args, **kwargs):
+    def start(program, args, **kwargs):
         config = Path(args[0])
         attachments = ''.join(f'attach dz Line={line},127.0.0.1:{port};notelnet\n'
                                for line, port in ports.items())
         text = config.read_text().replace('boot tu0\n', attachments + 'set throttle 5M\nboot tu0\n')
         config.write_text(text)
-        return spawn(executable, args, **kwargs)
+        return spawn(str(executable) if executable is not None else program, args, **kwargs)
     with patch('pexpect.spawn', start):
         return Emulator(directory, 'noidle', reuse=reuse, speed_factor=8)
 

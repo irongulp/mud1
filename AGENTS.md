@@ -52,6 +52,30 @@
 
 ## Important findings
 
+- Local external startup uses tools.local_simulator's independent archived/cache
+  build with the existing tools.simh_timer patch; original SIMH stays intact.
+  MonitorBootstrap fingerprints the selected live KS10 layout before native
+  GETWDS allocation, installs the balanced SWAPO scope in owned RAM on every
+  boot, and suppresses private stack/AC transcripts. Admission requires a
+  current-boot NOLOG batch probe with actual monitor DAYTIME output and logout,
+  never queued ack/login date/old log alone. Both MONITR .DAYTIME and BATCH DAYTIME
+  are witnessed labels. Failed/uncertain probes do not replay or boot-retry.
+  LocalGuest requires semantic SHOW QUEUES plus OPR before one KSYS; clean means
+  native completion + Goodbye + exit. General FRDCRW allocation failure remains
+  separate; no replacement BATCON or OPSER fallback is adopted. See
+  docs/local-monitor-fix.md. Keep test listeners off user-managed 8080–8082;
+  use fresh stopped copies and private high loopback ports. Clean PR base af7cd82:
+  144 focused tests passed on Python3.12.15; lpr03 passed three clean app boots,
+  source fixture, SAVE/PASSWORD/75s idle/full restart/two-player WHO/PURGE without
+  warnings/errors/retries. Native PASSWORD confirmation has no star: its exact
+  full-line question must release one input line without CR-fragment recredit.
+  lpr01/02 exposed that missing credit and remain failed pre-fix evidence.
+  The terminal-configuration clean-shutdown gate is non-retryable: false/raised
+  stop() aborts with UnconfirmedShutdownError, never another guest on that disk.
+  run()-level regressions cover false, later successful cleanup, stop exceptions,
+  and the confirmed-shutdown positive reboot path. Follow-up validation passed
+  148 focused tests, including those four run()-level shutdown-gate regressions.
+
 - Deployment SIMH uses the separate `<revision>-active-tick-v1` cache and
   tools.simh_timer's checksum-verified WRINT/RDTIM interpolation correction,
   extracted from reliability commit447f945. Keep the active scheduled duration
