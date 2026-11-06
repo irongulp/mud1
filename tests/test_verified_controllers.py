@@ -1,3 +1,4 @@
+import json
 import tempfile
 from pathlib import Path
 import unittest
@@ -9,6 +10,36 @@ from tools.inspect_game import InspectionError, NativeInspector
 
 
 class VerifiedControllerTests(unittest.TestCase):
+    def test_shutdown_failure_records_phase_without_exception_payload_or_replay(self):
+        for phase, failed_command in (('operator-start', 'r opr'), ('ksys', 'set ksys now')):
+            with self.subTest(phase=phase), tempfile.TemporaryDirectory() as directory:
+                runtime = Runtime(Path(directory), '/unused')
+                runtime.child = Mock()
+                runtime.booted = True
+                runtime.control_prompt = MONITOR_PROMPT
+                def command(text, *args, **kwargs):
+                    if text == failed_command:
+                        raise ControlError('private terminal payload', input_started=True, submitted=False)
+                    runtime.control_prompt = OPERATOR_PROMPT
+                with patch.object(runtime, 'command', side_effect=command) as submit:
+                    self.assertFalse(runtime.stop())
+                marker = json.loads((Path(directory) / 'shutdown.json').read_text())
+                self.assertEqual(marker['failure'], dict(phase=phase, error_type='ControlError',
+                    input_started=True, submitted=False))
+                self.assertNotIn('private terminal payload', json.dumps(marker))
+                self.assertEqual(sum(call.args[0] == failed_command for call in submit.call_args_list), 1)
+
+    def test_successful_shutdown_clears_previous_failure(self):
+        with tempfile.TemporaryDirectory() as directory:
+            runtime = Runtime(Path(directory), '/unused')
+            runtime.child = Mock()
+            runtime.booted = True
+            runtime.control_prompt = OPERATOR_PROMPT
+            with patch.object(runtime, 'command'):
+                self.assertTrue(runtime.stop())
+            self.assertEqual(json.loads((Path(directory) / 'shutdown.json').read_text()),
+                             {'clean': True, 'failure': None})
+
     def test_unknown_prompt_cannot_submit_console_commands(self):
         runtime = Runtime(Path('/unused'), '/unused')
         runtime.child = Mock()

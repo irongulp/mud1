@@ -256,6 +256,14 @@ journal. It restarts the services if they were running. The archive is `0600` an
 contains secrets: keep it in private off-host storage. Backup causes a maintenance
 interruption; no unattended backup schedule is installed by default.
 
+If native shutdown is unconfirmed, backup leaves the services stopped and does
+not create an archive or automatically reboot the disk. Setup reruns likewise
+stop before activating the new release after an unconfirmed shutdown. Preserve
+the runtime journal and `/var/lib/mud86/shutdown.json` and investigate/recover the
+guest before continuing; a stopped systemd unit alone is not a clean native
+shutdown. This does not change the original native shutdown deadline or retry
+uncertain operator input.
+
 Restore only while the services are stopped, from a trusted backup. Preserve the
 current game/private directories first; restore the archived `game/` and `private/`
 directories under `/var/lib/mud86`, with `mud86:mud86` ownership and private journal

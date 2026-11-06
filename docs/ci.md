@@ -70,3 +70,25 @@ Known intermittent native startup, source-transfer and shutdown failures are not
 claimed fixed by moving this workflow. They remain engineering work and must not
 be hidden by unbounded reruns. The split keeps slow system acceptance useful while
 giving ordinary PRs a short, independently actionable regression check.
+
+## Shutdown failure diagnostics
+
+The always-run cleanup collects both disposable containers' runtime/gateway
+journals, selected service states and shutdown markers before and after stopping
+the runtimes. Commands have bounded deadlines; missing containers and timeouts
+are recorded without blocking the other container's collection. Credential
+files, service environment variables and database records are excluded.
+External install/rerun/backup logs are written with credential redaction before
+checking the exit status, retaining failed-command output.
+
+Runtime shutdown reports the failure phase and exception type, plus verified
+input/submission flags for control-echo failures. Exception buffers are excluded.
+These diagnostics do not change guest commands, retry policy or deadlines.
+
+Release-candidate run 42205728019 at `3ac3937` failed the fresh external backup's
+clean-shutdown gate. Later investigation run 42243789230 demonstrated explicit
+native BATCON startup failure and confirmed that the corrected setup gate stops
+before activating/rebooting after unconfirmed shutdown. This establishes a
+host-side continuation fix, not a BATCON repair. The native release blocker
+remains open. This patch includes no experimental workflow scenarios, monitor
+changes, batch preflight or private memory-capture tools.

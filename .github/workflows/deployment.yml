@@ -85,11 +85,7 @@ jobs:
           docker cp mud86-install-test:/var/lib/mud86/editor-acceptance/report.json runtime/database-editor-ci/report.json
       - name: Service diagnostics
         if: always()
-        run: |
-          mkdir -p runtime/deployment-ci
-          docker exec mud86-install-test journalctl -u mud86-runtime -u mud86-gateway --no-pager > runtime/deployment-ci/services.log || true
-          docker exec mud86-install-test systemctl stop mud86-runtime.service || true
-          docker exec mud86-external-fresh systemctl stop mud86-runtime.service || true
+        run: python3 -m tests.deployment_diagnostics
       - uses: actions/upload-artifact@v7
         if: always()
         with:
