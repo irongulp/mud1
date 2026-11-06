@@ -89,6 +89,11 @@
   Added one10s pending-wait sample on original deadline, preserving full native
   completion during sampling; no replay/timeout extension. Reference QSRT10
   lines4204-4285 distinguishes PS.RUN/PS.KSY and HELLO, not exact installed map.
+  Run42262115421 instead failed reset_permissions maintenance DIRECTORY; clean
+  KSYS/no pending sample, not native-fix evidence. New batcon-external scenario
+  prepares once then bounded3 login/QUIT/stop/start cycles, clean marker before
+  every restart, no failed-disk retry, diagnostic_only report. Full acceptance
+  remains separate. Two run-level cycle regressions preserve this boundary.
 
 - Local external startup uses tools.local_simulator's independent archived/cache
   build with the existing tools.simh_timer patch; original SIMH stays intact.

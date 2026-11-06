@@ -13,6 +13,7 @@ from tests.integration_web import Browser
 from tools.persona_protocol import MAX_NAME_LENGTH
 
 ROOT=Path(__file__).resolve().parents[1]
+MAX_SHUTDOWN_CYCLES=3
 
 
 def native_fixture_name(report):
@@ -64,7 +65,20 @@ def enable_shutdown_diagnostics(container):
     invoke(container,'python3.12','-c',script)
 
 
-def run(container,url,fresh,native_url=None,shutdown_diagnostics=False):
+def shutdown_cycles(container,url,name,password,count,observations):
+    if not 1 <= count <= MAX_SHUTDOWN_CYCLES: raise ValueError('Shutdown probe requires one to three cycles')
+    for index in range(count):
+        asyncio.run(login(url,name,password))
+        invoke(container,'systemctl','stop','mud86-runtime.service')
+        marker=json.loads(invoke(container,'python3.12','-c',
+            'from pathlib import Path; print(Path("/var/lib/mud86/shutdown.json").read_text())'))
+        observation=dict(cycle=index+1,clean=isinstance(marker,dict) and marker.get('clean') is True)
+        observations.append(observation)
+        if not observation['clean']: raise AssertionError('Native cycle shutdown was not clean; no restart allowed')
+        if index+1<count: invoke(container,'mud86ctl','start')
+
+
+def run(container,url,fresh,native_url=None,shutdown_diagnostics=False,cycles=0):
     output=ROOT/'runtime'/('external-deployment-'+container); output.mkdir(mode=0o700,exist_ok=True)
     report={'complete':False,'fresh_external':fresh}
     try:
@@ -87,6 +101,11 @@ def run(container,url,fresh,native_url=None,shutdown_diagnostics=False):
         assert 'password' not in access
         (output/'editor.log').write_text(invoke(container,'/opt/mud86/current/.venv/bin/python',
                                               '-m','tests.deployed_database_editor',name))
+        if cycles:
+            report.update(diagnostic_only=True,shutdown_cycles=[])
+            shutdown_cycles(container,url,name,'testpass',cycles,report['shutdown_cycles'])
+            report.update(complete=True,architecture=invoke(container,'uname','-m').strip())
+            return
         invoke(container,'systemctl','is-active','mud86-database','mud86-runtime','mud86-gateway')
         invoke(container,*command,log=output/'rerun.log')
         asyncio.run(login(url,name,'testpass'))
@@ -107,4 +126,5 @@ if __name__=='__main__':
     parser.add_argument('--fresh',action='store_true')
     parser.add_argument('--native-url',help='Loopback endpoint before cutover, including the mapped HTTPS port')
     parser.add_argument('--shutdown-diagnostics',action='store_true',help='Private guest-state capture on disposable CI runtime failures')
-    args=parser.parse_args(); run(args.container,args.url,args.fresh,args.native_url,args.shutdown_diagnostics)
+    parser.add_argument('--shutdown-cycles',type=int,choices=range(1,MAX_SHUTDOWN_CYCLES+1),default=0,help='Diagnostic-only stop/start cycles after first installation, not full acceptance')
+    args=parser.parse_args(); run(args.container,args.url,args.fresh,args.native_url,args.shutdown_diagnostics,args.shutdown_cycles)

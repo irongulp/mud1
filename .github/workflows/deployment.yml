@@ -10,6 +10,7 @@ on:
           - full
           - fresh-external
           - batcon
+          - batcon-external
 permissions:
   contents: write # Needed to download the draft runtime asset before publication.
 jobs:
@@ -42,7 +43,7 @@ jobs:
       - name: Build native x86 AlmaLinux image
         run: docker build -t mud86-alma9 -f deploy/Dockerfile.alma9 .
       - name: Start native x86 AlmaLinux with systemd
-        if: inputs.scenario != 'fresh-external'
+        if: inputs.scenario == 'full'
         run: |
           docker run -d --name mud86-install-test --privileged --cgroupns=host \
             --cpus=1 --memory=2g --tmpfs /run --tmpfs /tmp \
@@ -54,19 +55,19 @@ jobs:
             sleep 1
           done
       - name: Install, rerun, saved login, timing, backup and restart
-        if: inputs.scenario != 'fresh-external'
+        if: inputs.scenario == 'full'
         run: .venv/bin/python -m tests.integration_deployment
       - name: Chromium multiplayer through Nginx
-        if: inputs.scenario != 'fresh-external'
+        if: inputs.scenario == 'full'
         run: |
           .venv/bin/python -c "import asyncio; from tests.browser_smoke import main; asyncio.run(main('http://mud.etimbo.com:38080', launch_args=['--host-resolver-rules=MAP mud.etimbo.com 127.0.0.1']))"
       - name: HTTPS and secure WebSockets with a test certificate
-        if: inputs.scenario != 'fresh-external'
+        if: inputs.scenario == 'full'
         run: |
           docker exec -w /checkout mud86-install-test /opt/mud86/current/.venv/bin/python -m tests.deployment_tls_fixture
           .venv/bin/python -c "import asyncio; from tests.browser_smoke import main; asyncio.run(main('https://mud.etimbo.com:38443', launch_args=['--host-resolver-rules=MAP mud.etimbo.com 127.0.0.1'], ignore_https_errors=True))"
       - name: Reboot container and recheck browser
-        if: inputs.scenario != 'fresh-external'
+        if: inputs.scenario == 'full'
         run: |
           docker exec mud86-install-test systemctl stop mud86-runtime.service
           docker restart --timeout 180 mud86-install-test
@@ -80,7 +81,7 @@ jobs:
       # Both a populated native cutover and an empty external installation
       # use the real installer on native x86, never a Mac lab disk.
       - name: Native-to-MariaDB cutover and external rerun/backup
-        if: inputs.scenario != 'fresh-external'
+        if: inputs.scenario == 'full'
         run: .venv/bin/python -m tests.integration_external_deployment --native-url https://127.0.0.1:38443
       - name: Start fresh external installation container
         run: |
@@ -94,9 +95,9 @@ jobs:
             sleep 1
           done
       - name: Fresh external installation and persistence
-        run: .venv/bin/python -m tests.integration_external_deployment --fresh --container mud86-external-fresh --url http://127.0.0.1:48080 ${{ inputs.scenario == 'fresh-external' && '--shutdown-diagnostics' || '' }}
+        run: .venv/bin/python -m tests.integration_external_deployment --fresh --container mud86-external-fresh --url http://127.0.0.1:48080 ${{ inputs.scenario != 'full' && '--shutdown-diagnostics' || '' }} ${{ inputs.scenario == 'batcon-external' && '--shutdown-cycles 3' || '' }}
       - name: Database editor permissions, concurrency and recovery
-        if: inputs.scenario != 'fresh-external'
+        if: inputs.scenario == 'full'
         run: |
           docker exec -w /checkout mud86-install-test runuser -u mud86 -- /opt/mud86/current/.venv/bin/python -m tests.integration_database_access --output /var/lib/mud86/editor-acceptance
           mkdir -p runtime/database-editor-ci

@@ -119,3 +119,16 @@ Tests cover the shared deadline, in-sample completion and private-data boundary.
 The early and post-failure summaries can distinguish a loading stall from an
 already-initialized controller/QUASAR handshake problem. This remains observation,
 not a runtime correction.
+
+Run 42262115421 at `233332a` did not reproduce pending KSYS: installer rerun
+failed at the maintenance DIRECTORY query used by `reset_permissions`, and its
+cleanup KSYS completed normally. There were no early/pending samples. Keep this
+separate failure rather than interpreting its empty capture list as a fix.
+
+The explicit `batcon-external` workflow scenario now builds the external fixture
+once, then performs up to three original browser login/QUIT and native stop/start
+cycles. Every stop checks the clean marker before another boot; an unclean stop
+ends the sequence without retry. The report is marked `diagnostic_only:true`.
+This retains the external engine/database workload but removes installer-rerun
+package/permission queries from the shutdown investigation. It is not installer
+rerun, backup or full release acceptance.

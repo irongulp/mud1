@@ -6,9 +6,35 @@ from unittest.mock import Mock, patch
 
 from tools.batcon_diagnostics import ALLOCATION_FIRST, ALLOCATION_LAST, ProbeRuntime, history_summary, job_summary, run
 from tools.guest_control import ControlError
+from tests.integration_external_deployment import shutdown_cycles
 
 
 class BatconProbeTests(unittest.TestCase):
+    def test_external_cycle_stops_on_unclean_marker_without_restarting(self):
+        from unittest.mock import AsyncMock
+        observations = []
+        with patch('tests.integration_external_deployment.login', new_callable=AsyncMock), \
+                patch('tests.integration_external_deployment.invoke', side_effect=['', '{"clean": false}']) as invoke:
+            with self.assertRaisesRegex(AssertionError, 'not clean'):
+                shutdown_cycles('fixture', 'http://127.0.0.1:48080', 'Fixture', 'testpass', 3, observations)
+        self.assertEqual(len(observations), 1)
+        self.assertFalse(observations[0]['clean'])
+        self.assertEqual(invoke.call_count, 2)
+        self.assertEqual(invoke.call_args_list[0].args, ('fixture', 'systemctl', 'stop', 'mud86-runtime.service'))
+
+    def test_external_cycles_restart_only_between_confirmed_clean_stops(self):
+        from unittest.mock import AsyncMock
+        observations = []
+        def invoke(container, *command):
+            return '{"clean": true}' if command[0] == 'python3.12' else ''
+        with patch('tests.integration_external_deployment.login', new_callable=AsyncMock) as login, \
+                patch('tests.integration_external_deployment.invoke', side_effect=invoke) as command:
+            shutdown_cycles('fixture', 'http://127.0.0.1:48080', 'Fixture', 'testpass', 2, observations)
+        self.assertEqual([item['clean'] for item in observations], [True, True])
+        self.assertEqual(login.await_count, 2)
+        starts = [call for call in command.call_args_list if call.args[1:] == ('mud86ctl', 'start')]
+        self.assertEqual(len(starts), 1)
+
     def test_pending_ksys_is_sampled_early_with_one_original_deadline(self):
         import pexpect
         with tempfile.TemporaryDirectory() as directory:
