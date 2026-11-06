@@ -9,10 +9,12 @@ on:
         options:
           - full
           - fresh-external
+          - batcon
 permissions:
   contents: write # Needed to download the draft runtime asset before publication.
 jobs:
   alma9:
+    if: inputs.scenario != 'batcon'
     runs-on: ubuntu-24.04
     timeout-minutes: 120
     steps:
@@ -113,3 +115,41 @@ jobs:
             runtime/external-deployment-*/**/*.log
             runtime/external-deployment-*/**/report.json
             runtime/database-editor-ci/report.json
+  batcon:
+    if: inputs.scenario == 'batcon'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Fetch checksum-pinned starter
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p runtime/release-v1 runtime/batcon-evidence
+          gh release download runtime-v1 --pattern mud86-runtime.tar.gz --dir runtime/release-v1
+      - name: Build native x86 AlmaLinux probe environment
+        run: docker build -t mud86-batcon-alma9 -f deploy/Dockerfile.alma9 .
+      - name: Probe original BATCON startup on fresh private disks
+        run: |
+          docker run --rm --name mud86-batcon-probe --cpus=1 --memory=2g \
+            -v "$PWD:/checkout:ro" -v "$PWD/runtime/batcon-evidence:/evidence" \
+            -w /checkout mud86-batcon-alma9 bash -euc '
+              python3.12 -m venv /tmp/probe-venv
+              /tmp/probe-venv/bin/python -m pip install -r requirements-deploy.txt
+              /tmp/probe-venv/bin/python -m unittest tests.test_batcon_probe -v
+              git clone --no-checkout https://github.com/simh/simh.git /tmp/simh-source
+              git -C /tmp/simh-source checkout --detach 47b7ddabbe5b548cfc32f2fd45f7bed238ff7921
+              /tmp/probe-venv/bin/python -m tools.local_simulator --source /tmp/simh-source --cache /tmp/simh-cache
+              /tmp/probe-venv/bin/python -m tests.integration_batcon_startup \
+                --output /evidence/probe --archive /checkout/runtime/release-v1/mud86-runtime.tar.gz \
+                --simh /tmp/simh-cache/source/BIN/pdp10
+            '
+      # Raw histories/registers/terminal buffers remain private on the ephemeral
+      # runner. Never upload a memory dump, guest disk or *.private.* file.
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: batcon-summary
+          path: runtime/batcon-evidence/probe/summary-*.json
