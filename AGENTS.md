@@ -52,6 +52,13 @@
 
 ## Important findings
 
+- Native reuse42294879412/cf4c230 passed8 name-prompt admissions/cleanup/KSYS
+  with STOMPR enabled, no reproduced failure. Raw trace nevertheless has CR
+  before SIMH line banner. Gateway now uses maintenance's banner+250ms ordering,
+  one CR/one15s budget, no retry. Delayed-banner/drop-typeahead red-green test,
+  malformed/timeout guards and76 gateway/Chromium/transport tests passed. Not
+  a proven cause of historical CI or STOMPR failures. See terminal-admission doc.
+
 - Companion transfer branch: line echo checks plus complete rendered read-back
   before compile, line/phase/count errors without private buffers, no replay.
   Focused native-x8642289501018 passed PMSNAP upload/readback/compile but KSYS
