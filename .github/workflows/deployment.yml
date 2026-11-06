@@ -6,11 +6,15 @@ on:
         type: boolean
         default: false
         description: Focused PMSNAP source upload and compilation only
+      terminal_reuse:
+        type: boolean
+        default: false
+        description: Focused native terminal admission across STOMPR interval
 permissions:
   contents: write # Needed to download the draft runtime asset before publication.
 jobs:
   alma9:
-    if: ${{ !inputs.companion_transfer }}
+    if: ${{ !inputs.companion_transfer && !inputs.terminal_reuse }}
     runs-on: ubuntu-24.04
     timeout-minutes: 120
     steps:
@@ -104,7 +108,7 @@ jobs:
             runtime/external-deployment-*/**/report.json
             runtime/database-editor-ci/report.json
   companion-transfer:
-    if: inputs.companion_transfer
+    if: inputs.companion_transfer || inputs.terminal_reuse
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -129,10 +133,11 @@ jobs:
               python3.12 -m venv /tmp/venv
               /tmp/venv/bin/pip install -r requirements-deploy.txt
               /tmp/venv/bin/python -m unittest tests.test_companion_transfer tests.test_native_response_framing -v
+              /tmp/venv/bin/python -m unittest tests.test_terminal_reuse_probe -v
               git clone --no-checkout https://github.com/simh/simh.git /tmp/simh
               git -C /tmp/simh checkout --detach 47b7ddabbe5b548cfc32f2fd45f7bed238ff7921
               /tmp/venv/bin/python -m tools.local_simulator --source /tmp/simh --cache /tmp/simh-cache
-              /tmp/venv/bin/python -m tests.integration_companion_transfer \
+              /tmp/venv/bin/python -m ${{ inputs.terminal_reuse && 'tests.integration_terminal_reuse' || 'tests.integration_companion_transfer' }} \
                 --output /evidence/probe --archive /checkout/runtime/release-v1/mud86-runtime.tar.gz \
                 --simh /tmp/simh-cache/source/BIN/pdp10
             '
@@ -143,3 +148,5 @@ jobs:
           path: |
             runtime/companion-evidence/probe/report.json
             runtime/companion-evidence/probe/console.log
+            runtime/companion-evidence/probe/gateway.log
+            runtime/companion-evidence/probe/admission-trace.json
