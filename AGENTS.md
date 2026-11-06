@@ -58,6 +58,11 @@
   one CR/one15s budget, no retry. Delayed-banner/drop-typeahead red-green test,
   malformed/timeout guards and76 gateway/Chromium/transport tests passed. Not
   a proven cause of historical CI or STOMPR failures. See terminal-admission doc.
+  Corrected native follow-up42300281512 failed SIMH build180s preboot; prepare
+  before guest CPU quota.42302445914/e9c24e0 then hit native HALT5005 during boot,
+  no browser attempts/trace, no clean shutdown; container removed, no replay.
+  Carrier correction native acceptance remains blocked, no STOMPR/root-cause
+  claim.76 host tests passed; main and live services unchanged.
 
 - Companion transfer branch: line echo checks plus complete rendered read-back
   before compile, line/phase/count errors without private buffers, no replay.

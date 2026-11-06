@@ -29,3 +29,24 @@ the whole sequence. Gateway fixtures now model the real SIMH banner.
 coverage. This is a tested input-ordering correction, not proof that STOMPR or
 this race caused every historical admission failure. Native follow-up remains
 required before any release-success claim.
+
+## Follow-up outcome
+
+Run42300281512 failed before guest creation: SIMH compilation hit the helper's
+180-second build deadline inside the one-CPU fixture. This is infrastructure
+evidence, not an admission result. Fixture preparation now builds first, then
+applies the one-CPU quota before the native process starts; guest deadlines and
+SIMH/game timing remain unchanged.
+
+Run42302445914 at `e9c24e0` then failed during runtime boot/admission probe before
+any browser connection. Its console captured `HALT instruction, PC: 005005
+(HALT 5005)`. Report phase=boot, attempts=[], trace empty, no confirmed native
+shutdown. Cleanup removed the disposable container. No repeated boot or extra
+admission was performed. The HALT's cause is not established by this evidence.
+
+Current status: the original gateway ordering race is reproduced by the
+controlled delayed-banner regression and corrected in host tests. The older
+native baseline passed eight connections; corrected native acceptance is blocked
+by this separate monitor startup failure, so no native reliability or release
+claim is made. STOMPR remains enabled and unmodified. Preserve both failed runs
+and the successful baseline rather than attributing all failures to one cause.
