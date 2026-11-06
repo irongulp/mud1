@@ -52,6 +52,14 @@
 
 ## Important findings
 
+- Release shutdown guards are deliberately separate from BATCON research.
+  Setup must check confirmed native shutdown before changing the active release;
+  rejected backups must not reboot an unclean disk in finally. Both have failing/
+  passing host regressions. CI collects both containers before/after cleanup and
+  retains failed redacted command output. No batch warmup, admission refactor,
+  memory capture or native BATCON repair is included. Main's native shutdown
+  failure remains unresolved; green host tests do not authorize release.
+
 - Local external startup uses tools.local_simulator's independent archived/cache
   build with the existing tools.simh_timer patch; original SIMH stays intact.
   MonitorBootstrap fingerprints the selected live KS10 layout before native

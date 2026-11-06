@@ -186,10 +186,12 @@ class Runtime:
 
     def stop(self):
         clean = False
+        failure = None
         if self.child is not None:
             try:
                 if self.child.isalive():
                     if self.booted:
+                        phase = 'monitor-recovery'
                         try:
                             deadline = time.monotonic() + SHUTDOWN_TIMEOUT
                             if self.control_prompt not in (MONITOR_PROMPT, OPERATOR_PROMPT):
@@ -200,12 +202,20 @@ class Runtime:
                                 self.child.expect(MONITOR_PROMPT, timeout=max(0, deadline - time.monotonic()))
                                 self.control_prompt = MONITOR_PROMPT
                             if self.control_prompt == MONITOR_PROMPT:
+                                phase = 'operator-start'
                                 self.command('r opr', OPERATOR_PROMPT,
                                              timeout=max(0, deadline - time.monotonic()))
+                            phase = 'ksys'
                             self.command('set ksys now', 'KSYS processing completed',
                                          timeout=max(0, deadline - time.monotonic()))
                             clean = True
-                        except Exception:
+                        except Exception as error:
+                            failure = dict(phase=phase, error_type=type(error).__name__)
+                            if isinstance(error, ControlError):
+                                failure.update(input_started=error.input_started, submitted=error.submitted)
+                            # Exception messages can include terminal buffers; emit
+                            # only structured phase/type/dispatch facts to journals.
+                            print('Guest shutdown failure: ' + json.dumps(failure), flush=True)
                             print('Guest shutdown did not complete; next start must recover the disk.', flush=True)
                     try: self.child.expect_exact('sim>',timeout=1)
                     except Exception:
@@ -220,7 +230,7 @@ class Runtime:
                 self.control_prompt = None
                 if self.bridge is not None: self.bridge.__exit__(None,None,None); self.bridge=None
                 if self.store is not None: self.store.close(); self.store=None
-        (self.state / 'shutdown.json').write_text(json.dumps({'clean': clean}) + '\n')
+        (self.state / 'shutdown.json').write_text(json.dumps({'clean': clean, 'failure': failure}) + '\n')
         if self.bridge is not None: self.bridge.__exit__(None,None,None); self.bridge=None
         if self.store is not None: self.store.close(); self.store=None
         return clean
