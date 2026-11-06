@@ -59,6 +59,13 @@
   history private, only PC/lifecycle summaries public. No batch warmup, gateway
   changes, memory-dump assets or historical binary replacement.50 focused tests
   pass; native comparison pending. See docs/deployed-monitor-comparison.md.
+  Single native-x8642312843572/7abd6d3: baseline boot1/4 admissions/clean passed,
+  boot2 admission timeout/PC0/unclean stopped. Candidate3 fresh boots all verified
+  scope/4 admissions/clean KSYS each; batch off both arms. Same pins/profile but
+  independent binary hashes differ; no byte-identical/performance claim. PC0
+  consistent with known defect, short history not full causal chain/HALT5005
+  proof. Supports broader explicit deployed validation, not universal BATCON fix.
+  Main remains unchanged; no full installation/external/upgrade acceptance yet.
 
 - Release shutdown guards are deliberately separate from BATCON research.
   Setup must check confirmed native shutdown before changing the active release;

@@ -47,3 +47,37 @@ The earlier HALT5005 report alone did not establish the stale-table defect. A
 positive candidate result is not automatically a causal repair claim. Interpret
 the paired evidence, record missing proof, and stop rather than expanding the
 experiment or launching a full matrix without a decision.
+
+## Single native-x86 result
+
+Run [42312843572](https://github.com/irongulp/mud1/actions/runs/42312843572)
+at `7abd6d3` completed both arms; no rerun was launched.
+
+| Arm | Result |
+| --- | --- |
+| Baseline | Boot1/four repeated admissions/clean shutdown passed. Boot2 failed within boot/admission with TimeoutError; captured PC000000, no HALT5005 in the last256 history entries, cleanup unclean. Stopped before boot3. |
+| Scope candidate | All three independent fresh boots installed/verified the correction, completed four repeated admissions per boot, and completed native clean shutdown. |
+
+Both arms used the same pinned source/timer patch, original archive, UTC clock
+policy, runtime quota and history configuration, without batch warmup. They built
+SIMH independently; recorded binary hashes differ (baseline427d5bf7..., candidate
+b6692757...). This is a source/profile-matched comparison, not a byte-identical
+binary or synchronized-clock experiment. Raw private histories/registers were
+excluded from uploaded artifacts; sanitized reports are retained separately as
+monitor-comparison-baseline and monitor-comparison-candidate.
+
+The baseline PC0 admission failure is consistent with the earlier demonstrated
+stale-table failure class. The short captured history contains interrupt/monitor
+paths and does not by itself re-establish the complete free/reallocate/restore
+causal chain. It did not reproduce HALT5005. Combined with the prior local causal
+work, the successful deployed-controller candidate supports taking this existing
+correction forward for broader validation. It is not proof of universal boot or
+BATCON shutdown reliability, and no full installation, MariaDB, HTTPS, backup or
+upgrade validation was performed by this fixture.
+
+Host regression suite:50 focused tests passed. Workflow lint passed excluding
+pre-existing SC2034 loop-variable warnings. Main remains unchanged; the opt-in
+branch is not merged or enabled by production setup. Recommended next gate is
+review of the opt-in integration, then full deployment validation with explicit
+selection on every relevant boot, including private cutover runtime boots. Do
+not silently enable only the systemd process and claim cutover coverage.
