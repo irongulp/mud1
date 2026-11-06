@@ -61,6 +61,10 @@
   Runtime stop records phase/type/ControlError dispatch facts without exception
   buffers. Do not weaken clean-shutdown gates, replay KSYS or call diagnostics a
   runtime fix. See docs/ci.md; release remains blocked pending native acceptance.
+  Diagnostic42235566104 instead failed HTTPS native admission (`stage=monitor`),
+  before fresh external creation; native cleanup KSYS/clean passed. Use explicit
+  workflow scenario=fresh-external to isolate the original case. Default full
+  acceptance stays required; focused results do not validate the full release.
 
 - Local external startup uses tools.local_simulator's independent archived/cache
   build with the existing tools.simh_timer patch; original SIMH stays intact.

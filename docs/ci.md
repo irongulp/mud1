@@ -73,7 +73,7 @@ giving ordinary PRs a short, independently actionable regression check.
 
 ### Failed shutdown evidence
 
-Release-candidate run42205728019 at3ac3937 passed native installation/backup,
+Release-candidate run 42205728019 at `3ac3937` passed native installation/backup,
 HTTP/HTTPS multiplayer, container reboot and populated MariaDB cutover/backup,
 but fresh MariaDB installation failed its backup's clean-shutdown gate. The
 uploaded journal covered only the cutover container, where an earlier separate
@@ -96,3 +96,16 @@ also retain the input-started/submission flags. Exception text is excluded becau
 it can contain terminal buffers. These are diagnostic changes, not a BATCON or
 shutdown repair: failed shutdown still prevents backup and uncertain commands
 are never replayed.
+
+Diagnostic run 42235566104 at `abfa803` passed host tests and native installation/
+backup/HTTP multiplayer, then stopped at HTTPS admission with a gateway
+`stage=monitor` timeout. Cleanup captured native KSYS completion and `clean:true`;
+the fresh external container had not been created. This is a different failure,
+not a reproduction or repair of the original fresh backup failure.
+
+For a focused fresh-install investigation without the earlier native/browser
+sequence, dispatch the same workflow with `-f scenario=fresh-external`. It still
+runs host tests and the unmodified fresh MariaDB install/rerun/backup/restart
+scenario. Missing unused containers are recorded by diagnostics. The default
+`full` scenario remains required for release acceptance; a focused pass cannot
+substitute for full acceptance.
