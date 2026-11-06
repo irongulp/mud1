@@ -18,6 +18,7 @@ TIMEOUT = 90
 MAX_RESPONSE = 4 * 1024 * 1024
 MAX_PERSONAS = 2048
 SOURCE_LINE_DELAY = 0.05
+SOURCE_ECHO_TIMEOUT = 10
 TTY_SETTLE_SECONDS = 0.25
 DEFAULT_LOG_LINES = 100
 MAX_CONTEXT_ENTRIES = 100
@@ -299,14 +300,43 @@ class NativeInspector:
         """Installation-only transfer; never called by inspection queries."""
         if not re.fullmatch(r'[a-z]{1,6}', program):
             raise ValueError('Invalid companion name')
-        self.begin_copy(f'{program}.bcl')
-        for line in source.splitlines():
-            self.send(line)
-            self.receive(b'\n')
-            time.sleep(SOURCE_LINE_DELAY)
-        self.connection.write(b'\x1a')
-        self.receive(b'\n.')
-        self.at_monitor = True
+        from tools.build_external_guest import read_back, rendered
+        lines = source.splitlines()
+        if not lines or not source.isascii() or any(
+                ord(char) < 32 and char != '\t' for line in lines for char in line):
+            raise ValueError('Companion source must contain printable ASCII lines')
+        phase, number, expected, received = 'copy-header', 0, 0, 0
+        submitted = eof_submitted = False
+        try:
+            self.begin_copy(f'{program}.bcl')
+            for number, line in enumerate(lines, 1):
+                phase, expected, received = 'echo', len(line.expandtabs(8)), 0
+                submitted = True  # A failed write may still deliver Enter.
+                self.send(line)
+                self._command_deadline = time.monotonic() + SOURCE_ECHO_TIMEOUT
+                response = self.receive(b'\n')
+                received = len(response)
+                if response != line.expandtabs(8) + '\r\n':
+                    raise InspectionError('Source echo mismatch')
+                self._command_deadline = None
+                time.sleep(SOURCE_LINE_DELAY)
+            phase = 'copy-completion'
+            eof_submitted = True
+            self.connection.write(b'\x1a')
+            self._command_deadline = time.monotonic() + SOURCE_ECHO_TIMEOUT
+            self.receive(b'\n.')
+            self.at_monitor = True
+            phase = 'read-back'
+            if rendered(read_back(self, f'{program}.bcl', source)) != rendered(source):
+                raise InspectionError('Complete source mismatch')
+        except (InspectionError, OSError, EOFError, TimeoutError, RuntimeError) as error:
+            raise InspectionError(
+                f'Companion transfer failed: program={program} phase={phase} line={number} '
+                f'expected_chars={expected} received_bytes={received} '
+                f'line_submitted={submitted} eof_submitted={eof_submitted} '
+                f'error_type={type(error).__name__}; no transfer replay') from None
+        finally:
+            self._command_deadline = None
         self.command('r bcpl', b'\n*')
         self.command(f'{program}/o', b'\n*')
         self.connection.write(b'\x1a')
