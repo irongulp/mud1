@@ -36,6 +36,8 @@ def run(output,archive,executable):
                 report['phase']='transfer-readback-compile'
                 native.install_source('pmsnap',(ROOT/'tools/fixtures/PMSNAP.BCL').read_text())
                 report['companion_compiled']=True
+            report['phase']='post-maintenance-census'
+            runtime.command('systat')
             report['phase']='shutdown'
         except Exception as failure:
             error=failure

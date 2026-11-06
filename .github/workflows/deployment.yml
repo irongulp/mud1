@@ -118,6 +118,9 @@ jobs:
           mkdir -p runtime/release-v1 runtime/companion-evidence
           gh release download runtime-v1 --pattern mud86-runtime.tar.gz --dir runtime/release-v1
           docker build -t mud86-companion -f deploy/Dockerfile.alma9 .
+          docker run --name mud86-companion-tools mud86-companion dnf install -y procps-ng
+          docker commit mud86-companion-tools mud86-companion
+          docker rm mud86-companion-tools
       - name: Single native upload, verification and compilation
         run: |
           docker run --rm --cpus=1 --memory=2g --user "$(id -u):$(id -g)" -e HOME=/tmp \

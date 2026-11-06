@@ -52,6 +52,13 @@
 
 ## Important findings
 
+- Companion transfer branch: line echo checks plus complete rendered read-back
+  before compile, line/phase/count errors without private buffers, no replay.
+  Focused native-x8642289501018 passed PMSNAP upload/readback/compile but KSYS
+  stream32 began and timed out; no clean lifecycle/native-fix claim. Follow-up
+  includes deployment procps-ng and post-maintenance SYSTAT to inspect cleanup.
+  See docs/companion-transfer-investigation.md; original failures retained.
+
 - Release shutdown guards are deliberately separate from BATCON research.
   Setup must check confirmed native shutdown before changing the active release;
   rejected backups must not reboot an unclean disk in finally. Both have failing/
