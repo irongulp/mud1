@@ -36,6 +36,15 @@ shutdown stops the probe; a failed disk is never retried or promoted. This is a
 lighter native memory workload, not external-storage or full installation
 acceptance. A pass cannot prove the original external failure repaired.
 
+The shared implementation is `tools.batcon_diagnostics`. The opt-in
+`tools.batcon_service` entry point injects its diagnostic subclass into the normal
+runtime argument parser; transport, backend, UTC clock and native commands stay
+the same. The focused `fresh-external` CI scenario selects this entry point using
+a fixture-created systemd ExecStart drop-in before setup. The default full
+release workflow and production runtime entry point do not select it. Failure
+captures go into unique private `/var/lib/mud86/batcon-failures/<id>/` directories;
+the artifact collector reads only each generated `summary.json`.
+
 On submitted KSYS failure, before simulator termination, the fixture:
 
 1. Retains the native response privately.
@@ -76,3 +85,11 @@ evidence, not a BATCON reproduction. A report-path construction error initially
 masked its final summary; a run-level regression reproduces that host bug and
 now verifies summary publication and no second boot after failure. Native x86
 comparison is required rather than more identical Mac retries.
+
+Native-x86 run 42254256397 at `bb1588e` completed the lightweight probe process,
+but artifact upload failed because Docker's root-owned `0700` output was not
+readable by the runner. It is not complete retained-summary acceptance. The
+focused container now uses the invoking runner UID/GID, retaining private modes
+while allowing that same owner to upload only the summary glob. The next
+external scenario uses the shared observer to capture the original workload,
+rather than treating a lighter successful workload as a native shutdown fix.

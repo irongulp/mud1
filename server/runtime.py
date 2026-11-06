@@ -275,7 +275,7 @@ class Runtime:
                 self.stop()
 
 
-def main():
+def main(runtime_class=Runtime):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--state', type=Path, required=True)
     parser.add_argument('--simh', type=Path, required=True)
@@ -283,7 +283,7 @@ def main():
     parser.add_argument('--idle', action='store_true', help='Experimental; validate lifecycle on the target host first')
     parser.add_argument('--persona-config',type=Path,default=os.environ.get('MUD86_PERSONA_CONFIG'))
     args = parser.parse_args()
-    Runtime(args.state.resolve(), args.simh.resolve(), args.port, args.idle,args.persona_config).run()
+    runtime_class(args.state.resolve(), args.simh.resolve(), args.port, args.idle,args.persona_config).run()
 
 
 if __name__ == '__main__':

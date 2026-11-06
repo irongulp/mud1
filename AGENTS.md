@@ -76,6 +76,13 @@
   Host/Chromium stage and62 local focused tests passed, native scenario failed.
   Next demand-BATCON source/state investigation, not identical installation
   retries or unverified OPSER fallback. v1.1.0 remains unpublished/main unchanged.
+  Focused probe bb1588e/native-x8642254256397 completed its lighter workload but
+  lost summary upload to root-owned0700 output; runner UID/GID fixes ownership.
+  Mac batcon-local-01 failed earlier admission/PC0, not BATCON evidence. Shared
+  tools.batcon_diagnostics/tools.batcon_service capture only after submitted
+  KSYS failure, private history/registers then SYSTAT, no replay; CI exposes only
+  constructed summaries. Fresh-external fixture opts in via ExecStart drop-in;
+  normal/full entry point stays original. See batcon-startup-investigation.md.
 
 - Local external startup uses tools.local_simulator's independent archived/cache
   build with the existing tools.simh_timer patch; original SIMH stays intact.

@@ -54,10 +54,21 @@ async def login(url,name,password,creating=False):
         finally: await socket.close()
 
 
-def run(container,url,fresh,native_url=None):
+def enable_shutdown_diagnostics(container):
+    dropin = ('[Service]\nExecStart=\n'
+              'ExecStart=/opt/mud86/current/.venv/bin/python -u -m tools.batcon_service '
+              '--state /var/lib/mud86 --simh ${SIMH_BIN}\n')
+    script = ('from pathlib import Path; '
+              'p=Path("/etc/systemd/system/mud86-runtime.service.d/shutdown-diagnostics.conf"); '
+              'p.parent.mkdir(parents=True,exist_ok=True); p.write_text('+repr(dropin)+')')
+    invoke(container,'python3.12','-c',script)
+
+
+def run(container,url,fresh,native_url=None,shutdown_diagnostics=False):
     output=ROOT/'runtime'/('external-deployment-'+container); output.mkdir(mode=0o700,exist_ok=True)
     report={'complete':False,'fresh_external':fresh}
     try:
+        if shutdown_diagnostics: enable_shutdown_diagnostics(container)
         name='Freshsql' if fresh else native_fixture_name(json.loads(
             (ROOT/'runtime'/('deployment-'+container)/'report.json').read_text()))
         if not fresh:
@@ -95,4 +106,5 @@ if __name__=='__main__':
     parser.add_argument('--container',default='mud86-install-test'); parser.add_argument('--url',default='http://127.0.0.1:38080')
     parser.add_argument('--fresh',action='store_true')
     parser.add_argument('--native-url',help='Loopback endpoint before cutover, including the mapped HTTPS port')
-    args=parser.parse_args(); run(args.container,args.url,args.fresh,args.native_url)
+    parser.add_argument('--shutdown-diagnostics',action='store_true',help='Private guest-state capture on disposable CI runtime failures')
+    args=parser.parse_args(); run(args.container,args.url,args.fresh,args.native_url,args.shutdown_diagnostics)

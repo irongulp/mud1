@@ -4,7 +4,7 @@ from pathlib import Path
 import unittest
 from unittest.mock import Mock, patch
 
-from tests.integration_batcon_startup import ALLOCATION_FIRST, ALLOCATION_LAST, ProbeRuntime, history_summary, job_summary, run
+from tools.batcon_diagnostics import ALLOCATION_FIRST, ALLOCATION_LAST, ProbeRuntime, history_summary, job_summary, run
 from tools.guest_control import ControlError
 
 
@@ -28,8 +28,8 @@ class BatconProbeTests(unittest.TestCase):
                     self.assertIsNone(runtime.child.logfile_read)
                     return code if last is not None else {first: 7}
                 console.words.side_effect = words
-                with patch('tests.integration_batcon_startup.SimulatorConsole', return_value=console), \
-                        patch('tests.integration_batcon_startup.time.sleep'), \
+                with patch('tools.batcon_diagnostics.SimulatorConsole', return_value=console), \
+                        patch('tools.batcon_diagnostics.time.sleep'), \
                         patch('server.runtime.Runtime.command', return_value='Status of KS10'):
                     runtime.capture_failure()
                 self.assertIs(runtime.child.logfile_read, saved_log)
@@ -37,9 +37,9 @@ class BatconProbeTests(unittest.TestCase):
                 self.assertNotIn('123456701234', json.dumps(runtime.probe))
                 self.assertEqual(len(runtime.probe['allocation_page_counts']), 5 if compatible else 0)
                 self.assertEqual(console.words.call_count, 6 if compatible else 1)
-                for path in Path(directory).glob('*.private.json'):
+                for path in runtime.capture_directory.glob('*.private.json'):
                     self.assertEqual(path.stat().st_mode & 0o777, 0o600)
-                self.assertIn('private payload', (Path(directory)/'ksys-response.private.json').read_text())
+                self.assertIn('private payload', (runtime.capture_directory/'ksys-response.private.json').read_text())
 
     def test_failed_boot_publishes_summary_and_never_attempts_another_boot(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -50,9 +50,9 @@ class BatconProbeTests(unittest.TestCase):
                 runtime.child = None
                 return False
             runtime.stop.side_effect = stop
-            with patch('tests.integration_batcon_startup.ProbeRuntime', return_value=runtime), \
-                    patch('tests.integration_batcon_startup.install_image'), \
-                    patch('tests.integration_batcon_startup.sha256', return_value='fixture'):
+            with patch('tools.batcon_diagnostics.ProbeRuntime', return_value=runtime), \
+                    patch('tools.batcon_diagnostics.install_image'), \
+                    patch('tools.batcon_diagnostics.sha256', return_value='fixture'):
                 with self.assertRaisesRegex(RuntimeError, 'probe failed'):
                     run(output, Path('/unused'), Path('/unused'), boots=3)
             summary = (output/'summary-1.json').read_text()
@@ -70,10 +70,10 @@ class BatconProbeTests(unittest.TestCase):
                 runtime.child = None
                 return False
             runtime.stop.side_effect = stop
-            with patch('tests.integration_batcon_startup.ProbeRuntime', return_value=runtime), \
-                    patch('tests.integration_batcon_startup.install_image'), \
-                    patch('tests.integration_batcon_startup.sha256', return_value='fixture'), \
-                    patch('tests.integration_batcon_startup.protect_bridge_terminals', return_value=True):
+            with patch('tools.batcon_diagnostics.ProbeRuntime', return_value=runtime), \
+                    patch('tools.batcon_diagnostics.install_image'), \
+                    patch('tools.batcon_diagnostics.sha256', return_value='fixture'), \
+                    patch('tools.batcon_diagnostics.protect_bridge_terminals', return_value=True):
                 with self.assertRaisesRegex(RuntimeError, 'probe failed'):
                     run(output, Path('/unused'), Path('/unused'), boots=3)
             runtime.boot.assert_called_once()
@@ -138,3 +138,27 @@ class BatconProbeTests(unittest.TestCase):
                 with self.assertRaisesRegex(TimeoutError, 'original'):
                     runtime.command('set ksys now')
             self.assertEqual(runtime.probe['capture_error_type'], 'OSError')
+
+    def test_summary_write_failure_does_not_replace_ksys_failure(self):
+        with tempfile.TemporaryDirectory() as directory:
+            runtime = ProbeRuntime(Path(directory), '/unused')
+            runtime.child = Mock(before='Event KSYS queued')
+            runtime.capture_directory.mkdir(parents=True)
+            with patch('server.runtime.Runtime.command', side_effect=TimeoutError('original')), \
+                    patch.object(runtime, 'capture_failure'), \
+                    patch('tools.batcon_diagnostics.private_json', side_effect=OSError('disk full')):
+                with self.assertRaisesRegex(TimeoutError, 'original'):
+                    runtime.command('set ksys now')
+            self.assertEqual(runtime.probe['capture_publish_error_type'], 'OSError')
+
+    def test_runtime_entry_point_preserves_backend_and_transport_arguments(self):
+        import argparse
+        from server.runtime import main
+        args = argparse.Namespace(state=Path('/private/state'), simh=Path('/private/pdp10'),
+                                  port=32123, idle=False, persona_config='/private/personas.json')
+        runtime_class = Mock()
+        with patch('server.runtime.argparse.ArgumentParser.parse_args', return_value=args):
+            main(runtime_class=runtime_class)
+        runtime_class.assert_called_once_with(args.state.resolve(), args.simh.resolve(),
+                                             args.port, args.idle, args.persona_config)
+        runtime_class.return_value.run.assert_called_once()

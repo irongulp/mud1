@@ -49,6 +49,6 @@ class DeploymentDiagnosticsTests(unittest.TestCase):
             with patch('tests.deployment_diagnostics.subprocess.run', side_effect=run):
                 deployment_diagnostics.collect(Path(directory))
             logs = list(Path(directory).rglob('*.log'))
-            self.assertEqual(len(logs), len(deployment_diagnostics.CONTAINERS) * 7)
+            self.assertEqual(len(logs), len(deployment_diagnostics.CONTAINERS) * 8)
             self.assertTrue(any('partial output' in log.read_text() for log in logs))
             self.assertTrue(any('container unavailable' in log.read_text() for log in logs))
