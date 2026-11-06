@@ -109,3 +109,18 @@ runs host tests and the unmodified fresh MariaDB install/rerun/backup/restart
 scenario. Missing unused containers are recorded by diagnostics. The default
 `full` scenario remains required for release acceptance; a focused pass cannot
 substitute for full acceptance.
+
+Focused run 42238408216 at `ca6c70f` completed the fresh external scenario,
+including backup/restart/editor checks, but its retained journal exposed an
+earlier installer-rerun KSYS timeout waiting for BATCON. Setup had continued by
+booting the disk again. The final clean shutdown does not erase that earlier
+failure or establish a repaired BATCON.
+
+Setup reruns now require a freshly read `shutdown.json` with `clean: true` after
+stopping the previous runtime and before changing the active release. Backup
+also leaves services stopped when native shutdown is unconfirmed; its `finally`
+block no longer automatically reboots that disk after rejecting the backup.
+Missing/malformed/non-boolean confirmation is rejected. An archive failure after
+a confirmed clean stop still restores previously active services. Unit tests
+reproduce both continuation bugs and verify the confirmed-stop path. These gates
+expose the native failure rather than fixing BATCON or extending its deadline.

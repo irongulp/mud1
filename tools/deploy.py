@@ -364,6 +364,7 @@ def install(args):
     previous = (APP / 'current').resolve() if (APP / 'current').exists() else None
     if previous and Path('/etc/systemd/system/mud86-runtime.service').exists():
         run('systemctl', 'stop', 'mud86-runtime.service')
+        require_clean_shutdown()
     link = APP / '.current-new'
     link.unlink(missing_ok=True)
     link.symlink_to(release)
@@ -457,14 +458,26 @@ def write_backup(state, directory,configuration=None):
     return path
 
 
+def require_clean_shutdown():
+    """A stopped systemd unit alone does not prove native KSYS completed."""
+    try:
+        marker = json.loads((STATE / 'shutdown.json').read_text())
+        clean = isinstance(marker, dict) and marker.get('clean') is True
+    except (OSError, ValueError):
+        clean = False
+    if not clean:
+        raise RuntimeError('Guest shutdown was not confirmed clean; recover and stop it before continuing')
+
+
 def backup():
     active = subprocess.run(['systemctl', 'is-active', '--quiet', 'mud86-runtime.service']).returncode == 0
     run('systemctl', 'stop', 'mud86-runtime.service')
+    stopped_cleanly = False
     try:
         with (STATE / 'runtime.lock').open('a') as lock:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            if not json.loads((STATE / 'shutdown.json').read_text())['clean']:
-                raise RuntimeError('Guest shutdown was not confirmed clean; recover and stop it before backing up')
+            require_clean_shutdown()
+            stopped_cleanly = True
             path = write_backup(STATE, Path('/var/backups/mud86'),CONFIG)
             print('Private backup:', path)
             metadata=json.loads((CONFIG/'deployment.json').read_text())
@@ -475,7 +488,7 @@ def backup():
                 backup_database(load_config(CONFIG/'persona-admin.json'),sql_path)
                 print('Private external database backup:',sql_path)
     finally:
-        if active:
+        if active and stopped_cleanly:
             run('systemctl', 'start', 'mud86-runtime.service', 'mud86-gateway.service')
 
 

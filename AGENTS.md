@@ -65,6 +65,11 @@
   before fresh external creation; native cleanup KSYS/clean passed. Use explicit
   workflow scenario=fresh-external to isolate the original case. Default full
   acceptance stays required; focused results do not validate the full release.
+  Focused42238408216/ca6c70f passed final fresh backup/restart but journal exposed
+  earlier rerun KSYS/BATCON timeout then silent reboot. Installer now checks the
+  native clean marker before release activation; rejected backups do not reboot
+  unclean disks in finally. Red/green regressions cover both actual continuation
+  bugs. No BATCON fix claimed; native release acceptance remains open.
 
 - Local external startup uses tools.local_simulator's independent archived/cache
   build with the existing tools.simh_timer patch; original SIMH stays intact.
