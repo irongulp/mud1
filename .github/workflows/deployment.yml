@@ -125,11 +125,12 @@ jobs:
           docker run --name mud86-companion-tools mud86-companion dnf install -y procps-ng
           docker commit mud86-companion-tools mud86-companion
           docker rm mud86-companion-tools
-      - name: Single native upload, verification and compilation
+      - name: Prepare simulator before limiting guest CPU
         run: |
-          docker run --rm --cpus=1 --memory=2g --user "$(id -u):$(id -g)" -e HOME=/tmp \
+          docker run -d --name mud86-focused --memory=2g --user "$(id -u):$(id -g)" -e HOME=/tmp \
             -v "$PWD:/checkout:ro" -v "$PWD/runtime/companion-evidence:/evidence" \
-            -w /checkout mud86-companion bash -euc '
+            -w /checkout mud86-companion sleep infinity
+          docker exec mud86-focused bash -euc '
               python3.12 -m venv /tmp/venv
               /tmp/venv/bin/pip install -r requirements-deploy.txt
               /tmp/venv/bin/python -m unittest tests.test_companion_transfer tests.test_native_response_framing -v
@@ -137,10 +138,18 @@ jobs:
               git clone --no-checkout https://github.com/simh/simh.git /tmp/simh
               git -C /tmp/simh checkout --detach 47b7ddabbe5b548cfc32f2fd45f7bed238ff7921
               /tmp/venv/bin/python -m tools.local_simulator --source /tmp/simh --cache /tmp/simh-cache
+            '
+      - name: Run one focused native fixture with deployment CPU limit
+        run: |
+          docker update --cpus=1 mud86-focused
+          docker exec mud86-focused bash -euc '
               /tmp/venv/bin/python -m ${{ inputs.terminal_reuse && 'tests.integration_terminal_reuse' || 'tests.integration_companion_transfer' }} \
                 --output /evidence/probe --archive /checkout/runtime/release-v1/mud86-runtime.tar.gz \
                 --simh /tmp/simh-cache/source/BIN/pdp10
             '
+      - name: Remove disposable fixture container
+        if: always()
+        run: docker rm -f mud86-focused
       - uses: actions/upload-artifact@v7
         if: always()
         with:
