@@ -52,6 +52,16 @@
 
 ## Important findings
 
+- Release acceptance42205728019 (3ac3937) failed fresh external backup after
+  native and populated-cutover backups passed. Original artifacts lacked fresh
+  container journals; cutover separately witnessed KSYS waiting for BATCON, not
+  proof of the fresh failure's cause. tests.deployment_diagnostics now collects
+  both containers before/after cleanup with bounded commands and no private
+  configs, while the external fixture saves failed command logs before raising.
+  Runtime stop records phase/type/ControlError dispatch facts without exception
+  buffers. Do not weaken clean-shutdown gates, replay KSYS or call diagnostics a
+  runtime fix. See docs/ci.md; release remains blocked pending native acceptance.
+
 - Local external startup uses tools.local_simulator's independent archived/cache
   build with the existing tools.simh_timer patch; original SIMH stays intact.
   MonitorBootstrap fingerprints the selected live KS10 layout before native

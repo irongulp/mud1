@@ -70,3 +70,29 @@ Known intermittent native startup, source-transfer and shutdown failures are not
 claimed fixed by moving this workflow. They remain engineering work and must not
 be hidden by unbounded reruns. The split keeps slow system acceptance useful while
 giving ordinary PRs a short, independently actionable regression check.
+
+### Failed shutdown evidence
+
+Release-candidate run42205728019 at3ac3937 passed native installation/backup,
+HTTP/HTTPS multiplayer, container reboot and populated MariaDB cutover/backup,
+but fresh MariaDB installation failed its backup's clean-shutdown gate. The
+uploaded journal covered only the cutover container, where an earlier separate
+shutdown queued KSYS then waited for BATCON until the deadline. The fresh
+container's shutdown cause cannot be inferred from that other container.
+
+The workflow now runs `python3 -m tests.deployment_diagnostics` during its always
+cleanup step. It captures both disposable containers independently, before and
+after stopping each runtime: runtime/gateway journals (including journal blob
+contents), selected service-state properties and `/var/lib/mud86/shutdown.json`.
+Commands have bounded deadlines; missing containers/timeouts are recorded without
+preventing collection from the other container. No database/credential/config
+files or service environment variables are collected. Logs remain CI artifacts,
+not release assets.
+
+The external-install fixture writes redacted install/rerun/backup output before
+checking command status, so a failed command retains its log. Runtime shutdown
+markers and journals record the failing phase and exception type; echo failures
+also retain the input-started/submission flags. Exception text is excluded because
+it can contain terminal buffers. These are diagnostic changes, not a BATCON or
+shutdown repair: failed shutdown still prevents backup and uncertain commands
+are never replayed.
