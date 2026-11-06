@@ -116,7 +116,7 @@ class Runtime:
             self.control_prompt = prompt
         return output
 
-    def copy_text(self, filename, text):
+    def copy_text(self, filename, text, *, timeout=BOOT_TIMEOUT):
         """Owned COPY dialogue; callers stage and verify before activation."""
         import re
         if not re.fullmatch(r'(?:sys:)?[a-z0-9]{1,6}\.[a-z0-9]{1,3}', filename):
@@ -124,7 +124,7 @@ class Runtime:
         if self.control_prompt != MONITOR_PROMPT:
             raise RuntimeError('Guest COPY requires a confirmed monitor prompt')
         self.control_prompt = None
-        deadline = time.monotonic() + BOOT_TIMEOUT
+        deadline = time.monotonic() + timeout
         self._submit_control('copy ' + filename + '=tty:', deadline)
         self.child.expect_exact('\r\n', timeout=max(0, deadline - time.monotonic()))
         time.sleep(COPY_READY_DELAY)
@@ -172,6 +172,9 @@ class Runtime:
             else:
                 self.child.send(response + '\r')
         self.booted = True
+        self.admit()
+
+    def admit(self):
         if self.persona_config:
             from server.persona_bridge import PersonaBridge
             from tools.persona_migrate import load_config

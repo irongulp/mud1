@@ -14,6 +14,7 @@ from tools.persona_protocol import MAX_NAME_LENGTH
 
 ROOT=Path(__file__).resolve().parents[1]
 MAX_SHUTDOWN_CYCLES=3
+MAX_DIAGNOSTIC_IDLE_SECONDS=660
 
 
 def native_fixture_name(report):
@@ -55,18 +56,21 @@ async def login(url,name,password,creating=False):
         finally: await socket.close()
 
 
-def enable_shutdown_diagnostics(container):
+def enable_shutdown_diagnostics(container,warm_batch=False):
     dropin = ('[Service]\nExecStart=\n'
               'ExecStart=/opt/mud86/current/.venv/bin/python -u -m tools.batcon_service '
               '--state /var/lib/mud86 --simh ${SIMH_BIN}\n')
+    if warm_batch: dropin+='Environment=MUD86_BATCON_WARMUP=1\nRestart=no\n'
     script = ('from pathlib import Path; '
               'p=Path("/etc/systemd/system/mud86-runtime.service.d/shutdown-diagnostics.conf"); '
               'p.parent.mkdir(parents=True,exist_ok=True); p.write_text('+repr(dropin)+')')
     invoke(container,'python3.12','-c',script)
 
 
-def shutdown_cycles(container,url,name,password,count,observations):
+def shutdown_cycles(container,url,name,password,count,observations,idle_seconds=0):
     if not 1 <= count <= MAX_SHUTDOWN_CYCLES: raise ValueError('Shutdown probe requires one to three cycles')
+    if not 0 <= idle_seconds <= MAX_DIAGNOSTIC_IDLE_SECONDS: raise ValueError('Diagnostic idle bound exceeded')
+    if idle_seconds: time.sleep(idle_seconds)
     for index in range(count):
         asyncio.run(login(url,name,password))
         invoke(container,'systemctl','stop','mud86-runtime.service')
@@ -78,11 +82,13 @@ def shutdown_cycles(container,url,name,password,count,observations):
         if index+1<count: invoke(container,'mud86ctl','start')
 
 
-def run(container,url,fresh,native_url=None,shutdown_diagnostics=False,cycles=0):
+def run(container,url,fresh,native_url=None,shutdown_diagnostics=False,cycles=0,warm_batch=False,idle_seconds=0):
+    if not 0 <= idle_seconds <= MAX_DIAGNOSTIC_IDLE_SECONDS or (idle_seconds and not cycles):
+        raise ValueError('Diagnostic idle requires bounded shutdown cycles')
     output=ROOT/'runtime'/('external-deployment-'+container); output.mkdir(mode=0o700,exist_ok=True)
     report={'complete':False,'fresh_external':fresh}
     try:
-        if shutdown_diagnostics: enable_shutdown_diagnostics(container)
+        if shutdown_diagnostics or warm_batch: enable_shutdown_diagnostics(container,warm_batch)
         name='Freshsql' if fresh else native_fixture_name(json.loads(
             (ROOT/'runtime'/('deployment-'+container)/'report.json').read_text()))
         if not fresh:
@@ -102,8 +108,8 @@ def run(container,url,fresh,native_url=None,shutdown_diagnostics=False,cycles=0)
         (output/'editor.log').write_text(invoke(container,'/opt/mud86/current/.venv/bin/python',
                                               '-m','tests.deployed_database_editor',name))
         if cycles:
-            report.update(diagnostic_only=True,shutdown_cycles=[])
-            shutdown_cycles(container,url,name,'testpass',cycles,report['shutdown_cycles'])
+            report.update(diagnostic_only=True,batch_warmup=warm_batch,idle_seconds=idle_seconds,shutdown_cycles=[])
+            shutdown_cycles(container,url,name,'testpass',cycles,report['shutdown_cycles'],idle_seconds)
             report.update(complete=True,architecture=invoke(container,'uname','-m').strip())
             return
         invoke(container,'systemctl','is-active','mud86-database','mud86-runtime','mud86-gateway')
@@ -127,4 +133,6 @@ if __name__=='__main__':
     parser.add_argument('--native-url',help='Loopback endpoint before cutover, including the mapped HTTPS port')
     parser.add_argument('--shutdown-diagnostics',action='store_true',help='Private guest-state capture on disposable CI runtime failures')
     parser.add_argument('--shutdown-cycles',type=int,choices=range(1,MAX_SHUTDOWN_CYCLES+1),default=0,help='Diagnostic-only stop/start cycles after first installation, not full acceptance')
-    args=parser.parse_args(); run(args.container,args.url,args.fresh,args.native_url,args.shutdown_diagnostics,args.shutdown_cycles)
+    parser.add_argument('--warm-batch',action='store_true',help='Candidate native batch execution preflight before game admission')
+    parser.add_argument('--idle-seconds',type=int,default=0,help='Bounded idle interval before diagnostic shutdown cycles')
+    args=parser.parse_args(); run(args.container,args.url,args.fresh,args.native_url,args.shutdown_diagnostics,args.shutdown_cycles,args.warm_batch,args.idle_seconds)

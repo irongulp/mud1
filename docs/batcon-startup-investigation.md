@@ -132,3 +132,38 @@ ends the sequence without retry. The report is marked `diagnostic_only:true`.
 This retains the external engine/database workload but removes installer-rerun
 package/permission queries from the shutdown investigation. It is not installer
 rerun, backup or full release acceptance.
+
+## External loading-phase reproduction and preflight candidate
+
+Run 42267048171 at `2781c41` failed its first isolated external shutdown cycle;
+there was no second boot or failed-command replay. The ten-second and deadline
+samples each included 12 allocation-wait instructions among 512 sampled kernel
+instructions. The MOVE/ADD profile matched, using monitor accumulator 2, and
+read CORTAL=130 pages with all four paging-I/O queue counters zero. The complete
+post-failure census showed BATCON job1/6 pages/RN. Unlike the previous late
+39-page sleeping observation, this captures a loading-stage stall. It does not
+prove every sampled instruction was in the allocator or identify which dormant
+segment prevented progress. BIGHOL/requested-page extraction is added only when
+the corresponding native instruction shapes match.
+
+The opt-in `batcon-warm` comparison reuses the existing local native batch probe
+before runtime admission. `server.local_batch.execute_probe` is the shared
+bounded executor; the local wrapper still requires its verified monitor scope.
+The candidate diagnostic runtime uses a fresh full boot identity, actual
+DAYTIME result, matching request/log identity and native batch logout, before
+the normal game/storage admission probes. Missing execution proof blocks
+admission and disables boot retry. This candidate does not install a monitor
+patch, replace BATCON, extend KSYS time or use OPSER. Production/full release
+entry points do not opt in.
+
+The comparison deliberately idles for 660 host seconds after initial external
+setup, then attempts up to three clean stop/restart cycles. This tests beyond
+the original controller's nominal ten-minute idle lifetime; the host interval
+alone does not prove the idle-logout callback executed. The fixture disables
+automatic systemd restart for this candidate, retaining failures for inspection.
+Both variants still require the native clean marker before another boot.
+
+Host regressions cover preflight-before-admission order, no admission/boot retry
+on failed proof, default behavior without opt-in, and the unchanged local
+authority/stale-log/uncertain-submission fences. Native comparison remains the
+gate before considering deployed adoption.

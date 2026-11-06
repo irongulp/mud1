@@ -94,6 +94,13 @@
   prepares once then bounded3 login/QUIT/stop/start cycles, clean marker before
   every restart, no failed-disk retry, diagnostic_only report. Full acceptance
   remains separate. Two run-level cycle regressions preserve this boundary.
+  Run42267048171/2781c41 first isolated external stop failed; early+late512-entry
+  samples each had12 allocator-wait instructions, CORTAL130/all paging queues0,
+  complete census BATCON1/6pages/RN. Loading-stage stall captured, not proof of
+  specific dormant segment. Opt-in batcon-warm reuses extracted native DAYTIME
+  executor before admission, fresh-ID/result/logout proof; local monitor gate
+  remains. Failed preflight stops admission/boot retries; candidate Restart=no.
+  Candidate660s idle+3 clean cycles pending; production/full runtime stays off.
 
 - Local external startup uses tools.local_simulator's independent archived/cache
   build with the existing tools.simh_timer patch; original SIMH stays intact.

@@ -11,6 +11,7 @@ on:
           - fresh-external
           - batcon
           - batcon-external
+          - batcon-warm
 permissions:
   contents: write # Needed to download the draft runtime asset before publication.
 jobs:
@@ -95,7 +96,7 @@ jobs:
             sleep 1
           done
       - name: Fresh external installation and persistence
-        run: .venv/bin/python -m tests.integration_external_deployment --fresh --container mud86-external-fresh --url http://127.0.0.1:48080 ${{ inputs.scenario != 'full' && '--shutdown-diagnostics' || '' }} ${{ inputs.scenario == 'batcon-external' && '--shutdown-cycles 3' || '' }}
+        run: .venv/bin/python -m tests.integration_external_deployment --fresh --container mud86-external-fresh --url http://127.0.0.1:48080 ${{ inputs.scenario != 'full' && '--shutdown-diagnostics' || '' }} ${{ (inputs.scenario == 'batcon-external' || inputs.scenario == 'batcon-warm') && '--shutdown-cycles 3' || '' }} ${{ inputs.scenario == 'batcon-warm' && '--warm-batch --idle-seconds 660' || '' }}
       - name: Database editor permissions, concurrency and recovery
         if: inputs.scenario == 'full'
         run: |

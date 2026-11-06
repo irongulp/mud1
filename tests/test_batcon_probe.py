@@ -10,6 +10,48 @@ from tests.integration_external_deployment import shutdown_cycles
 
 
 class BatconProbeTests(unittest.TestCase):
+    def test_default_admission_does_not_run_candidate_preflight(self):
+        with tempfile.TemporaryDirectory() as directory:
+            runtime = ProbeRuntime(Path(directory), '/unused')
+            with patch.dict('os.environ', {}, clear=True), \
+                    patch('tools.batcon_diagnostics.execute_probe') as execute, \
+                    patch('server.runtime.Runtime.admit') as admit:
+                runtime.admit()
+            execute.assert_not_called()
+            admit.assert_called_once()
+
+    def test_failed_batch_probe_cannot_be_boot_retried_by_runtime(self):
+        from server.local_batch import BatchBootstrapError
+        with tempfile.TemporaryDirectory() as directory:
+            runtime = ProbeRuntime(Path(directory), '/unused')
+            with patch.dict('os.environ', {'MUD86_BATCON_WARMUP':'1'}), \
+                    patch('tools.batcon_diagnostics.execute_probe', side_effect=BatchBootstrapError('unconfirmed')), \
+                    patch.object(runtime, 'boot', side_effect=runtime.admit) as boot, \
+                    patch('server.runtime.signal.signal'), patch('server.runtime.Runtime.admit') as admit:
+                with self.assertRaises(BatchBootstrapError): runtime.run()
+            boot.assert_called_once()
+            admit.assert_not_called()
+
+    def test_warmup_executes_before_admission_and_failure_cannot_admit_or_retry(self):
+        from server.local_batch import BatchBootstrapError
+        for failing in (False, True):
+            with self.subTest(failing=failing), tempfile.TemporaryDirectory() as directory:
+                runtime = ProbeRuntime(Path(directory), '/unused')
+                order = []
+                def execute(machine, boot_id):
+                    order.append('batch')
+                    if failing: raise BatchBootstrapError('no execution proof')
+                    return {'boot_id':boot_id,'request':7}
+                with patch.dict('os.environ', {'MUD86_BATCON_WARMUP':'1'}), \
+                        patch('tools.batcon_diagnostics.execute_probe', side_effect=execute), \
+                        patch('server.runtime.Runtime.admit', side_effect=lambda:order.append('admit')):
+                    if failing:
+                        with self.assertRaises(BatchBootstrapError): runtime.admit()
+                    else:
+                        runtime.admit()
+                self.assertEqual(order, ['batch'] if failing else ['batch','admit'])
+                self.assertEqual(runtime.stopping.is_set(), failing)
+
     def test_external_cycle_stops_on_unclean_marker_without_restarting(self):
         from unittest.mock import AsyncMock
         observations = []

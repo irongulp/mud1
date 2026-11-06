@@ -9,6 +9,7 @@ from collections import Counter
 from contextlib import contextmanager, redirect_stdout
 import hashlib
 import json
+import os
 from pathlib import Path
 import platform
 import re
@@ -17,6 +18,7 @@ import time
 import uuid
 
 from server.monitor_bootstrap import SimulatorConsole
+from server.local_batch import execute_probe
 from server.runtime import MONITOR_PROMPT, Runtime
 from tools.audit_archwizards import Guest, logoff
 from tools.deploy import install_image, sha256
@@ -88,6 +90,19 @@ class ProbeRuntime(Runtime):
         super().__init__(*args, **kwargs)
         self.probe = {}
         self.capture_directory = self.state/'batcon-failures'/uuid.uuid4().hex
+
+    def admit(self):
+        if os.environ.get('MUD86_BATCON_WARMUP') == '1':
+            try:
+                evidence = execute_probe(self, uuid.uuid4().hex)
+                self.ensure_capture()
+                private_json(self.capture_directory/'batch-preflight.private.json', evidence)
+                self.probe['batch_preflight'] = dict(completed=True, boot_id=evidence['boot_id'],
+                                                    request=evidence['request'])
+            except Exception:
+                self.stopping.set()
+                raise
+        super().admit()
 
     def command(self, text, *args, **kwargs):
         original_expect = self.child.expect
@@ -205,6 +220,21 @@ class ProbeRuntime(Runtime):
                         break
                     values[name] = value
                 summary['allocation_page_counts'] = values
+                call = code[ALLOCATION_LAST-1]
+                if values and call >> 27 == 0o260 and not call & 0o37000000:
+                    entry = call & 0o777777
+                    first = console.words(entry)[entry]
+                    if first >> 27 == 0o317 and not first & 0o37000000:
+                        address = first & 0o777777
+                        available = console.words(address)[address]
+                        if 0 <= available <= PAGE_LIMIT:
+                            summary['immediately_free_pages'] = available
+                comparison = code[ALLOCATION_FIRST+5]
+                if comparison >> 27 == 0o301:
+                    requested = {int(value, 8) for pc, value in re.findall(
+                        r'(?m)^([0-7]{6})\s+([0-7]{12})\s+[0-7]{6}\s+', history)
+                        if int(pc, 8) == ALLOCATION_FIRST+5 and int(value, 8) <= PAGE_LIMIT}
+                    summary['requested_pages_seen'] = sorted(requested)
                 console.command('set cpu history=0')
             finally:
                 private_json(self.capture_directory/(stage+'.capture.private.json'), raw)
