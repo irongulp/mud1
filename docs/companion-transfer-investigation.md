@@ -35,3 +35,29 @@ the final monitor prompt and requires the ordered Logged-off/accounting tail.
 Red/green tests reject a prefix or bare prompt and preserve connection closure.
 This is a concrete host cleanup correction, not proof of the original transfer
 timeout or a universal BATCON fix. Native census follow-up checks actual removal.
+
+Run 42291004125 (`73c714d`) passed verified upload/read-back/compilation, the
+complete logout predicate and native KSYS/Goodbye. Immediate SYSTAT still showed
+RICHARD12/LOGIN, so complete logout output does not imply immediate job removal.
+Do not attribute the original shutdown failure to this residual job on that
+evidence. No persona records were read by either focused fixture.
+
+Full deployment run 42291522591 at the same commit passed host/Chromium tests,
+native installation/rerun/read-only inspection, saved-persona re-entry, native
+backup/restart and HTTP multiplayer. Native sleep/wake measurements were
+5.979/6.022/5.977 seconds. It then failed initial HTTPS browser admission at
+`stage=monitor`, before native-to-MariaDB cutover. HTTPS/static content reached
+the browser, but the gateway's initial guest-monitor wait timed out.
+
+The service journal recorded STOMPR starting at21:00:02, a TTY0 quieting failure
+at21:01:02, then the gateway monitor timeout at21:01:25. Shutdown completed
+normally at21:01:32. This correlation supports a focused native terminal-reuse/
+initializer investigation, not a demonstrated TLS failure or proven STOMPR cause.
+No unchanged full-matrix rerun was launched. Original failures remain retained.
+
+Current scope: companion transfer validation and complete maintenance logout
+have focused native acceptance and 57 relevant host tests. Full release
+acceptance remains failed; external deployment on this exact patch is not yet
+qualified. Neither batch warmup nor experimental monitor/sampling code is included.
+The next targeted check is repeated native terminal admission/cleanup across
+the STOMPR interval, capturing terminal assignment/state before any intervention.

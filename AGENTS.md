@@ -62,6 +62,11 @@
   RICHARD12/LOGIN after inspector returned. Logged-off prefix is not completion.
   Inspector now requires accounting tail/final prompt (earlier9347897 predicate
   absent from main); red/green tests pass, native removal follow-up pending.
+  Follow-up42291004125 passed full logout+transfer+KSYS, but census still LOGIN12;
+  protocol completion is not instantaneous job-removal proof. Full42291522591
+  passed native setup/rerun/backup/re-entry/HTTP then HTTPS stage=monitor timeout;
+  STOMPR TTY0 quieting failure preceded it, cleanup KSYS clean. No TLS/STOMPR
+  causal claim, no external/full acceptance or unchanged retry.57 focused pass.
 
 - Release shutdown guards are deliberately separate from BATCON research.
   Setup must check confirmed native shutdown before changing the active release;
