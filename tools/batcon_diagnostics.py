@@ -30,6 +30,7 @@ ALLOCATION_LAST = 0o531156
 HISTORY_ENTRIES = 512
 HISTORY_CAPACITY = 65536
 SAMPLE_SECONDS = .2
+EARLY_SAMPLE_SECONDS = 10
 CAPTURE_TIMEOUT = 30
 MAX_PROBE_GUESTS = 2
 MAX_BOOTS = 3
@@ -89,6 +90,9 @@ class ProbeRuntime(Runtime):
         self.capture_directory = self.state/'batcon-failures'/uuid.uuid4().hex
 
     def command(self, text, *args, **kwargs):
+        original_expect = self.child.expect
+        if text == 'set ksys now':
+            self.child.expect = lambda pattern, **options: self.wait_shutdown(original_expect, pattern, **options)
         try:
             return super().command(text, *args, **kwargs)
         except Exception as error:
@@ -97,64 +101,53 @@ class ProbeRuntime(Runtime):
                     self.capture_failure()
                 except Exception as capture_error:
                     self.probe['capture_error_type'] = type(capture_error).__name__
-                finally:
-                    if self.capture_directory.is_dir():
-                        try:
-                            private_json(self.capture_directory/'summary.json', self.probe)
-                        except OSError as publish_error:
-                            self.probe['capture_publish_error_type'] = type(publish_error).__name__
             raise
+        finally:
+            self.child.expect = original_expect
+            if text == 'set ksys now' and self.capture_directory.is_dir():
+                try:
+                    private_json(self.capture_directory/'summary.json', self.probe)
+                except OSError as publish_error:
+                    self.probe['capture_publish_error_type'] = type(publish_error).__name__
+
+    def ensure_capture(self):
+        self.capture_directory.parent.mkdir(mode=0o700, exist_ok=True)
+        self.capture_directory.mkdir(mode=0o700, exist_ok=True)
+
+    def wait_shutdown(self, expect, pattern, *, timeout, **options):
+        import pexpect
+        if pattern != 'KSYS processing completed' or timeout <= EARLY_SAMPLE_SECONDS:
+            return expect(pattern, timeout=timeout, **options)
+        deadline = time.monotonic()+timeout
+        try:
+            return expect(pattern, timeout=EARLY_SAMPLE_SECONDS, **options)
+        except pexpect.TIMEOUT:
+            pending = self.child.before
+            self.ensure_capture()
+            private_json(self.capture_directory/'early-response.private.json', dict(output=pending))
+            self.probe['ksys_queued'] = 'Event KSYS queued' in pending
+            during = ''
+            try:
+                during = self.sample_kernel('early')
+            except Exception as error:
+                self.probe['early_capture_error_type'] = type(error).__name__
+            # A native completion can arrive just before the diagnostic halt.
+            # Preserve the original guest frames and recognize only its full
+            # timestamped completion line, never a memory dump or a quoted tail.
+            if re.search(r'(?m)^\d{1,2}:\d{2}:\d{2}[ \t]+-- KSYS processing completed --\r?$', during):
+                self.child.before = pending+during
+                self.child.after = 'KSYS processing completed'
+                return 0
+            return expect(pattern, timeout=max(0, deadline-time.monotonic()), **options)
 
     def capture_failure(self):
-        self.capture_directory.parent.mkdir(mode=0o700, exist_ok=True)
-        self.capture_directory.mkdir(mode=0o700)
+        self.ensure_capture()
         output = self.child.before
         private_json(self.capture_directory/'ksys-response.private.json', dict(output=output))
-        self.probe.update(ksys_queued='Event KSYS queued' in output,
+        self.probe.update(ksys_queued=self.probe.get('ksys_queued', False) or 'Event KSYS queued' in output,
                           native_batcon_failed='BATCON failed to startup' in output)
-        console = SimulatorConsole(self.child)
-        console.deadline = time.monotonic()+CAPTURE_TIMEOUT
-        raw = {}
+        self.sample_kernel('failure')
         with private_console(self.child):
-            try:
-                console.halt()
-                raw['registers_before'] = {name: console.register(name)
-                    for name in ('PC', 'FLAGS', 'UBR', 'PION', 'PIACT')}
-                console.command('set cpu history='+str(HISTORY_CAPACITY))
-                console.resume()
-                time.sleep(SAMPLE_SECONDS)
-                console.halt()
-                raw['registers_after'] = {name: console.register(name)
-                    for name in ('PC', 'FLAGS', 'UBR', 'PION', 'PIACT')}
-                history = console.command('show cpu history='+str(HISTORY_ENTRIES))
-                raw['history'] = history
-                self.probe['history'] = history_summary(history)
-                code = console.words(ALLOCATION_FIRST, ALLOCATION_LAST)
-                raw['allocation_code'] = {f'{address:o}': f'{word:012o}' for address, word in code.items()}
-                self.probe['allocation_code_sha256'] = hashlib.sha256(
-                    json.dumps(raw['allocation_code'], sort_keys=True).encode()).hexdigest()
-                # Publish page counts only after checking the observed MOVE/ADD
-                # instructions are direct references in the pinned monitor loop.
-                values = {}
-                for offset, name in enumerate(('cortal', 'pagouc', 'pagipq', 'pagsnc', 'paginc')):
-                    word = code[ALLOCATION_FIRST+offset]
-                    opcode, ac = word >> 27, (word >> 23) & 0o17
-                    if (opcode != (0o200 if offset == 0 else 0o270) or ac != 1
-                            or word & 0o37000000):
-                        values = {}
-                        break
-                    address = word & 0o777777
-                    value = console.words(address)[address]
-                    if not 0 <= value <= PAGE_LIMIT:
-                        values = {}
-                        break
-                    values[name] = value
-                self.probe['allocation_page_counts'] = values
-                console.command('set cpu history=0')
-            finally:
-                private_json(self.capture_directory/'capture.private.json', raw)
-                if console.at_prompt:
-                    console.resume()
             # Read native job state only after preserving the unperturbed sample.
             # Ctrl-C belongs to the fixture's CTY operator, never another job.
             self.control_prompt = None
@@ -165,6 +158,63 @@ class ProbeRuntime(Runtime):
             status = super().command('systat', timeout=15)
             private_json(self.capture_directory/'systat-after.private.json', dict(output=status))
             self.probe['jobs_after'] = job_summary(status)
+
+    def sample_kernel(self, stage):
+        self.ensure_capture()
+        console = SimulatorConsole(self.child)
+        console.deadline = time.monotonic()+CAPTURE_TIMEOUT
+        raw = {}
+        summary = {}
+        with private_console(self.child):
+            try:
+                console.halt()
+                raw['guest_before'] = self.child.before
+                raw['registers_before'] = {name: console.register(name)
+                    for name in ('PC', 'FLAGS', 'UBR', 'PION', 'PIACT')}
+                console.command('set cpu history='+str(HISTORY_CAPACITY))
+                console.resume()
+                time.sleep(SAMPLE_SECONDS)
+                console.halt()
+                raw['guest_during'] = self.child.before
+                raw['registers_after'] = {name: console.register(name)
+                    for name in ('PC', 'FLAGS', 'UBR', 'PION', 'PIACT')}
+                history = console.command('show cpu history='+str(HISTORY_ENTRIES))
+                raw['history'] = history
+                summary['history'] = history_summary(history)
+                code = console.words(ALLOCATION_FIRST, ALLOCATION_LAST)
+                raw['allocation_code'] = {f'{address:o}': f'{word:012o}' for address, word in code.items()}
+                summary['allocation_code_sha256'] = hashlib.sha256(
+                    json.dumps(raw['allocation_code'], sort_keys=True).encode()).hexdigest()
+                # Publish page counts only after checking the observed MOVE/ADD
+                # instructions are direct references in the pinned monitor loop.
+                values = {}
+                accumulator = (code[ALLOCATION_FIRST] >> 23) & 0o17
+                summary['allocation_opcodes'] = [f'{code[ALLOCATION_FIRST+i] >> 27:03o}' for i in range(5)]
+                summary['allocation_accumulators'] = [(code[ALLOCATION_FIRST+i] >> 23) & 0o17 for i in range(5)]
+                for offset, name in enumerate(('cortal', 'pagouc', 'pagipq', 'pagsnc', 'paginc')):
+                    word = code[ALLOCATION_FIRST+offset]
+                    opcode, ac = word >> 27, (word >> 23) & 0o17
+                    if (opcode != (0o200 if offset == 0 else 0o270) or ac != accumulator
+                            or word & 0o37000000):
+                        values = {}
+                        break
+                    address = word & 0o777777
+                    value = console.words(address)[address]
+                    if not 0 <= value <= PAGE_LIMIT:
+                        values = {}
+                        break
+                    values[name] = value
+                summary['allocation_page_counts'] = values
+                console.command('set cpu history=0')
+            finally:
+                private_json(self.capture_directory/(stage+'.capture.private.json'), raw)
+                if console.at_prompt:
+                    console.resume()
+        if stage == 'early':
+            self.probe['early'] = summary
+        else:
+            self.probe.update(summary)
+        return raw.get('guest_before', '')+raw.get('guest_during', '')
 
 
 def run(output, archive, executable, *, boots=MAX_BOOTS, guests=MAX_PROBE_GUESTS, settle=30):

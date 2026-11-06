@@ -9,9 +9,36 @@ from tools.guest_control import ControlError
 
 
 class BatconProbeTests(unittest.TestCase):
+    def test_pending_ksys_is_sampled_early_with_one_original_deadline(self):
+        import pexpect
+        with tempfile.TemporaryDirectory() as directory:
+            runtime = ProbeRuntime(Path(directory), '/unused')
+            runtime.child = Mock(before='Event KSYS queued\nOPR>')
+            original = Mock(side_effect=[pexpect.TIMEOUT('pending'), 0])
+            with patch.object(runtime, 'sample_kernel', return_value='') as sample, \
+                    patch('tools.batcon_diagnostics.time.monotonic', side_effect=[0, 11]):
+                self.assertEqual(runtime.wait_shutdown(original, 'KSYS processing completed', timeout=90), 0)
+            self.assertEqual([call.kwargs['timeout'] for call in original.call_args_list], [10, 79])
+            sample.assert_called_once_with('early')
+            runtime.child.send.assert_not_called()
+
+    def test_native_completion_during_sampling_is_not_lost_or_replayed(self):
+        import pexpect
+        with tempfile.TemporaryDirectory() as directory:
+            runtime = ProbeRuntime(Path(directory), '/unused')
+            runtime.child = Mock(before='Event KSYS queued\nOPR>')
+            original = Mock(side_effect=pexpect.TIMEOUT('pending'))
+            native = '\r\n17:00:00          -- KSYS processing completed --\r\nOPR>'
+            with patch.object(runtime, 'sample_kernel', return_value=native):
+                self.assertEqual(runtime.wait_shutdown(original, 'KSYS processing completed', timeout=90), 0)
+            original.assert_called_once()
+            self.assertIn(native, runtime.child.before)
+            self.assertEqual(runtime.child.after, 'KSYS processing completed')
+            runtime.child.send.assert_not_called()
+
     def test_capture_keeps_raw_data_private_and_checks_code_before_reading_counts(self):
-        for compatible in (True, False):
-            with self.subTest(compatible=compatible), tempfile.TemporaryDirectory() as directory:
+        for compatible, accumulator in ((True, 1), (True, 5), (False, 1)):
+            with self.subTest(compatible=compatible, accumulator=accumulator), tempfile.TemporaryDirectory() as directory:
                 runtime = ProbeRuntime(Path(directory), '/unused')
                 runtime.child = Mock(before='Event KSYS queued\nBATCON failed to startup\nprivate payload')
                 saved_log = runtime.child.logfile_read
@@ -21,7 +48,7 @@ class BatconProbeTests(unittest.TestCase):
                 code = dict.fromkeys(range(ALLOCATION_FIRST, ALLOCATION_LAST+1), 0)
                 for offset in range(5):
                     code[ALLOCATION_FIRST+offset] = ((0o200 if offset == 0 else 0o270) << 27
-                        | 1 << 23 | 0o100+offset)
+                        | accumulator << 23 | 0o100+offset)
                 if not compatible:
                     code[ALLOCATION_FIRST] = 0
                 def words(first, last=None):

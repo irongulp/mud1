@@ -83,6 +83,12 @@
   KSYS failure, private history/registers then SYSTAT, no replay; CI exposes only
   constructed summaries. Fresh-external fixture opts in via ExecStart drop-in;
   normal/full entry point stays original. See batcon-startup-investigation.md.
+  External42256488786/805062d captured explicit KSYS/BATCON failure, but after
+  timeout512 PCs were idle and complete10-job census had BATCON1/39pages/SL.
+  No present allocator-loop proof; may be earlier delay vs PSB/HELLO handshake.
+  Added one10s pending-wait sample on original deadline, preserving full native
+  completion during sampling; no replay/timeout extension. Reference QSRT10
+  lines4204-4285 distinguishes PS.RUN/PS.KSY and HELLO, not exact installed map.
 
 - Local external startup uses tools.local_simulator's independent archived/cache
   build with the existing tools.simh_timer patch; original SIMH stays intact.

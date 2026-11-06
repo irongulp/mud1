@@ -93,3 +93,29 @@ focused container now uses the invoking runner UID/GID, retaining private modes
 while allowing that same owner to upload only the summary glob. The next
 external scenario uses the shared observer to capture the original workload,
 rather than treating a lighter successful workload as a native shutdown fix.
+
+## First external-workload capture
+
+Native-x86 external run 42256488786 at `805062d` reproduced the installer-rerun
+KSYS failure and retained a usable sanitized summary. KSYS was queued and the
+native BATCON startup failure was explicit. After the deadline, all 512 history
+samples were idle-loop PCs (`000001/2/3/5`); none were in the previously observed
+allocation wait range. The subsequent complete ten-job census showed BATCON job
+1 at 39 pages, sleeping, rather than a five-page runnable startup stub.
+
+This sample does not support declaring the earlier allocator loop the current
+cause. It also does not show whether BATCON finished loading before or only after
+QUASAR declared startup failure. The reference QSRT10 source's lines 4204–4285
+distinguish an existing running PSB from firing/waiting/KSYS status, and send the
+KSYS message through the BATCON HELLO/PS.KSY path. Its source version is reference
+material, not proof of the installed controller's exact layout or timeout.
+
+The observer now takes one earlier kernel sample if the original KSYS wait is
+still pending after ten seconds. Sampling consumes the original timeout budget;
+there is no new KSYS request or timeout extension. Native completion arriving
+during the diagnostic halt is retained from the original guest frames and must
+match the full timestamped completion line; it is not discarded or replayed.
+Tests cover the shared deadline, in-sample completion and private-data boundary.
+The early and post-failure summaries can distinguish a loading stall from an
+already-initialized controller/QUASAR handshake problem. This remains observation,
+not a runtime correction.
