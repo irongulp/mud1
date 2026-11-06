@@ -10,6 +10,26 @@ from tests.integration_external_deployment import shutdown_cycles
 
 
 class BatconProbeTests(unittest.TestCase):
+    def test_each_boot_gets_fresh_immutable_preflight_evidence(self):
+        with tempfile.TemporaryDirectory() as directory:
+            runtime = ProbeRuntime(Path(directory), '/unused')
+            evidence = []
+            def execute(machine, boot_id):
+                evidence.append(boot_id)
+                return dict(boot_id=boot_id,request=4)
+            with patch.dict('os.environ', {'MUD86_BATCON_WARMUP':'1'}), \
+                    patch('tools.batcon_diagnostics.execute_probe', side_effect=execute), \
+                    patch('server.runtime.Runtime.boot', side_effect=runtime.admit), \
+                    patch('server.runtime.Runtime.admit'):
+                runtime.boot()
+                first = runtime.capture_directory
+                runtime.boot()
+                second = runtime.capture_directory
+            self.assertNotEqual(first,second)
+            self.assertNotEqual(*evidence)
+            for directory in (first,second):
+                self.assertTrue((directory/'batch-preflight.private.json').is_file())
+
     def test_default_admission_does_not_run_candidate_preflight(self):
         with tempfile.TemporaryDirectory() as directory:
             runtime = ProbeRuntime(Path(directory), '/unused')

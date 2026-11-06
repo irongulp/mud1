@@ -167,3 +167,12 @@ Host regressions cover preflight-before-admission order, no admission/boot retry
 on failed proof, default behavior without opt-in, and the unchanged local
 authority/stale-log/uncertain-submission fences. Native comparison remains the
 gate before considering deployed adoption.
+
+Warm candidate run 42273288033 at `a00099e` did execute native DAYTIME probes and
+clean KSYS on earlier boots, but did not reach the idle/cycle comparison. A
+runtime object reused during bounded startup attempts reused its immutable
+preflight filename; the later successful native probe then raised FileExistsError
+while publishing evidence. The record layout is now per boot rather than per
+runtime object. A failing/green two-boot regression verifies unique records and
+preservation of both originals. This is a harness lifetime correction, not a
+native shutdown result. The candidate comparison must still complete.

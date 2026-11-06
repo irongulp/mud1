@@ -101,6 +101,10 @@
   executor before admission, fresh-ID/result/logout proof; local monitor gate
   remains. Failed preflight stops admission/boot retries; candidate Restart=no.
   Candidate660s idle+3 clean cycles pending; production/full runtime stays off.
+  Warm42273288033/a00099e hit per-runtime immutable preflight filename reuse
+  during later boot attempts, after native DAYTIME and prior clean KSYS. Fixed
+  observer evidence to fresh per-boot directories via two-boot red/green test;
+  not a completed idle/cycle comparison or native fix. Keep failed run intact.
 
 - Local external startup uses tools.local_simulator's independent archived/cache
   build with the existing tools.simh_timer patch; original SIMH stays intact.

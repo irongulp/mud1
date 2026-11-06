@@ -91,6 +91,15 @@ class ProbeRuntime(Runtime):
         self.probe = {}
         self.capture_directory = self.state/'batcon-failures'/uuid.uuid4().hex
 
+    def boot(self):
+        self.probe = {}
+        self.capture_directory = self.state/'batcon-failures'/uuid.uuid4().hex
+        try:
+            return super().boot()
+        except Exception as error:
+            self.probe['boot_error_type'] = type(error).__name__
+            raise
+
     def admit(self):
         if os.environ.get('MUD86_BATCON_WARMUP') == '1':
             try:
