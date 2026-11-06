@@ -124,3 +124,20 @@ Missing/malformed/non-boolean confirmation is rejected. An archive failure after
 a confirmed clean stop still restores previously active services. Unit tests
 reproduce both continuation bugs and verify the confirmed-stop path. These gates
 expose the native failure rather than fixing BATCON or extending its deadline.
+
+Focused native-x86 run 42243789230 at `366464d` verified the corrected gate:
+initial external setup/login/editor checks completed, but installer rerun stopped
+after the runtime queued KSYS, waited for BATCON, then explicitly reported
+`BATCON failed to startup` and `Use OPSER for KSYS logouts since BATCON didn't
+start`. The 90-second KSYS deadline expired. Both pre/post-cleanup shutdown
+artifacts retained `clean:false`, `phase:ksys`, `error_type:TIMEOUT`; setup raised
+before activating/restarting the release. There was no backup attempt or
+subsequent boot. The failed rerun output is now retained in `rerun.log`.
+
+The workflow's full host/Chromium test stage passed, as did 62 local focused
+deployment/control/maintenance tests. The native scenario correctly failed; it
+is not release acceptance. Next work is source-backed investigation of the
+guest demand BATCON startup path, with bounded native state capture. The native
+suggestion to use OPSER is evidence, not an implemented or verified fallback.
+Do not repeat whole installations as a claimed runtime fix or publish the
+candidate while this native dependency remains unresolved.

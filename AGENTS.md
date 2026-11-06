@@ -70,6 +70,12 @@
   native clean marker before release activation; rejected backups do not reboot
   unclean disks in finally. Red/green regressions cover both actual continuation
   bugs. No BATCON fix claimed; native release acceptance remains open.
+  Native-x86 focused42243789230/366464d confirms the new gate: rerun KSYS queued,
+  native BATCON failed startup/OPSER suggestion,90s timeout; setup aborted before
+  activation/reboot, clean:false/phase:ksys/TIMEOUT persisted through cleanup.
+  Host/Chromium stage and62 local focused tests passed, native scenario failed.
+  Next demand-BATCON source/state investigation, not identical installation
+  retries or unverified OPSER fallback. v1.1.0 remains unpublished/main unchanged.
 
 - Local external startup uses tools.local_simulator's independent archived/cache
   build with the existing tools.simh_timer patch; original SIMH stays intact.
