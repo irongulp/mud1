@@ -52,6 +52,14 @@
 
 ## Important findings
 
+- Monitor comparison branches from50092ed: opt-in Runtime --monitor-scope reuses
+  existing bootstrap before OPR/admission, UTC/bridge ports/default native path
+  preserved. Failed/unverified scope never boot-retries. Focused paired x86
+  arms max3 fresh boots/4 admissions each, stop first failure; preboot bounded
+  history private, only PC/lifecycle summaries public. No batch warmup, gateway
+  changes, memory-dump assets or historical binary replacement.50 focused tests
+  pass; native comparison pending. See docs/deployed-monitor-comparison.md.
+
 - Release shutdown guards are deliberately separate from BATCON research.
   Setup must check confirmed native shutdown before changing the active release;
   rejected backups must not reboot an unclean disk in finally. Both have failing/

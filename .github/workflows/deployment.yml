@@ -1,10 +1,16 @@
 name: Manual AlmaLinux deployment acceptance
 on:
   workflow_dispatch:
+    inputs:
+      monitor_comparison:
+        type: boolean
+        default: false
+        description: One baseline/candidate monitor-scope lifecycle comparison
 permissions:
   contents: write # Needed to download the draft runtime asset before publication.
 jobs:
   alma9:
+    if: ${{ !inputs.monitor_comparison }}
     runs-on: ubuntu-24.04
     timeout-minutes: 120
     steps:
@@ -97,3 +103,52 @@ jobs:
             runtime/external-deployment-*/**/*.log
             runtime/external-deployment-*/**/report.json
             runtime/database-editor-ci/report.json
+  monitor-comparison:
+    if: inputs.monitor_comparison
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        arm: [baseline, candidate]
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Prepare pinned media and native build environment
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p runtime/release-v1 runtime/monitor-evidence
+          gh release download runtime-v1 --pattern mud86-runtime.tar.gz --dir runtime/release-v1
+          docker build -t mud86-monitor -f deploy/Dockerfile.alma9 .
+          docker run --name mud86-monitor-tools mud86-monitor dnf install -y procps-ng
+          docker commit mud86-monitor-tools mud86-monitor
+          docker rm mud86-monitor-tools
+          docker run -d --name mud86-focused --memory=2g --user "$(id -u):$(id -g)" -e HOME=/tmp \
+            -v "$PWD:/checkout:ro" -v "$PWD/runtime/monitor-evidence:/evidence" \
+            -w /checkout mud86-monitor sleep infinity
+          docker exec mud86-focused bash -euc '
+            python3.12 -m venv /tmp/venv
+            /tmp/venv/bin/pip install -r requirements-deploy.txt
+            /tmp/venv/bin/pip install --require-hashes -r requirements-storage.txt
+            /tmp/venv/bin/python -m unittest tests.test_runtime_scope tests.test_monitor_comparison tests.test_monitor_bootstrap tests.test_monitor_scope -v
+            git clone --no-checkout https://github.com/simh/simh.git /tmp/simh
+            git -C /tmp/simh checkout --detach 47b7ddabbe5b548cfc32f2fd45f7bed238ff7921
+            /tmp/venv/bin/python -m tools.local_simulator --source /tmp/simh --cache /tmp/simh-cache
+          '
+      - name: Single bounded lifecycle arm
+        run: |
+          docker update --cpus=1 mud86-focused
+          docker exec mud86-focused /tmp/venv/bin/python -m tests.integration_monitor_comparison \
+            --output /evidence/probe --archive /checkout/runtime/release-v1/mud86-runtime.tar.gz \
+            --simh /tmp/simh-cache/source/BIN/pdp10 ${{ matrix.arm == 'candidate' && '--candidate' || '' }}
+      - name: Remove disposable fixture
+        if: always()
+        run: docker rm -f mud86-focused
+      # Only sanitized summaries; never upload raw history, stack/AC words or disks.
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: monitor-comparison-${{ matrix.arm }}
+          path: runtime/monitor-evidence/probe/report.json

@@ -12,6 +12,8 @@ import threading
 import time
 
 from tools.guest_control import ControlError, COPY_READY_DELAY, console_byte, console_notice, operator_redraw, submit_line
+from server.monitor_bootstrap import MonitorBootstrap
+from server.monitor_scope import MonitorBootstrapError
 
 BOOT_TIMEOUT = 60
 SHUTDOWN_TIMEOUT = 90
@@ -72,7 +74,7 @@ def probe_game(port):
 
 
 class Runtime:
-    def __init__(self, state, executable, port=2020, idle=False,persona_config=None):
+    def __init__(self, state, executable, port=2020, idle=False,persona_config=None, *, monitor_scope=False):
         self.state, self.executable = Path(state), str(executable)
         self.port, self.idle = port, idle
         self.child = None
@@ -81,6 +83,8 @@ class Runtime:
         self.persona_config=persona_config
         self.bridge=self.store=None
         self.control_prompt = None
+        self.monitor_scope = monitor_scope
+        self.scope = None
 
     def _submit_control(self, text, deadline, *, operator=False):
         delay = self.child.delaybeforesend
@@ -156,12 +160,18 @@ class Runtime:
         self.child = pexpect.spawn(self.executable, [str(config)], cwd=str(self.state),
                                    encoding='ascii', codec_errors='replace', timeout=BOOT_TIMEOUT)
         self.child.logfile_read = sys.stdout
+        self.scope = MonitorBootstrap(self.child,self.state) if self.monitor_scope else None
         clock = datetime.now(timezone.utc)
         for prompt, response in (('BOOT>', '/tm02'), ('Why reload:', 'sched'),
                                  ('Date:', clock.strftime('%m-%d-%Y')),
                                  ('Time:', clock.strftime('%H%M%S')),
                                  ('Startup option:', 'g'), ('OPR>', 'exit')):
-            self.child.expect_exact(prompt)
+            if prompt == OPERATOR_PROMPT and self.scope is not None:
+                self.scope.install_before_operator(BOOT_TIMEOUT)
+                if not self.scope.verified:
+                    raise MonitorBootstrapError('Monitor scope was not verified; admission blocked')
+            else:
+                self.child.expect_exact(prompt)
             if self.stopping.is_set():
                 raise InterruptedError('Shutdown requested during boot')
             if prompt == 'Startup option:' and self.stopping.wait(BOOT_CALIBRATION_SECONDS):
@@ -170,6 +180,8 @@ class Runtime:
                 self.control_prompt = OPERATOR_PROMPT
                 self.command(response)
             else:
+                if prompt == 'BOOT>' and self.scope is not None:
+                    self.scope.arm_from_loader()
                 self.child.send(response + '\r')
         self.booted = True
         if self.persona_config:
@@ -217,10 +229,13 @@ class Runtime:
                             # only structured phase/type/dispatch facts to journals.
                             print('Guest shutdown failure: ' + json.dumps(failure), flush=True)
                             print('Guest shutdown did not complete; next start must recover the disk.', flush=True)
-                    try: self.child.expect_exact('sim>',timeout=1)
-                    except Exception:
-                        self.child.sendcontrol('e')
-                        self.child.expect_exact('sim>')
+                    if self.scope is not None and self.scope.console.at_prompt:
+                        pass  # Bootstrap already owns the witnessed SCP prompt.
+                    else:
+                        try: self.child.expect_exact('sim>',timeout=1)
+                        except Exception:
+                            self.child.sendcontrol('e')
+                            self.child.expect_exact('sim>')
                     self.child.send('quit\r')
                     self.child.expect_exact('Goodbye')
             finally:
@@ -252,8 +267,11 @@ class Runtime:
                     try:
                         self.boot()
                         break
-                    except Exception:
+                    except Exception as error:
                         self.stop()
+                        if (isinstance(error,MonitorBootstrapError)
+                                or self.scope is not None and not self.scope.verified):
+                            raise
                         if self.stopping.is_set() or attempt + 1 == BOOT_ATTEMPTS:
                             raise
                         print(f'Retrying guest boot ({attempt + 2}/{BOOT_ATTEMPTS})', flush=True)
@@ -282,8 +300,10 @@ def main():
     parser.add_argument('--port', type=int, default=2020)
     parser.add_argument('--idle', action='store_true', help='Experimental; validate lifecycle on the target host first')
     parser.add_argument('--persona-config',type=Path,default=os.environ.get('MUD86_PERSONA_CONFIG'))
+    parser.add_argument('--monitor-scope',action='store_true',help='Opt-in pinned per-boot monitor correction')
     args = parser.parse_args()
-    Runtime(args.state.resolve(), args.simh.resolve(), args.port, args.idle,args.persona_config).run()
+    Runtime(args.state.resolve(), args.simh.resolve(), args.port, args.idle,args.persona_config,
+            monitor_scope=args.monitor_scope).run()
 
 
 if __name__ == '__main__':
