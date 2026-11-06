@@ -59,6 +59,12 @@
   660s idle, saved re-entry and one shutdown; stop on unrelated setup failure,
   no rerun-until-green. Require actual idle-logout evidence, not elapsed time.
   See docs/batch-preflight-comparison.md. No native fix/release claim yet.
+  Single comparison42280761217/6f5b0a4: candidate external SAVE/re-entry/660s/
+  actual BATCON idle logout20:03:30/later KSYS20:05:00->complete20:05:01/Goodbye
+  clean passed. Baseline setup PMSNAP source-transfer timeout/unconfirmed cutover
+  shutdown prevented target workload. Inconclusive matched comparison; stop rule
+  reached, no rerun/adoption/release. Idle notice queued until OPR at shutdown;
+  use post-stop journal, not report's earlier CPU-idle lines, for logout proof.
 
 - Release shutdown guards are deliberately separate from BATCON research.
   Setup must check confirmed native shutdown before changing the active release;
