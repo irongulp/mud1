@@ -5,6 +5,25 @@ from tools.inspect_game import NativeInspector, InspectionError
 
 
 class CompanionTransferTests(unittest.TestCase):
+    def test_maintenance_logout_waits_for_accounting_and_final_prompt(self):
+        native=NativeInspector()
+        connection=native.connection=Mock()
+        native.at_monitor=True
+        complete='Logged-off TTY0 at 20:00\r\nRuntime: 0:00:01\r\nDisk Reads:1, Writes:2, Blocks saved:3\r\n\r\n.'
+        with patch.object(native,'command',return_value=complete) as command:
+            native.__exit__(None,None,None)
+        command.assert_called_once_with('kjob',b'\n.')
+        connection.close.assert_called_once()
+
+    def test_logout_prefix_or_prompt_without_accounting_is_not_success(self):
+        for report in ('Logged-off', 'Logged-off\r\n.', '\r\n.'):
+            native=NativeInspector()
+            connection=native.connection=Mock()
+            native.at_monitor=True
+            with patch.object(native,'command',return_value=report),self.assertRaises(InspectionError):
+                native.__exit__(None,None,None)
+            connection.close.assert_called_once()
+
     def test_fragmented_echo_is_accumulated_before_advancing(self):
         native=NativeInspector()
         native.connection=Mock()

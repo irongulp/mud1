@@ -250,7 +250,10 @@ class NativeInspector:
                 self.connection.write(b'\x03\x03')
                 self.receive(b'\n.')
                 self.at_monitor = True
-            self.command('kjob', b'Logged-off')
+            report = self.command('kjob', b'\n.').replace('\r', '').expandtabs(8)
+            if not re.search(r'Logged-off[^\n]*\n[\s\S]*?'
+                             r'^Disk Reads:[0-9]+, Writes:[0-9]+, Blocks saved:[0-9]+\n\n\.$', report, re.M):
+                raise InspectionError('Maintenance logout report was incomplete')
         except Exception:
             if kind is None:
                 raise InspectionError('Maintenance logout failed; inspect the guest job') from None

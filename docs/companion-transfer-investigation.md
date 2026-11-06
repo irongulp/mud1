@@ -25,3 +25,13 @@ The fixture initially lacked host `ps`; include deployment's procps-ng package
 for parity. The follow-up adds one read-only SYSTAT after maintenance cleanup
 before KSYS to check whether the maintenance job is actually gone. Neither
 change claims a native shutdown fix or replays prior input.
+
+Run 42290347736 (`4ce8418`) passed upload/read-back/compile and clean KSYS. Its
+immediate post-maintenance census still showed RICHARD job12 in LOGIN after the
+inspector returned: `Logged-off` is only the beginning of logout, not completion.
+The earlier reliability commit9347897 had a complete accounting/prompt predicate
+which was not present in merged main. The maintenance inspector now waits for
+the final monitor prompt and requires the ordered Logged-off/accounting tail.
+Red/green tests reject a prefix or bare prompt and preserve connection closure.
+This is a concrete host cleanup correction, not proof of the original transfer
+timeout or a universal BATCON fix. Native census follow-up checks actual removal.

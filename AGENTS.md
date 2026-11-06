@@ -58,6 +58,10 @@
   stream32 began and timed out; no clean lifecycle/native-fix claim. Follow-up
   includes deployment procps-ng and post-maintenance SYSTAT to inspect cleanup.
   See docs/companion-transfer-investigation.md; original failures retained.
+  Follow-up42290347736 passed transfer+clean KSYS but immediate census still had
+  RICHARD12/LOGIN after inspector returned. Logged-off prefix is not completion.
+  Inspector now requires accounting tail/final prompt (earlier9347897 predicate
+  absent from main); red/green tests pass, native removal follow-up pending.
 
 - Release shutdown guards are deliberately separate from BATCON research.
   Setup must check confirmed native shutdown before changing the active release;
