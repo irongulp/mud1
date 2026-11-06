@@ -10,6 +10,10 @@ import socket
 import sys
 import threading
 import time
+import uuid
+
+from server.local_batch import execute_probe, BatchBootstrapError
+from tools.persona_snapshot import publish_private
 
 from tools.guest_control import ControlError, COPY_READY_DELAY, console_byte, console_notice, operator_redraw, submit_line
 
@@ -72,7 +76,7 @@ def probe_game(port):
 
 
 class Runtime:
-    def __init__(self, state, executable, port=2020, idle=False,persona_config=None):
+    def __init__(self, state, executable, port=2020, idle=False,persona_config=None, *, batch_preflight=False):
         self.state, self.executable = Path(state), str(executable)
         self.port, self.idle = port, idle
         self.child = None
@@ -81,6 +85,7 @@ class Runtime:
         self.persona_config=persona_config
         self.bridge=self.store=None
         self.control_prompt = None
+        self.batch_preflight = batch_preflight
 
     def _submit_control(self, text, deadline, *, operator=False):
         delay = self.child.delaybeforesend
@@ -116,7 +121,7 @@ class Runtime:
             self.control_prompt = prompt
         return output
 
-    def copy_text(self, filename, text):
+    def copy_text(self, filename, text, *, timeout=BOOT_TIMEOUT):
         """Owned COPY dialogue; callers stage and verify before activation."""
         import re
         if not re.fullmatch(r'(?:sys:)?[a-z0-9]{1,6}\.[a-z0-9]{1,3}', filename):
@@ -124,7 +129,7 @@ class Runtime:
         if self.control_prompt != MONITOR_PROMPT:
             raise RuntimeError('Guest COPY requires a confirmed monitor prompt')
         self.control_prompt = None
-        deadline = time.monotonic() + BOOT_TIMEOUT
+        deadline = time.monotonic() + timeout
         self._submit_control('copy ' + filename + '=tty:', deadline)
         self.child.expect_exact('\r\n', timeout=max(0, deadline - time.monotonic()))
         time.sleep(COPY_READY_DELAY)
@@ -172,6 +177,19 @@ class Runtime:
             else:
                 self.child.send(response + '\r')
         self.booted = True
+        if self.batch_preflight:
+            try:
+                boot_id = uuid.uuid4().hex
+                evidence = execute_probe(self, boot_id)
+                directory = self.state/'batch-boots'/boot_id
+                directory.mkdir(mode=0o700, parents=True)
+                publish_private(directory/'proof.json', lambda stream: stream.write(
+                    (json.dumps(evidence, indent=2)+'\n').encode('ascii')))
+            except Exception as error:
+                self.stopping.set()
+                if isinstance(error, BatchBootstrapError):
+                    raise
+                raise BatchBootstrapError('Batch proof publication failed; admission blocked') from None
         if self.persona_config:
             from server.persona_bridge import PersonaBridge
             from tools.persona_migrate import load_config
@@ -282,8 +300,10 @@ def main():
     parser.add_argument('--port', type=int, default=2020)
     parser.add_argument('--idle', action='store_true', help='Experimental; validate lifecycle on the target host first')
     parser.add_argument('--persona-config',type=Path,default=os.environ.get('MUD86_PERSONA_CONFIG'))
+    parser.add_argument('--batch-preflight',action='store_true',help='Opt-in candidate native batch execution before admission')
     args = parser.parse_args()
-    Runtime(args.state.resolve(), args.simh.resolve(), args.port, args.idle,args.persona_config).run()
+    Runtime(args.state.resolve(), args.simh.resolve(), args.port, args.idle,args.persona_config,
+            batch_preflight=args.batch_preflight).run()
 
 
 if __name__ == '__main__':

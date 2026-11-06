@@ -30,11 +30,10 @@ def completed_probe(log, basename, boot_id, request):
     return bool(re.search(r'BATCH\s+\.KJOB/BATCH', tail) and 'Logged-off' in tail)
 
 
-def prepare_batch(machine):
-    machine._batch_verified = False
-    boot_id = machine.scope.evidence.name
-    if not machine.monitor_scope_verified or not re.fullmatch(r'[0-9a-f]{32}', boot_id):
-        raise BatchBootstrapError('Batch readiness requires the current verified monitor boot')
+def execute_probe(machine, boot_id):
+    """One bounded execution proof; the caller owns boot/admission authority."""
+    if not re.fullmatch(r'[0-9a-f]{32}', boot_id):
+        raise BatchBootstrapError('Batch readiness requires a full boot identity')
     basename = boot_id[:6]
     deadline = time.monotonic()+BATCH_READINESS_TIMEOUT
 
@@ -65,14 +64,26 @@ def prepare_batch(machine):
             if controller and int(controller.group(1)) > BATCH_STARTUP_STUB_PAGES:
                 log = command('type '+basename+'.log')
                 if completed_probe(log, basename, boot_id, request):
-                    evidence = dict(boot_id=boot_id, request=request, preflight=preflight,
+                    return dict(boot_id=boot_id, request=request, preflight=preflight,
                                     submission=submission, statuses=statuses, log=log)
-                    publish_private(machine.scope.evidence/'batch-probe.json',
-                        lambda stream: stream.write((json.dumps(evidence, indent=2)+'\n').encode('ascii')))
-                    machine.scope.record('batch-ready', batch_ready=True, batch_probe_request=request)
-                    machine._batch_verified = True
-                    return
             time.sleep(min(BATCH_POLL_SECONDS, remaining()))
+    except Exception as error:
+        if isinstance(error, BatchBootstrapError):
+            raise
+        raise BatchBootstrapError('Native batch execution proof failed; no submission retry') from None
+
+
+def prepare_batch(machine):
+    machine._batch_verified = False
+    boot_id = machine.scope.evidence.name
+    if not machine.monitor_scope_verified or not re.fullmatch(r'[0-9a-f]{32}', boot_id):
+        raise BatchBootstrapError('Batch readiness requires the current verified monitor boot')
+    try:
+        evidence = execute_probe(machine, boot_id)
+        publish_private(machine.scope.evidence/'batch-probe.json',
+            lambda stream: stream.write((json.dumps(evidence, indent=2)+'\n').encode('ascii')))
+        machine.scope.record('batch-ready', batch_ready=True, batch_probe_request=evidence['request'])
+        machine._batch_verified = True
     except Exception as error:
         try:
             machine.scope.record('batch-failed', batch_ready=False, batch_error_type=type(error).__name__)

@@ -52,6 +52,14 @@
 
 ## Important findings
 
+- Bounded batch comparison starts from merged PR16/50092ed. Explicit runtime
+  --batch-preflight uses the shared native executor before admission; no monitor
+  patch or admission refactor, external bridge-port regression included. Full
+  setup remains default-off. One matched CI baseline/candidate installation,
+  660s idle, saved re-entry and one shutdown; stop on unrelated setup failure,
+  no rerun-until-green. Require actual idle-logout evidence, not elapsed time.
+  See docs/batch-preflight-comparison.md. No native fix/release claim yet.
+
 - Release shutdown guards are deliberately separate from BATCON research.
   Setup must check confirmed native shutdown before changing the active release;
   rejected backups must not reboot an unclean disk in finally. Both have failing/

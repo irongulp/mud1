@@ -1,10 +1,16 @@
 name: Manual AlmaLinux deployment acceptance
 on:
   workflow_dispatch:
+    inputs:
+      batch_comparison:
+        type: boolean
+        default: false
+        description: Run one matched baseline/candidate batch preflight comparison
 permissions:
   contents: write # Needed to download the draft runtime asset before publication.
 jobs:
   alma9:
+    if: ${{ !inputs.batch_comparison }}
     runs-on: ubuntu-24.04
     timeout-minutes: 120
     steps:
@@ -97,3 +103,55 @@ jobs:
             runtime/external-deployment-*/**/*.log
             runtime/external-deployment-*/**/report.json
             runtime/database-editor-ci/report.json
+  batch-comparison:
+    if: inputs.batch_comparison
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        arm: [baseline, candidate]
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Prepare test dependencies and pinned runtime
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 -m venv .venv
+          .venv/bin/pip install -r requirements-deploy.txt
+          .venv/bin/pip install --require-hashes -r requirements-storage.txt
+          .venv/bin/python -m unittest tests.test_runtime_batch tests.test_local_batch -v
+          mkdir -p runtime/release-v1
+          gh release download runtime-v1 --pattern mud86-runtime.tar.gz --dir runtime/release-v1
+          docker build -t mud86-alma9 -f deploy/Dockerfile.alma9 .
+      - name: Start disposable comparison container
+        run: |
+          docker run -d --name mud86-external-fresh --privileged --cgroupns=host \
+            --cpus=1 --memory=2g --tmpfs /run --tmpfs /tmp \
+            -v /sys/fs/cgroup:/sys/fs/cgroup:rw \
+            -v "$PWD:/checkout:ro" -v "$PWD/runtime/release-v1:/artifacts:ro" \
+            -p 127.0.0.1:48080:80 mud86-alma9
+          for attempt in $(seq 1 60); do
+            docker exec mud86-external-fresh systemctl show-environment >/dev/null 2>&1 && break
+            sleep 1
+          done
+      - name: One install, idle interval and shutdown
+        run: .venv/bin/python -m tests.compare_batch_preflight ${{ matrix.arm == 'candidate' && '--candidate' || '' }}
+      - name: Retain lifecycle evidence and stop fixture
+        if: always()
+        run: python3 -m tests.deployment_diagnostics
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: batch-comparison-${{ matrix.arm }}
+          path: runtime/deployment-*/**/*.log
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: batch-result-${{ matrix.arm }}
+          path: runtime/deployment-batch-comparison/report.json
