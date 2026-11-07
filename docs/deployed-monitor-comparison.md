@@ -149,3 +149,18 @@ Raw output is private0600 under `ksys-failures/<id>/`; incomplete reads leave
 transcript logging disabled. CI exports only filtered command verbs/error codes
 and job/program/page/state summaries. This is failure diagnosis, not a new
 shutdown mechanism or proof that the original log was captured retrospectively.
+
+Capture-enabled run42358668600/b6487f2 passed native installation/rerun,
+inspection, saved login, backup/restart and3 per-boot monitor proofs. Sleep
+measurements6.001/5.978/5.973s passed. HTTP multiplayer passed. HTTPS progressed
+past admission but failed the Backspace initial-echo assertion: native arrivals
+and redraws produced `*  wx` instead of the fixture's exact `*wx`. This is not
+the earlier initial-monitor timeout. Final cleanup KSYS was clean and the
+KSYS-summary list was empty; no stream failure was captured. Keep this failed
+full run as partial evidence, not release acceptance or a resolved shutdown
+cause. No external stages ran, and no speculative UI relaxation was applied.
+
+Next stream investigation should use a native install/backup lifecycle-only
+fixture so a separate browser presentation assertion cannot block observation.
+Retain the full browser matrix as a release gate; separating diagnosis does not
+waive its failed assertion. No further unchanged full run was launched here.

@@ -80,6 +80,10 @@
   Opt-in fixture MUD86_KSYS_CAPTURE collects exact acknowledged KSYS stream log
   plus census after failure,20s/one read/private raw/filtered CI summary. Tests
   fence filenames, private data, no uncertain input/replay or clean promotion.
+  Capture-enabled42358668600 passed native setup/rerun/backup/re-entry/3 scope
+  proofs/HTTP; HTTPS editing expected*wx but arrival/rabbit redraw gave*  wx.
+  Final KSYS clean/no captured stream failure, external stages skipped. Retain
+  as partial evidence; no shutdown-cause/UI-fix claim or unchanged full rerun.
 
 - Release shutdown guards are deliberately separate from BATCON research.
   Setup must check confirmed native shutdown before changing the active release;
