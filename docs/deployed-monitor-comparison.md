@@ -283,3 +283,18 @@ budget. No initializer changes or timeout extensions. Its failing regression
 and75 gateway/Chromium/transport/redraw tests pass on this combined branch.
 Other source-transfer experiments are not included. Full combined validation
 with this admission correction is the next gate.
+
+Full42383907419/f45d7f9 again passed native setup/rerun/backup and HTTP smoke,
+then stopped at first HTTPS admission with gateway stage=monitor timeout despite
+the banner gate. STOMPR TTY0 quieting failure preceded it; final native shutdown
+verification passed. Thus the host-tested carrier race correction is not a
+sufficient explanation or cure for this native failure. No populated cutover/
+fresh external stage ran in this full job. Keep the successful focused external
+run separate, and do not call the full release validated.
+
+The native profile still runs the optional TTY initializer; external cutover
+disables it through its existing verified configuration procedure. That is a
+remaining configuration difference to investigate using terminal assignment/
+state evidence or an explicit controlled comparison. Correlation alone is not
+permission to silently alter the historical/default native configuration.
+All runs are complete; no unchanged full rerun or initializer change followed.

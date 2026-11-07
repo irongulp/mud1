@@ -116,6 +116,10 @@
   HTTP then HTTPS stage=monitor timeout, clean shutdown. Imported only d2ad53c
   banner+250ms/oneCR admission fix and tests (75 pass), not transfer experiments;
   native full combined validation pending. No STOMPR/timeout change.
+  Full42383907419/f45d7f9 still HTTPS stage=monitor timeout despite banner gate,
+  preceded by STOMPR TTY0 quieting failure; native setup/backup/HTTP/final clean
+  passed. No sufficient carrier-race diagnosis/native initializer alteration.
+  Focused external6-boot proof stands; full acceptance remains unqualified.
 
 - Release shutdown guards are deliberately separate from BATCON research.
   Setup must check confirmed native shutdown before changing the active release;

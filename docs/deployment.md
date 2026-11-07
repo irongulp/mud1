@@ -74,7 +74,10 @@ It must not be presented as a general shutdown repair.
 The additional experimental `--batch-preflight` option requires `--monitor-scope`
 and verifies actual native batch execution before game admission on each boot.
 Its selection is also preserved on reruns and passed through private cutover.
-The combined profile is under native acceptance; defaults remain unchanged.
+The combined profile passed focused fresh MariaDB installation, persistence,
+backup and restart acceptance with clean final shutdown. Full acceptance remains
+blocked at native browser admission; defaults remain unchanged. See the linked
+comparison report for exact tested commits and retained failures.
 
 ## Scheduled maintenance
 
