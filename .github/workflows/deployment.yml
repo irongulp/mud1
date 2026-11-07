@@ -6,6 +6,10 @@ on:
         type: boolean
         default: false
         description: One baseline/candidate monitor-scope lifecycle comparison
+      scoped_acceptance:
+        type: boolean
+        default: false
+        description: Full installation and cutover acceptance with monitor correction enabled
 permissions:
   contents: write # Needed to download the draft runtime asset before publication.
 jobs:
@@ -13,6 +17,8 @@ jobs:
     if: ${{ !inputs.monitor_comparison }}
     runs-on: ubuntu-24.04
     timeout-minutes: 120
+    env:
+      MUD86_TEST_MONITOR_SCOPE: ${{ inputs.scoped_acceptance && '1' || '0' }}
     steps:
       - uses: actions/checkout@v7
         with:

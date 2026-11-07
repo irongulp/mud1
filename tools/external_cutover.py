@@ -11,12 +11,13 @@ def main():
     parser.add_argument('--simh',type=Path)
     parser.add_argument('--config-dir',type=Path,required=True)
     parser.add_argument('--verify-only',action='store_true')
+    parser.add_argument('--monitor-scope',action='store_true')
     args=parser.parse_args()
     if args.verify_only:
         verify_archwizards(load_config(args.config_dir/'personas.json')); print('External archwizard records verified; passwords retained')
     else:
         if args.state is None or args.simh is None: parser.error('--state and --simh required')
-        cutover(args.state,args.config_dir,args.simh)
+        cutover(args.state,args.config_dir,args.simh,monitor_scope=args.monitor_scope)
         print('Native snapshot imported and external guest prepared; admission remains controlled by setup')
 
 

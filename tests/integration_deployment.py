@@ -78,6 +78,7 @@ async def saved_player(url, creating):
 
 
 def main():
+    from tests.deployment_scope import setup_options, verify_scope
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--container', default='mud86-install-test')
     parser.add_argument('--url', default='http://127.0.0.1:38080')
@@ -87,7 +88,7 @@ def main():
     command = ['bash', '/checkout/setup.sh', '--domain', 'mud.etimbo.com', '--http-only',
                '--image', '/artifacts/mud86-runtime.tar.gz']
     print('AlmaLinux: install', flush=True)
-    (output / 'install.log').write_text(invoke(args.container, *command))
+    (output / 'install.log').write_text(invoke(args.container, *command, *setup_options()))
     sleeps = [asyncio.run(saved_player(args.url, creating=True))]
     print('AlmaLinux: read-only inspection', flush=True)
     personas = json.loads(invoke(args.container, 'sudo', 'mud86ctl', 'personas', '--json'))
@@ -114,6 +115,7 @@ def main():
                           'credential preservation', 'clean shutdown backup', 'restart and persona re-entry',
                           'read-only persona/file inspection', 'journal error scan'],
               'not_exercised': ['public ACME issuance', 'SELinux enforcing kernel', 'IONOS host reboot']}
+    report['monitor_scope']=verify_scope(args.container,invoke)
     (output / 'report.json').write_text(json.dumps(report, indent=2) + '\n')
     print(json.dumps(report, indent=2))
 

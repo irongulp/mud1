@@ -81,3 +81,30 @@ branch is not merged or enabled by production setup. Recommended next gate is
 review of the opt-in integration, then full deployment validation with explicit
 selection on every relevant boot, including private cutover runtime boots. Do
 not silently enable only the systemd process and claim cutover coverage.
+
+## Explicit installer integration under validation
+
+`setup.sh --monitor-scope` selects the correction independently of persona storage.
+Fresh installation still defaults to native storage and no monitor correction.
+`deployment.json` retains the boolean selection; omission on a rerun preserves it.
+Setup writes `MUD86_MONITOR_SCOPE=1` in the existing systemd runtime environment
+and explicitly passes `--monitor-scope` to private external cutover. Native and
+MariaDB service boots use the same guarded bootstrap. Existing disks and the
+historical SYSTEM.EXE remain intact; the correction is reinstalled into RAM on
+each boot. There is no automatic unpatched fallback.
+
+Bootstrap failure exits with status78 and the runtime unit's
+`RestartPreventExitStatus=78` prevents automatic systemd restart. Cleanup failure
+cannot turn an incompatible/uncertain bootstrap into a retryable error. Ordinary
+runtime failures retain the existing policy. Inspect private boot records before
+an explicit retry; do not remove the guard or rewrite a failure as success.
+
+Manual workflow input `scoped_acceptance=true` runs the full deployment matrix.
+Native and external first setup explicitly select the correction; their reruns
+omit the flag. Acceptance verifies persisted metadata/runtime environment and
+one successful installed proof per recorded boot, including private cutover
+boots. It rejects retained failed bootstrap records. Only sanitized proof counts
+enter reports; stack/register and snapshot credentials are not uploaded.
+
+62 focused deployment/selection/bootstrap/control tests pass. Full native-x86
+installation acceptance remains pending for this installer integration.

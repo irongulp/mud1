@@ -57,6 +57,18 @@ disabled and a single build job. Its [active-interval timer correction](simh-tim
 uses a separate versioned build cache. Docker and Chromium are test tools, not
 VPS runtime dependencies.
 
+## Opt-in monitor correction
+
+`sudo ./setup.sh --domain mud.etimbo.com --monitor-scope` explicitly enables the
+pinned per-boot monitor RAM correction. It is independent of native/MariaDB
+persona storage; default fresh setup stays unchanged. Installer reruns preserve
+the recorded choice, and private cutover boots receive the same selection.
+Unsupported monitor fingerprints stop admission without an unpatched fallback.
+Bootstrap failure prevents automatic service restart; inspect the private
+`/var/lib/mud86/monitor-boots/` evidence before operator recovery.
+See [deployment comparison and validation scope](deployed-monitor-comparison.md).
+Full deployment qualification of this opt-in is pending.
+
 ## Scheduled maintenance
 
 For the combined first upgrade, MariaDB editor setup, and later maintenance

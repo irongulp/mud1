@@ -30,6 +30,21 @@ PROXY_POLL_INTERVAL = .1
 DEPLOY_PIP_VERSION = '26.2.2'
 
 
+def selected_monitor_scope(requested, previous):
+    existing = previous.get('monitor_scope', False)
+    if type(existing) is not bool or requested is not None and type(requested) is not bool:
+        raise ValueError('Invalid monitor scope selection')
+    return existing if requested is None else requested
+
+
+def monitor_scope_options(enabled):
+    return ['--monitor-scope'] if enabled else []
+
+
+def runtime_environment(executable, monitor_scope):
+    return f'SIMH_BIN={executable}\nMUD86_MONITOR_SCOPE={int(monitor_scope)}\n'
+
+
 def selected_backend(requested,previous):
     existing=previous.get('persona_storage','native')
     if existing not in ('native','mariadb') or requested not in (None,'native','mariadb'):
@@ -328,6 +343,7 @@ def install_control(control=Path('/usr/local/bin/mud86ctl'), alias=Path('/usr/bi
 def install(args):
     domain = validate_domain(args.domain)
     previous_metadata=json.loads((CONFIG/'deployment.json').read_text()) if (CONFIG/'deployment.json').exists() else {}
+    monitor_scope=selected_monitor_scope(getattr(args,'monitor_scope',None),previous_metadata)
     backend=selected_backend(getattr(args,'persona_storage',None),previous_metadata)
     external_existing=previous_metadata.get('persona_storage')=='mariadb'
     pending_cutover=(STATE/'external/cutover.json').exists()
@@ -369,7 +385,7 @@ def install(args):
     link.unlink(missing_ok=True)
     link.symlink_to(release)
     link.replace(APP / 'current')
-    (CONFIG / 'runtime.env').write_text(f'SIMH_BIN={executable}\n')
+    (CONFIG / 'runtime.env').write_text(runtime_environment(executable,monitor_scope))
     for name in ('mud86-runtime.service', 'mud86-gateway.service'):
         shutil.copyfile(release / 'deploy' / name, Path('/etc/systemd/system') / name)
     run('systemctl', 'daemon-reload')
@@ -400,11 +416,12 @@ def install(args):
             if not json.loads((STATE/'shutdown.json').read_text())['clean']:
                 raise RuntimeError('A confirmed stopped native snapshot is required for cutover')
             # Execute from the installed release, never this checkout's test helpers.
-            run(release/'.venv/bin/python','-m','tools.external_cutover','--state',STATE,'--config-dir',CONFIG,'--simh',executable,cwd=release)
+            run(release/'.venv/bin/python','-m','tools.external_cutover','--state',STATE,'--config-dir',CONFIG,'--simh',executable,
+                *monitor_scope_options(monitor_scope),cwd=release)
         for path in [external,*external.rglob('*')]: shutil.chown(path,user='mud86',group='mud86')
         shutil.chown(CONFIG/'personas.json',user='mud86',group='mud86')
         configure_external_units(release)
-        (CONFIG/'deployment.json').write_text(json.dumps({'domain':domain,'release':release.name,'persona_storage':'mariadb'})+'\n')
+        (CONFIG/'deployment.json').write_text(json.dumps({'domain':domain,'release':release.name,'persona_storage':'mariadb','monitor_scope':monitor_scope})+'\n')
         configure_database_editor(release)
         run('systemctl','start','mud86-runtime.service')
     if backend=='mariadb':
@@ -414,7 +431,7 @@ def install(args):
     (CONFIG / 'provisioned').write_text('All seven archwizard records verified nonzero.\n')
     run('systemctl', 'start', 'mud86-gateway.service')
     configure_proxy(domain, args.http_only, args.email)
-    (CONFIG / 'deployment.json').write_text(json.dumps({'domain': domain, 'release': release.name,'persona_storage':backend}, indent=2) + '\n')
+    (CONFIG / 'deployment.json').write_text(json.dumps({'domain': domain, 'release': release.name,'persona_storage':backend,'monitor_scope':monitor_scope}, indent=2) + '\n')
     install_control()
     print(f'MUD ready: {"http" if args.http_only else "https"}://{domain}')
     print('Management: sudo mud86ctl status | maintenance on/off/status | restart | backup | personas | files | errors')
@@ -587,6 +604,8 @@ def main():
     parser.add_argument('--email')
     parser.add_argument('--http-only', action='store_true', help='Explicit HTTP-only mode for private acceptance testing')
     parser.add_argument('--image', type=Path, help='Use a local archive matching the pinned manifest')
+    parser.add_argument('--monitor-scope',action='store_true',default=None,
+                        help='Opt into the pinned monitor correction on every boot; reruns preserve selection')
     parser.add_argument('--persona-storage',choices=('native','mariadb'),default=None,
                         help='Native is the fresh-install default; existing selection is preserved; MariaDB cutover is one-way')
     args = parser.parse_args()

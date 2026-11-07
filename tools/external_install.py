@@ -76,7 +76,7 @@ def prepare_sources(directory):
     return build
 
 
-def cutover(state,config_dir,executable,port=2020):
+def cutover(state,config_dir,executable,port=2020,*,monitor_scope=False):
     directory=state/'external'; directory.mkdir(mode=0o700,parents=True,exist_ok=True)
     marker=directory/'cutover.json'
     current=json.loads(marker.read_text()) if marker.exists() else {'phase':'planned'}
@@ -91,7 +91,7 @@ def cutover(state,config_dir,executable,port=2020):
         publish_private(backup,copy)
     snapshot_path=directory/'native-personas.json'
     build=prepare_sources(directory)
-    machine=Runtime(state,executable,port=port)
+    machine=Runtime(state,executable,port=port,monitor_scope=monitor_scope)
     try:
         # Until capture/build is finished this is a controlled native runtime,
         # not a public service; the maintenance lock must be held by the caller.

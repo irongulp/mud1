@@ -81,7 +81,7 @@ class RuntimeScopeTests(unittest.TestCase):
             with patch('server.runtime.wait_listener'),patch('pexpect.spawn',return_value=Mock()) as spawn, \
                     patch('server.runtime.MonitorBootstrap',return_value=scope), \
                     patch.object(runtime,'stop',return_value=False),patch('server.runtime.signal.signal'):
-                with self.assertRaises(TimeoutError): runtime.run()
+                with self.assertRaises(MonitorBootstrapError): runtime.run()
             spawn.assert_called_once()
 
     def test_failed_bootstrap_cleanup_uses_its_owned_simulator_prompt(self):
@@ -95,3 +95,12 @@ class RuntimeScopeTests(unittest.TestCase):
             child.sendcontrol.assert_not_called()
             child.send.assert_called_once_with('quit\r')
             child.expect_exact.assert_called_once_with('Goodbye')
+
+    def test_cleanup_failure_cannot_turn_scope_failure_into_retryable_error(self):
+        with tempfile.TemporaryDirectory() as directory:
+            runtime=Runtime(Path(directory),'/fixture',monitor_scope=True)
+            runtime.scope=Mock(verified=False)
+            with patch.object(runtime,'boot',side_effect=MonitorBootstrapError('unsupported')) as boot, \
+                    patch.object(runtime,'stop',side_effect=OSError('cleanup')),patch('server.runtime.signal.signal'):
+                with self.assertRaises(MonitorBootstrapError): runtime.run()
+            boot.assert_called_once()

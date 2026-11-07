@@ -66,6 +66,11 @@
   consistent with known defect, short history not full causal chain/HALT5005
   proof. Supports broader explicit deployed validation, not universal BATCON fix.
   Main remains unchanged; no full installation/external/upgrade acceptance yet.
+  Setup --monitor-scope now preserves boolean deployment metadata, runtime.env
+  selection and explicit private-cutover flag. Bootstrap failure exit78 blocks
+  systemd retries even after cleanup errors. Full scoped_acceptance workflow
+  omits flag on reruns/checks every boot proof; default fresh/native stays off.
+  62 focused tests pass; full installed native-x86 validation pending.
 
 - Release shutdown guards are deliberately separate from BATCON research.
   Setup must check confirmed native shutdown before changing the active release;

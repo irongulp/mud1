@@ -25,6 +25,7 @@ LISTENER_WAIT=90
 MONITOR_PROMPT = r'\n\.'
 OPERATOR_PROMPT = 'OPR>'
 MAX_OPERATOR_NOTICES = 8
+BOOTSTRAP_FAILURE_EXIT = 78  # systemd RestartPreventExitStatus: no uncertain bootstrap replay.
 
 
 def wait_listener(port,timeout=LISTENER_WAIT):
@@ -268,10 +269,13 @@ class Runtime:
                         self.boot()
                         break
                     except Exception as error:
-                        self.stop()
-                        if (isinstance(error,MonitorBootstrapError)
-                                or self.scope is not None and not self.scope.verified):
-                            raise
+                        bootstrap_failed=(isinstance(error,MonitorBootstrapError)
+                                          or self.scope is not None and not self.scope.verified)
+                        try:
+                            self.stop()
+                        finally:
+                            if bootstrap_failed:
+                                raise MonitorBootstrapError('Monitor bootstrap did not complete; no retry') from error
                         if self.stopping.is_set() or attempt + 1 == BOOT_ATTEMPTS:
                             raise
                         print(f'Retrying guest boot ({attempt + 2}/{BOOT_ATTEMPTS})', flush=True)
@@ -290,7 +294,13 @@ class Runtime:
             finally:
                 ready.unlink(missing_ok=True)
                 notify('STOPPING=1')
-                self.stop()
+                failure=sys.exc_info()[1]
+                try:
+                    self.stop()
+                except Exception:
+                    if isinstance(failure,MonitorBootstrapError):
+                        raise failure
+                    raise
 
 
 def main():
@@ -300,10 +310,15 @@ def main():
     parser.add_argument('--port', type=int, default=2020)
     parser.add_argument('--idle', action='store_true', help='Experimental; validate lifecycle on the target host first')
     parser.add_argument('--persona-config',type=Path,default=os.environ.get('MUD86_PERSONA_CONFIG'))
-    parser.add_argument('--monitor-scope',action='store_true',help='Opt-in pinned per-boot monitor correction')
+    parser.add_argument('--monitor-scope',action='store_true',default=os.environ.get('MUD86_MONITOR_SCOPE')=='1',
+                        help='Opt-in pinned per-boot monitor correction')
     args = parser.parse_args()
-    Runtime(args.state.resolve(), args.simh.resolve(), args.port, args.idle,args.persona_config,
-            monitor_scope=args.monitor_scope).run()
+    try:
+        Runtime(args.state.resolve(), args.simh.resolve(), args.port, args.idle,args.persona_config,
+                monitor_scope=args.monitor_scope).run()
+    except MonitorBootstrapError:
+        print('Monitor correction failed; inspect private boot evidence before restarting.',file=sys.stderr)
+        raise SystemExit(BOOTSTRAP_FAILURE_EXIT) from None
 
 
 if __name__ == '__main__':

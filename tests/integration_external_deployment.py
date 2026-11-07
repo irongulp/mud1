@@ -55,6 +55,7 @@ async def login(url,name,password,creating=False):
 
 
 def run(container,url,fresh,native_url=None):
+    from tests.deployment_scope import setup_options, verify_scope
     output=ROOT/'runtime'/('external-deployment-'+container); output.mkdir(mode=0o700,exist_ok=True)
     report={'complete':False,'fresh_external':fresh}
     try:
@@ -65,7 +66,7 @@ def run(container,url,fresh,native_url=None):
             before=json.loads(invoke(container,'mud86ctl','persona',name,'--json'))
             assert before['personas'][0]['password_set'], 'Native cutover fixture was not saved'
         command=['bash','/checkout/setup.sh','--domain','mud.etimbo.com','--http-only','--image','/artifacts/mud86-runtime.tar.gz','--persona-storage','mariadb']
-        invoke(container,*command,log=output/'install.log')
+        invoke(container,*command,*setup_options(),log=output/'install.log')
         (output/'login.log').write_text(asyncio.run(login(url,name,'testpass',fresh)))
         (output/'personas.log').write_text(invoke(container,'mud86ctl','personas','--json'))
         profile=json.loads(invoke(container,'sudo','mud86ctl','persona',name,'--json'))
@@ -84,6 +85,7 @@ def run(container,url,fresh,native_url=None):
         invoke(container,'sudo','mud86ctl','restart'); asyncio.run(login(url,name,'testpass'))
         (output/'editor-restart.log').write_text(invoke(container,'/opt/mud86/current/.venv/bin/python',
                                                       '-m','tests.deployed_database_editor',name))
+        report['monitor_scope']=verify_scope(container,invoke)
         report.update(complete=True,cutover_preserved_player=not fresh,installer_rerun=True,backup=True,restart=True,
                       tcp_editor=True,
                       architecture=invoke(container,'uname','-m').strip())

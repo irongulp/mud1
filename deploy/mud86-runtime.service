@@ -14,6 +14,7 @@ WorkingDirectory=/opt/mud86/current
 EnvironmentFile=/etc/mud86/runtime.env
 ExecStart=/opt/mud86/current/.venv/bin/python -u -m server.runtime --state /var/lib/mud86 --simh ${SIMH_BIN}
 Restart=on-failure
+RestartPreventExitStatus=78
 RestartSec=10
 TimeoutStartSec=600
 TimeoutStopSec=180
