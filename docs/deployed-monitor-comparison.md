@@ -108,3 +108,10 @@ enter reports; stack/register and snapshot credentials are not uploaded.
 
 62 focused deployment/selection/bootstrap/control tests pass. Full native-x86
 installation acceptance remains pending for this installer integration.
+
+First full run42355849773/71b0b51 completed native setup/rerun/backup/re-entry,
+then failed the host evidence checker: its `*-verified.json` glob counted both
+the profile-verified intermediate stage and final installed proof. A failing
+regression now executes the actual remote-check script against both files;
+matching the exact two-digit final-stage filename fixes the assertion and still
+rejects a profile-only boot. The original run remains failed, not full acceptance.

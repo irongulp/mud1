@@ -17,7 +17,7 @@ assert 'MUD86_MONITOR_SCOPE=1' in (config/'runtime.env').read_text().splitlines(
 boots=list(Path('/var/lib/mud86/monitor-boots').iterdir())
 assert boots
 for boot in boots:
-    proofs=list(boot.glob('*-verified.json'))
+    proofs=list(boot.glob('[0-9][0-9]-verified.json'))
     assert len(proofs)==1, 'Missing per-boot monitor verification'
     assert json.loads(proofs[0].read_text())['installed'] is True
     assert not list(boot.glob('*-failed.json')), 'Failed monitor bootstrap retained'
