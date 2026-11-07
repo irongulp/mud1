@@ -41,6 +41,11 @@ def collect(output):
             if phase == 'before-stop':
                 capture(prefix + ['systemctl', 'stop', 'mud86-runtime.service'],
                         directory / 'cleanup-stop.log', timeout=STOP_TIMEOUT)
+        capture(prefix+['python3.12','-c',
+            'import json; from pathlib import Path; '
+            'print(json.dumps([json.loads(p.read_text()) for p in '
+            'sorted(Path("/var/lib/mud86/ksys-failures").glob("*/summary.json"))[:8]]))'],
+            directory/'ksys-summary.log')
 
 
 if __name__ == '__main__':

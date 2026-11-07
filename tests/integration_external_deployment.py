@@ -55,10 +55,11 @@ async def login(url,name,password,creating=False):
 
 
 def run(container,url,fresh,native_url=None):
-    from tests.deployment_scope import setup_options, verify_scope
+    from tests.deployment_scope import setup_options, verify_scope, configure_capture
     output=ROOT/'runtime'/('external-deployment-'+container); output.mkdir(mode=0o700,exist_ok=True)
     report={'complete':False,'fresh_external':fresh}
     try:
+        configure_capture(container,invoke)
         name='Freshsql' if fresh else native_fixture_name(json.loads(
             (ROOT/'runtime'/('deployment-'+container)/'report.json').read_text()))
         if not fresh:

@@ -138,3 +138,14 @@ The retained artifact has the stream filename but not its contents. STOMPR
 correlation alone does not justify disabling it or claiming a cause. Do not
 repeat the same installation prefix, extend the deadline or replay KSYS as a
 substitute for that evidence.
+
+Scoped CI now explicitly selects `MUD86_KSYS_CAPTURE=1` through a fixture-only
+service drop-in. After a failed KSYS wait, the bounded20s evidence collector
+requires a confirmed queued stream and exactly one native `DSKB:Booooo.LOG[3,3]`
+filename. It interrupts only its CTY operator, witnesses the monitor, reads
+SYSTAT and that exact file once, and retains the original unclean result.
+No KSYS replay, timeout extension, clean-marker promotion or guessed filename.
+Raw output is private0600 under `ksys-failures/<id>/`; incomplete reads leave
+transcript logging disabled. CI exports only filtered command verbs/error codes
+and job/program/page/state summaries. This is failure diagnosis, not a new
+shutdown mechanism or proof that the original log was captured retrospectively.

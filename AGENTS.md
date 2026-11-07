@@ -77,6 +77,9 @@
   timeout; clean:false/ksys/TIMEOUT/no backup restart. Not BATCON startup failure
   or complete monitor fix. External/HTTPS stages not reached. Next exact stream
   log/job state before termination, not deadline extension/unchanged rerun.
+  Opt-in fixture MUD86_KSYS_CAPTURE collects exact acknowledged KSYS stream log
+  plus census after failure,20s/one read/private raw/filtered CI summary. Tests
+  fence filenames, private data, no uncertain input/replay or clean promotion.
 
 - Release shutdown guards are deliberately separate from BATCON research.
   Setup must check confirmed native shutdown before changing the active release;

@@ -78,7 +78,7 @@ async def saved_player(url, creating):
 
 
 def main():
-    from tests.deployment_scope import setup_options, verify_scope
+    from tests.deployment_scope import setup_options, verify_scope, configure_capture
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--container', default='mud86-install-test')
     parser.add_argument('--url', default='http://127.0.0.1:38080')
@@ -88,6 +88,7 @@ def main():
     command = ['bash', '/checkout/setup.sh', '--domain', 'mud.etimbo.com', '--http-only',
                '--image', '/artifacts/mud86-runtime.tar.gz']
     print('AlmaLinux: install', flush=True)
+    configure_capture(args.container,invoke)
     (output / 'install.log').write_text(invoke(args.container, *command, *setup_options()))
     sleeps = [asyncio.run(saved_player(args.url, creating=True))]
     print('AlmaLinux: read-only inspection', flush=True)

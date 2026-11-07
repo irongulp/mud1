@@ -7,6 +7,16 @@ def setup_options():
     return ['--monitor-scope'] if os.environ.get('MUD86_TEST_MONITOR_SCOPE')=='1' else []
 
 
+def configure_capture(container,invoke):
+    if not setup_options(): return
+    script='''from pathlib import Path
+p=Path('/etc/systemd/system/mud86-runtime.service.d/ksys-evidence.conf')
+p.parent.mkdir(parents=True,exist_ok=True)
+p.write_text('[Service]\\nEnvironment=MUD86_KSYS_CAPTURE=1\\n')
+'''
+    invoke(container,'python3.12','-c',script)
+
+
 def verify_scope(container,invoke):
     if not setup_options(): return None
     script='''import json

@@ -230,6 +230,13 @@ class Runtime:
                             # only structured phase/type/dispatch facts to journals.
                             print('Guest shutdown failure: ' + json.dumps(failure), flush=True)
                             print('Guest shutdown did not complete; next start must recover the disk.', flush=True)
+                            if (phase == 'ksys' and os.environ.get('MUD86_KSYS_CAPTURE') == '1'
+                                    and not isinstance(error,ControlError)):
+                                from tools.ksys_capture import capture
+                                try:
+                                    capture(self,self.child.before)
+                                except Exception as diagnostic_error:
+                                    print('KSYS evidence capture failed: '+type(diagnostic_error).__name__,flush=True)
                     if self.scope is not None and self.scope.console.at_prompt:
                         pass  # Bootstrap already owns the witnessed SCP prompt.
                     else:
