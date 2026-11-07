@@ -27,6 +27,8 @@ LEGAL_DOCUMENTS = {
     'simh': 'licenses/SIMH.txt',
 }
 CONNECT_TIMEOUT = 15
+TTY_CARRIER_SETTLE_SECONDS = .25
+SIMH_LINE_BANNER = b'Connected to the PDP-10 simulator DZ device, line '
 TERMINAL_COLUMNS = 80
 TERMINAL_ROWS = 30
 # The 40-column browser reflows prose itself. Avoid monitor-inserted breaks
@@ -129,6 +131,19 @@ async def send_browser(socket, data):
         # WebSocket.closed can still be False while its transport is closing.
         # Keep this distinct from upstream OSErrors handled by the gateway.
         raise BrowserDisconnected() from error
+
+
+async def wake_monitor(reader, writer):
+    """Wait for the assigned DZ line before one wakeup CR; no replay."""
+    await reader.readuntil(SIMH_LINE_BANNER)
+    line = await reader.readuntil(b'\n')
+    if not re.fullmatch(rb'[0-9]+\r?\n', line):
+        raise OSError('Invalid SIMH line assignment')
+    # Match native maintenance admission: carrier establishment can clear the
+    # terminal's typeahead after the socket is accepted.
+    await asyncio.sleep(TTY_CARRIER_SETTLE_SECONDS)
+    writer.write('\r')
+    await reader.readuntil(b'.')
 
 
 async def logout_guest(reader, writer, *, entered, monitor, connection_id):
@@ -242,8 +257,7 @@ def create_app(upstream_host="127.0.0.1", upstream_port=2020, *, session_bootstr
             # TOPS-10 treats CR and LF as separate input terminators. A trailing
             # LF after LOGIN reaches MUD as an empty name and repeats its prompt.
             stage = 'monitor'
-            writer.write("\r")
-            await asyncio.wait_for(reader.readuntil(b"."), CONNECT_TIMEOUT)
+            await asyncio.wait_for(wake_monitor(reader, writer), CONNECT_TIMEOUT)
             # Telnet's terminal name does not configure TOPS-10's local DZ TTY.
             # Select display editing rather than printing-terminal rubout echo.
             stage = 'terminal-type'

@@ -111,6 +111,11 @@
   failure remained; final verifier red/no reboot. Added local semantic SHOW
   QUEUES+OPR prerequisite for combined shutdown under same90s/one KSYS budget,
   two red/green tests/77 focused pass; no native synchronization-fix claim yet.
+  Combined42380468514 passed fresh external/rerun/backup/restart/editor/6 scope+
+  6 batch proofs/final clean, no warning/retry. Full42382765799 passed native+
+  HTTP then HTTPS stage=monitor timeout, clean shutdown. Imported only d2ad53c
+  banner+250ms/oneCR admission fix and tests (75 pass), not transfer experiments;
+  native full combined validation pending. No STOMPR/timeout change.
 
 - Release shutdown guards are deliberately separate from BATCON research.
   Setup must check confirmed native shutdown before changing the active release;

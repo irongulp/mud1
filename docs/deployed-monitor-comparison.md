@@ -267,3 +267,19 @@ authorize KSYS. Two red/green regressions plus the existing suite give77 focused
 passes. This is the local protocol's synchronization prerequisite, not a proven
 repair for the preceding native failure. A final focused native comparison is
 required; repeated unchanged installation attempts are not validation.
+
+Queue-synchronized combined run42380468514/682e519 passed fresh external setup,
+saved login/rerun/backup/managed restart/editor checks with6 monitor and6 actual
+batch proofs. Final KSYS clean, no failures/retries/warnings in its service
+journal; final-evidence verification passed. This is valid focused positive
+evidence, not a guarantee that all previous shutdown paths are repaired.
+
+Full combined42382765799 passed native setup/rerun/backup/HTTP, then HTTPS first
+admission stopped at gateway stage=monitor/TimeoutError. Final KSYS was clean.
+This branch still used the original immediate pre-banner wakeup CR. The small
+gateway ordering correction from d2ad53c is now brought over: require assigned
+SIMH line banner and250ms carrier settling before one CR, under the same15s
+budget. No initializer changes or timeout extensions. Its failing regression
+and75 gateway/Chromium/transport/redraw tests pass on this combined branch.
+Other source-transfer experiments are not included. Full combined validation
+with this admission correction is the next gate.
