@@ -196,3 +196,17 @@ external login/rerun/backup and fresh external installation were not accepted.
 Final service cleanup KSYS was clean; no KSYS capture was produced. No command
 replay or unchanged full rerun followed. The remaining observed boundary is the
 maintenance query after cutover, not HTTPS or a reproduced shutdown failure.
+
+The exact reset-permission query now reports structural failure evidence through
+`ProtectionInspector`: confirmed echo, accumulated response-byte count, presence
+of the MUD EXE listing, newline-dot/CR-dot endings, XON/XOFF/BEL and EOF flags.
+The observer is enabled only for `directory DSKB:MUD.EXE[2011,2776]`, cleared
+before cleanup, and never prints arbitrary response data. Other inspector
+commands, snapshot/password handling and query deadlines remain unchanged.
+Tests reproduce a partial response with CR-dot but no required LF-dot and check
+that only structural facts escape. This is diagnosis, not a parser relaxation.
+
+Explicit `fresh_external_only=true` selects the scoped fresh external acceptance
+without repeating the native/browser prefix. It still performs real cutover,
+login, rerun, backup and persistence checks; a focused pass is not full release
+acceptance.43 relevant host tests and workflow lint passed before dispatch.

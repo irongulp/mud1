@@ -94,6 +94,10 @@
   import/private KSYS/archwizard verification; post-cutover reset_permissions
   DIRECTORY query timed out. External report incomplete, fresh/editor skipped;
   final cleanup clean/no captured KSYS failure. No retry/full-release claim.
+  ProtectionInspector now scopes structural failure observation to exact
+  DIRECTORY DSKB:MUD.EXE[2011,2776], no raw buffers/passwords.43 relevant tests
+  pass. fresh_external_only diagnostic omits unrelated native browser prefix
+  but retains cutover/login/rerun/backup; no deadline/parser relaxation.
 
 - Release shutdown guards are deliberately separate from BATCON research.
   Setup must check confirmed native shutdown before changing the active release;

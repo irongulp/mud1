@@ -119,6 +119,7 @@ class NativeInspector:
         self.at_monitor = False
         self._command_deadline = None
         self._response_pending = bytearray()
+        self._response_observer = None
 
     def command_timeout(self):
         return TIMEOUT
@@ -145,6 +146,8 @@ class NativeInspector:
         data = self._response_pending
         self._response_pending = bytearray()
         while True:
+            if self._response_observer is not None:
+                self._response_observer(data)
             if len(data) > limit:
                 raise InspectionError(size_error)
             position = data.find(marker)
