@@ -71,6 +71,12 @@
   systemd retries even after cleanup errors. Full scoped_acceptance workflow
   omits flag on reruns/checks every boot proof; default fresh/native stays off.
   62 focused tests pass; full installed native-x86 validation pending.
+  Full42355849773 passed native setup/rerun/backup then checker glob also matched
+  profile-verified; exact final-proof pattern red/green corrected. Full42356594697
+  then passed setup/rerun/login but backup KSYS stream32 STARTED/B10335.LOG then
+  timeout; clean:false/ksys/TIMEOUT/no backup restart. Not BATCON startup failure
+  or complete monitor fix. External/HTTPS stages not reached. Next exact stream
+  log/job state before termination, not deadline extension/unchanged rerun.
 
 - Release shutdown guards are deliberately separate from BATCON research.
   Setup must check confirmed native shutdown before changing the active release;

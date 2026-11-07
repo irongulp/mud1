@@ -115,3 +115,26 @@ the profile-verified intermediate stage and final installed proof. A failing
 regression now executes the actual remote-check script against both files;
 matching the exact two-digit final-stage filename fixes the assertion and still
 rejects a profile-only boot. The original run remains failed, not full acceptance.
+
+Corrected full run [42356594697](https://github.com/irongulp/mud1/actions/runs/42356594697)
+at `5f6df97` passed host/Chromium tests, native initial setup, saved login,
+inspection and installer rerun. The backup's native shutdown then failed:
+KSYS queued request9, BATCON stream32 started and opened
+`DSKB:B10335.LOG[3,3]`, but no End/KSYS completion arrived within90seconds. A
+TTY0 STOMPR quieting failure appeared during the wait. Final `shutdown.json`
+retained `clean:false`, failure phase `ksys`, type `TIMEOUT`; backup did not
+create an accepted archive or restart the disk. Simulator Goodbye occurred.
+
+This is a KSYS stream execution/completion failure, not an observed BATCON
+startup failure. It happened with scope selection enabled; the correction is
+not a complete shutdown repair. No HTTP/HTTPS multiplayer, container reboot,
+MariaDB cutover or fresh external acceptance ran after this failure. Private
+cutover option plumbing is host-tested, not natively qualified by this run.
+The full acceptance remains failed; no release or adoption follows automatically.
+
+Next evidence should be the exact KSYS stream log and contemporaneous job state
+before simulator termination, to identify the job/operation blocking logout.
+The retained artifact has the stream filename but not its contents. STOMPR
+correlation alone does not justify disabling it or claiming a cause. Do not
+repeat the same installation prefix, extend the deadline or replay KSYS as a
+substitute for that evidence.

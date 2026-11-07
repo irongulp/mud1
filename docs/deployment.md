@@ -67,7 +67,9 @@ Unsupported monitor fingerprints stop admission without an unpatched fallback.
 Bootstrap failure prevents automatic service restart; inspect the private
 `/var/lib/mud86/monitor-boots/` evidence before operator recovery.
 See [deployment comparison and validation scope](deployed-monitor-comparison.md).
-Full deployment qualification of this opt-in is pending.
+Full deployment qualification of this opt-in remains incomplete: the latest
+scoped acceptance reached a KSYS stream-completion timeout during native backup.
+It must not be presented as a general shutdown repair.
 
 ## Scheduled maintenance
 
