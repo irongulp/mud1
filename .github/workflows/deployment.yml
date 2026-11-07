@@ -78,7 +78,7 @@ jobs:
       - name: Reboot container and recheck browser
         if: ${{ !inputs.lifecycle_only && !inputs.fresh_external_only }}
         run: |
-          docker exec mud86-install-test systemctl stop mud86-runtime.service
+          docker exec mud86-install-test mud86ctl stop
           docker restart --timeout 180 mud86-install-test
           for attempt in $(seq 1 60); do
             docker exec mud86-install-test systemctl show-environment >/dev/null 2>&1 && break
@@ -116,6 +116,9 @@ jobs:
       - name: Service diagnostics
         if: always()
         run: python3 -m tests.deployment_diagnostics
+      - name: Verify final native shutdown evidence
+        if: always()
+        run: python3 -m tests.deployment_diagnostics --verify
       - uses: actions/upload-artifact@v7
         if: always()
         with:

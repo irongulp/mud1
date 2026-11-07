@@ -512,6 +512,17 @@ def backup():
 MAINTENANCE_POLL_SECONDS = 2
 
 
+def runtime_action(action):
+    if action not in ('start','stop','restart'):
+        raise ValueError('Unsupported runtime action')
+    if action in ('stop','restart'):
+        run('systemctl','stop','mud86-runtime.service')
+        require_clean_shutdown()
+    if action in ('start','restart'):
+        run('systemctl','start','mud86-runtime.service')
+        run('systemctl','start','mud86-gateway.service')
+
+
 def maintenance_sessions():
     """Query the loopback gateway directly, bypassing the maintenance proxy."""
     connection = http.client.HTTPConnection('127.0.0.1', 8080, timeout=PROXY_REQUEST_TIMEOUT)
@@ -635,9 +646,7 @@ def main():
         elif args.action == 'maintenance':
             maintenance(args.maintenance_action, args.maintenance_mode or 'graceful')
         else:
-            run('systemctl', args.action, 'mud86-runtime.service')
-            if args.action in ('start', 'restart'):
-                run('systemctl', 'start', 'mud86-gateway.service')
+            runtime_action(args.action)
 
 
 if __name__ == '__main__':

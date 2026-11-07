@@ -1,5 +1,6 @@
 """Bounded, best-effort evidence from both disposable deployment containers."""
 import argparse
+import json
 from pathlib import Path
 import subprocess
 
@@ -48,7 +49,26 @@ def collect(output):
             directory/'ksys-summary.log')
 
 
+def verify(output):
+    verified=0
+    for path in output.glob('*/after-stop-shutdown.log'):
+        text=path.read_text()
+        if 'No such container:' in text:
+            continue
+        try:
+            marker=json.loads(text.splitlines()[0])
+            clean=marker.get('clean') is True and text.rstrip().endswith('exit_status=0')
+        except (ValueError,IndexError,AttributeError):
+            clean=False
+        if not clean: raise RuntimeError('Unconfirmed final native shutdown: '+path.parent.name)
+        verified+=1
+    if not verified: raise RuntimeError('No confirmed final native shutdown evidence')
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output', type=Path, default=Path('runtime/deployment-ci'))
-    collect(parser.parse_args().output)
+    parser.add_argument('--verify',action='store_true')
+    args=parser.parse_args()
+    if args.verify: verify(args.output)
+    else: collect(args.output)

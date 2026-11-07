@@ -222,6 +222,11 @@ sudo mud86ctl start
 sudo journalctl -u mud86-runtime -u mud86-gateway -f
 ```
 
+`mud86ctl restart` checks native clean shutdown after stopping the runtime and
+before starting it again. An unconfirmed stop leaves services stopped for
+investigation; systemd's successful stop status alone is insufficient. The
+management `stop` command also reports an unconfirmed native shutdown.
+
 Read-only inspection and error summaries are available after updating:
 
 ```sh

@@ -98,6 +98,11 @@
   DIRECTORY DSKB:MUD.EXE[2011,2776], no raw buffers/passwords.43 relevant tests
   pass. fresh_external_only diagnostic omits unrelated native browser prefix
   but retains cutover/login/rerun/backup; no deadline/parser relaxation.
+  Fresh42369751732/b3eeffe query/storage report passed6 scope boots, but restart
+  KSYS/BATCON startup timeout silently rebooted and final cleanup unclean. Green
+  job is not clean acceptance. New red/green management restart/stop gate and
+  CI final-marker verification expose this;59 focused pass. No native startup
+  fix/query-cause claim; stream capture empty because no stream log was named.
 
 - Release shutdown guards are deliberately separate from BATCON research.
   Setup must check confirmed native shutdown before changing the active release;

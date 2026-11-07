@@ -210,3 +210,23 @@ Explicit `fresh_external_only=true` selects the scoped fresh external acceptance
 without repeating the native/browser prefix. It still performs real cutover,
 login, rerun, backup and persistence checks; a focused pass is not full release
 acceptance.43 relevant host tests and workflow lint passed before dispatch.
+
+Focused fresh external42369751732/b3eeffe passed protection checks, creation/
+saved login, rerun, backup and editor checks, reporting6 verified scope boots.
+However its green job masked two unclean shutdowns: managed `restart` timed out
+with explicit BATCON startup failure then rebooted anyway, and final workflow
+cleanup timed out again. No KSYS stream filename appeared, so the stream-only
+capture correctly produced no guessed log read. Final marker was clean:false.
+The protection-query failure did not recur; no response-parser fix is claimed.
+
+Two host acceptance gaps are now corrected with failing/green regressions:
+`mud86ctl restart` performs stop, requires the native clean marker, then starts
+services; it cannot bypass the same guard used by setup/backup. `mud86ctl stop`
+also reports an unconfirmed native stop. Workflow final cleanup now verifies the
+retained shutdown markers independently of systemd's exit result; malformed,
+missing or unclean markers fail acceptance. Container reboot uses the guarded
+management stop. Original raw systemctl recovery remains an operator capability,
+not automatic acceptance success.59 focused tests and workflow lint passed.
+These fixes expose failures rather than curing native BATCON startup. The
+previous green run is explicitly not clean lifecycle/release evidence, and no
+unchanged native rerun followed it.
