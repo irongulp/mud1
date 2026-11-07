@@ -89,6 +89,11 @@
   standalone-star/CR/3xCSI-C/CSI-K, retains exact text/cursor/tail and WHO gate.
   Explicit lifecycle_only runs max3 distinct native backups/re-entries, no
   failed backup retry; full default matrix unchanged.25 focused tests passed.
+  Lifecycle42364597755 passed3 backups/5 verified boots/final clean/no capture.
+  Full42365483957 passed native+HTTP/HTTPS editing+reboot, external compilation/
+  import/private KSYS/archwizard verification; post-cutover reset_permissions
+  DIRECTORY query timed out. External report incomplete, fresh/editor skipped;
+  final cleanup clean/no captured KSYS failure. No retry/full-release claim.
 
 - Release shutdown guards are deliberately separate from BATCON research.
   Setup must check confirmed native shutdown before changing the active release;

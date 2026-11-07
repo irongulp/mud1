@@ -180,3 +180,19 @@ restart override or backup replay. It skips downstream native browser/HTTPS,
 cutover and database checks only for diagnosis; default full acceptance retains
 them. Native failed-backup output is saved before raising. Host tests exercise
 the cycle bound, immediate stop and saved re-entry after each successful backup.
+
+Lifecycle-only42364597755/8b70f1e passed all3 distinct backups/re-entries and5
+verified monitor boots, final clean KSYS, no captured failures. The five sleep
+observations6.034/5.983/5.987/5.987/5.978s passed. This is bounded positive
+lifecycle evidence, not resolution of the earlier intermittent KSYS timeout.
+
+Full scoped42365483957 at the same commit passed native setup/rerun/backup,
+HTTP and HTTPS Chromium multiplayer/editing, and container reboot/browser
+re-entry. Native-to-MariaDB cutover compiled the external modules, imported the
+native snapshot, completed its private guest KSYS and verified retained
+external archwizard records. Setup then timed out in reset_permissions' read-only
+DIRECTORY query for MUD.EXE. The external acceptance report remains incomplete;
+external login/rerun/backup and fresh external installation were not accepted.
+Final service cleanup KSYS was clean; no KSYS capture was produced. No command
+replay or unchanged full rerun followed. The remaining observed boundary is the
+maintenance query after cutover, not HTTPS or a reproduced shutdown failure.
