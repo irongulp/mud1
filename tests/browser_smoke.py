@@ -36,15 +36,21 @@ async def wait_terminal_line(page, expected, stage, *, timeout=EDITING_TIMEOUT_M
                              screenshot=None):
     """Wait for paced, parsed output, not a suffix in the raw WebSocket log."""
     try:
-        await page.wait_for_function("""expected => {
+        await page.wait_for_function(r"""expected => {
             if (incoming.pending.length || outgoing.pending.length) return false;
             const buffer = terminal.buffer.active;
             const line = buffer.getLine(buffer.baseY + buffer.cursorY).translateToString(true);
             // Native rubout is BS SPACE BS: the erased cell remains a space.
-            // Require exact text/cursor and no visible content beyond it.
-            return buffer.cursorX === expected.length &&
-                line.slice(0, buffer.cursorX) === expected &&
-                line.slice(buffer.cursorX).trim() === '';
+            // The witnessed TOPS-10 asynchronous redraw places the input at
+            // column 3 after '*', leaving two prompt-padding cells. Accept that
+            // exact offset only when the native sequence occurred in this edit.
+            const candidates = [expected];
+            if (expected.startsWith('*') && /(?:^|\n)\*\r(?:\x1b\[C){3}\x1b\[K/.test(gameOutput)) {
+                candidates.push('*  ' + expected.slice(1));
+            }
+            return candidates.some(text => buffer.cursorX === text.length &&
+                line.slice(0, buffer.cursorX) === text &&
+                line.slice(buffer.cursorX).trim() === '');
         }""", arg=expected, timeout=timeout)
     except BrowserTimeoutError as error:
         state = await page.evaluate("""() => {

@@ -84,6 +84,11 @@
   proofs/HTTP; HTTPS editing expected*wx but arrival/rabbit redraw gave*  wx.
   Final KSYS clean/no captured stream failure, external stages skipped. Retain
   as partial evidence; no shutdown-cause/UI-fix claim or unchanged full rerun.
+  Real Chromium captured-redraw regression now proves native prompt2-cell
+  padding preserves edit bytes; smoke accepts exact offset only with witnessed
+  standalone-star/CR/3xCSI-C/CSI-K, retains exact text/cursor/tail and WHO gate.
+  Explicit lifecycle_only runs max3 distinct native backups/re-entries, no
+  failed backup retry; full default matrix unchanged.25 focused tests passed.
 
 - Release shutdown guards are deliberately separate from BATCON research.
   Setup must check confirmed native shutdown before changing the active release;

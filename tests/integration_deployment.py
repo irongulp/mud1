@@ -21,9 +21,10 @@ ROOT = Path(__file__).resolve().parents[1]
 PLAYER_NAME = 'Deploy' + ''.join(secrets.choice(string.ascii_lowercase) for _ in range(3))
 SLEEP_SECONDS = 6
 SLEEP_TOLERANCE = 1.5
+MAX_BACKUP_CYCLES = 3
 
 
-def invoke(container, *command):
+def invoke(container, *command, log=None):
     # docker exec uses the image's root user. Calling sudo here needlessly
     # invokes PAM; newer minimal AlmaLinux images have a locked root account.
     if command and command[0]=='sudo': command=command[1:]
@@ -31,6 +32,7 @@ def invoke(container, *command):
                             capture_output=True, text=True, timeout=900)
     text = re.sub(r'(?m)^(Richard|Roy|Brian|Ronan|Friday|Yawn|Debugger): [a-z0-9]{8} —',
                   r'\1: [redacted] —', result.stdout + result.stderr)
+    if log is not None: log.write_text(text)
     if result.returncode:
         raise AssertionError(text)
     return text
@@ -77,11 +79,23 @@ async def saved_player(url, creating):
             await socket.close()
 
 
+def backup_cycles(container,url,output,count):
+    if not 1 <= count <= MAX_BACKUP_CYCLES:
+        raise ValueError('Backup cycle count exceeds diagnostic bound')
+    sleeps=[]
+    for index in range(count):
+        name='backup.log' if index==0 else f'backup-{index+1}.log'
+        invoke(container,'sudo','mud86ctl','backup',log=output/name)
+        sleeps.append(asyncio.run(saved_player(url,creating=False)))
+    return sleeps
+
+
 def main():
     from tests.deployment_scope import setup_options, verify_scope, configure_capture
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--container', default='mud86-install-test')
     parser.add_argument('--url', default='http://127.0.0.1:38080')
+    parser.add_argument('--backup-cycles',type=int,choices=range(1,MAX_BACKUP_CYCLES+1),default=1)
     args = parser.parse_args()
     output = ROOT / 'runtime' / ('deployment-' + args.container)
     output.mkdir(mode=0o700, exist_ok=True)
@@ -106,8 +120,7 @@ def main():
     assert invoke(args.container, 'sha256sum', '/var/lib/mud86/private/archwizard-credentials.json') == before
     sleeps.append(asyncio.run(saved_player(args.url, creating=False)))
     print('AlmaLinux: backup and restart', flush=True)
-    (output / 'backup.log').write_text(invoke(args.container, 'sudo', 'mud86ctl', 'backup'))
-    sleeps.append(asyncio.run(saved_player(args.url, creating=False)))
+    sleeps.extend(backup_cycles(args.container,args.url,output,args.backup_cycles))
     (output / 'status.log').write_text(invoke(args.container, 'sudo', 'mud86ctl', 'status'))
     report = {'complete': True, 'player_name': PLAYER_NAME, 'platform': 'AlmaLinux 9 container, systemd',
               'architecture': invoke(args.container, 'uname', '-m').strip(),
@@ -117,6 +130,7 @@ def main():
                           'read-only persona/file inspection', 'journal error scan'],
               'not_exercised': ['public ACME issuance', 'SELinux enforcing kernel', 'IONOS host reboot']}
     report['monitor_scope']=verify_scope(args.container,invoke)
+    report['backup_cycles']=args.backup_cycles
     (output / 'report.json').write_text(json.dumps(report, indent=2) + '\n')
     print(json.dumps(report, indent=2))
 

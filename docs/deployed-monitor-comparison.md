@@ -164,3 +164,19 @@ Next stream investigation should use a native install/backup lifecycle-only
 fixture so a separate browser presentation assertion cannot block observation.
 Retain the full browser matrix as a release gate; separating diagnosis does not
 waive its failed assertion. No further unchanged full run was launched here.
+
+The captured browser sequence is now a real Chromium regression. Native
+`CR + CSI C + CSI C + CSI C + CSI K` after a standalone `*` leaves exactly two
+padding cells before the input. The smoke assertion now permits that exact
+offset only with the witnessed redraw in the current edit's raw output, while
+still requiring exact text/cursor and no trailing visible content. Backspace,
+completion and Enter emit the expected edit bytes. Arbitrary padding, wrong
+commands and trailing junk remain rejected. Production browser rendering is
+unchanged; the real-game WHO outcome check is still required by the smoke test.
+
+Explicit `lifecycle_only=true` runs scoped native installation/rerun and at most
+three distinct backup/saved-re-entry cycles, stopping on first failure with no
+restart override or backup replay. It skips downstream native browser/HTTPS,
+cutover and database checks only for diagnosis; default full acceptance retains
+them. Native failed-backup output is saved before raising. Host tests exercise
+the cycle bound, immediate stop and saved re-entry after each successful backup.
