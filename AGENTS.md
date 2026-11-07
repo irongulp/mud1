@@ -107,6 +107,10 @@
   executor before admission, current-boot/request/result/logout proof. Defaults
   off; metadata/env/cutover preserve flags; batch failure exits78/no retry. Local
   authority wrapper retained.75 focused tests pass; native combined pending.
+  Combined42378375866 native preflight passed but rerun KSYS/BATCON startup
+  failure remained; final verifier red/no reboot. Added local semantic SHOW
+  QUEUES+OPR prerequisite for combined shutdown under same90s/one KSYS budget,
+  two red/green tests/77 focused pass; no native synchronization-fix claim yet.
 
 - Release shutdown guards are deliberately separate from BATCON research.
   Setup must check confirmed native shutdown before changing the active release;

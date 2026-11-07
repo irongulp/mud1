@@ -26,6 +26,7 @@ DEPLOYMENT_MIPS = 5
 LISTENER_WAIT=90
 MONITOR_PROMPT = r'\n\.'
 OPERATOR_PROMPT = 'OPR>'
+QUEUE_RESPONSE = r'-- (?:The queues are empty|System Queues Listing) --'
 MAX_OPERATOR_NOTICES = 8
 BOOTSTRAP_FAILURE_EXIT = 78  # systemd RestartPreventExitStatus: no uncertain bootstrap replay.
 
@@ -231,6 +232,12 @@ class Runtime:
                                 phase = 'operator-start'
                                 self.command('r opr', OPERATOR_PROMPT,
                                              timeout=max(0, deadline - time.monotonic()))
+                            if self.batch_preflight:
+                                phase = 'queue-readiness'
+                                self.command('show queues',QUEUE_RESPONSE,
+                                             timeout=max(0,deadline-time.monotonic()))
+                                self.child.expect_exact(OPERATOR_PROMPT,timeout=max(0,deadline-time.monotonic()))
+                                self.control_prompt=OPERATOR_PROMPT
                             phase = 'ksys'
                             self.command('set ksys now', 'KSYS processing completed',
                                          timeout=max(0, deadline - time.monotonic()))

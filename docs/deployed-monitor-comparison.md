@@ -251,3 +251,19 @@ selection persistence, cutover propagation and stale/missing batch proof rejecti
 Workflow `fresh_external_only=true,batch_preflight=true` is the focused combined
 candidate check. It must pass the strengthened managed restart and final native
 shutdown verification; a green application report alone remains insufficient.
+
+First combined run42378375866/fae9310 completed native batch preflight on the
+external boot and admitted/saved the fixture persona. Installer rerun then
+queued KSYS but reported BATCON failed to startup; both the setup gate and
+final-evidence step failed, with no reboot/promotion. No stream log was named,
+so no stream-only capture ran. This disproves treating early batch execution
+alone as sufficient shutdown repair on this deployed profile.
+
+One remaining difference from the accepted local shutdown path is now adopted
+only for the explicit combined profile: require semantic SHOW QUEUES output
+(empty or nonempty listing) and its OPR prompt before KSYS. It consumes the
+original shared90s shutdown budget, adds no retry, and a prompt alone cannot
+authorize KSYS. Two red/green regressions plus the existing suite give77 focused
+passes. This is the local protocol's synchronization prerequisite, not a proven
+repair for the preceding native failure. A final focused native comparison is
+required; repeated unchanged installation attempts are not validation.

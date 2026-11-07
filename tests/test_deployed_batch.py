@@ -7,9 +7,32 @@ from server.runtime import Runtime
 from server.local_batch import BatchBootstrapError
 from server.monitor_scope import MonitorBootstrapError
 from tools import deploy
+from server.runtime import OPERATOR_PROMPT
 
 
 class DeployedBatchTests(unittest.TestCase):
+    def test_guarded_shutdown_checks_semantic_queue_readiness_before_one_ksys(self):
+        with tempfile.TemporaryDirectory() as directory:
+            runtime=Runtime(Path(directory),'/unused',monitor_scope=True,batch_preflight=True)
+            runtime.booted=True
+            runtime.control_prompt=OPERATOR_PROMPT
+            runtime.child=Mock()
+            with patch.object(runtime,'command',return_value='-- System Queues Listing --') as command:
+                self.assertTrue(runtime.stop())
+            self.assertEqual([c.args[0] for c in command.call_args_list],['show queues','set ksys now'])
+            self.assertIn('The queues are empty',command.call_args_list[0].args[1])
+            self.assertIn('System Queues Listing',command.call_args_list[0].args[1])
+
+    def test_missing_queue_response_never_sends_ksys(self):
+        with tempfile.TemporaryDirectory() as directory:
+            runtime=Runtime(Path(directory),'/unused',monitor_scope=True,batch_preflight=True)
+            runtime.booted=True
+            runtime.control_prompt=OPERATOR_PROMPT
+            runtime.child=Mock()
+            with patch.object(runtime,'command',side_effect=TimeoutError('no listing')) as command:
+                self.assertFalse(runtime.stop())
+            self.assertEqual([c.args[0] for c in command.call_args_list],['show queues'])
+
     def test_batch_requires_selected_scope_and_persists_on_rerun(self):
         self.assertFalse(deploy.selected_batch_preflight(None,{},False))
         self.assertTrue(deploy.selected_batch_preflight(True,{},True))
