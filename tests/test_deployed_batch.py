@@ -1,0 +1,55 @@
+from pathlib import Path
+import tempfile
+import unittest
+from unittest.mock import Mock, patch
+
+from server.runtime import Runtime
+from server.local_batch import BatchBootstrapError
+from server.monitor_scope import MonitorBootstrapError
+from tools import deploy
+
+
+class DeployedBatchTests(unittest.TestCase):
+    def test_batch_requires_selected_scope_and_persists_on_rerun(self):
+        self.assertFalse(deploy.selected_batch_preflight(None,{},False))
+        self.assertTrue(deploy.selected_batch_preflight(True,{},True))
+        self.assertTrue(deploy.selected_batch_preflight(None,{'batch_preflight':True},True))
+        with self.assertRaises(ValueError): deploy.selected_batch_preflight(True,{},False)
+        with self.assertRaises(ValueError): deploy.selected_batch_preflight(None,{'batch_preflight':'yes'},True)
+        with self.assertRaises(ValueError): Runtime(Path('/unused'),'/unused',batch_preflight=True)
+
+    def test_native_batch_execution_precedes_game_and_records_current_boot(self):
+        with tempfile.TemporaryDirectory() as directory:
+            runtime=Runtime(Path(directory),'/unused',monitor_scope=True,batch_preflight=True)
+            runtime.stopping.wait=Mock(return_value=False)
+            scope=Mock(verified=True)
+            scope.evidence=Path(directory)/('a'*32)
+            scope.evidence.mkdir()
+            order=[]
+            def batch(machine,identity):
+                order.append('batch')
+                self.assertIs(machine,runtime)
+                self.assertEqual(identity,scope.evidence.name)
+                return dict(boot_id=identity,request=4)
+            with patch('server.runtime.wait_listener'),patch('pexpect.spawn',return_value=Mock()), \
+                    patch('server.runtime.MonitorBootstrap',return_value=scope), \
+                    patch.object(runtime,'command',return_value=''), \
+                    patch('server.runtime.execute_probe',side_effect=batch), \
+                    patch('server.runtime.probe_game',side_effect=lambda *a:order.append('admit')):
+                runtime.boot()
+            self.assertEqual(order,['batch','admit'])
+            self.assertTrue((scope.evidence/'batch-proof.json').is_file())
+
+    def test_failed_probe_cannot_admit_or_boot_retry(self):
+        with tempfile.TemporaryDirectory() as directory:
+            runtime=Runtime(Path(directory),'/unused',monitor_scope=True,batch_preflight=True)
+            runtime.stopping.wait=Mock(return_value=False)
+            scope=Mock(verified=True,evidence=Path(directory)/('b'*32))
+            with patch('server.runtime.wait_listener'),patch('pexpect.spawn',return_value=Mock()) as spawn, \
+                    patch('server.runtime.MonitorBootstrap',return_value=scope), \
+                    patch.object(runtime,'command',return_value=''),patch.object(runtime,'stop',return_value=True), \
+                    patch('server.runtime.signal.signal'),patch('server.runtime.probe_game') as admit, \
+                    patch('server.runtime.execute_probe',side_effect=BatchBootstrapError('uncertain')):
+                with self.assertRaises(MonitorBootstrapError): runtime.run()
+            spawn.assert_called_once()
+            admit.assert_not_called()

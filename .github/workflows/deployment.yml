@@ -18,6 +18,10 @@ on:
         type: boolean
         default: false
         description: Scoped fresh external setup and persistence checks without native browser prefix
+      batch_preflight:
+        type: boolean
+        default: false
+        description: Also require verified native batch execution on each monitor-corrected boot
 permissions:
   contents: write # Needed to download the draft runtime asset before publication.
 jobs:
@@ -27,6 +31,7 @@ jobs:
     timeout-minutes: 120
     env:
       MUD86_TEST_MONITOR_SCOPE: ${{ (inputs.scoped_acceptance || inputs.lifecycle_only || inputs.fresh_external_only) && '1' || '0' }}
+      MUD86_TEST_BATCH_PREFLIGHT: ${{ inputs.batch_preflight && '1' || '0' }}
     steps:
       - uses: actions/checkout@v7
         with:

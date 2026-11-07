@@ -71,6 +71,11 @@ Full deployment qualification of this opt-in remains incomplete: the latest
 scoped acceptance reached a KSYS stream-completion timeout during native backup.
 It must not be presented as a general shutdown repair.
 
+The additional experimental `--batch-preflight` option requires `--monitor-scope`
+and verifies actual native batch execution before game admission on each boot.
+Its selection is also preserved on reruns and passed through private cutover.
+The combined profile is under native acceptance; defaults remain unchanged.
+
 ## Scheduled maintenance
 
 For the combined first upgrade, MariaDB editor setup, and later maintenance

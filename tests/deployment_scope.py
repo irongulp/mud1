@@ -4,6 +4,8 @@ import os
 
 
 def setup_options():
+    if os.environ.get('MUD86_TEST_BATCH_PREFLIGHT')=='1':
+        return ['--monitor-scope','--batch-preflight']
     return ['--monitor-scope'] if os.environ.get('MUD86_TEST_MONITOR_SCOPE')=='1' else []
 
 
@@ -33,4 +35,13 @@ for boot in boots:
     assert not list(boot.glob('*-failed.json')), 'Failed monitor bootstrap retained'
 print(json.dumps({'verified_boots':len(boots),'monitor_scope':True}))
 '''
+    if '--batch-preflight' in setup_options():
+        script=script.replace("print(json.dumps({'verified_boots':len(boots),'monitor_scope':True}))",'''from server.local_batch import completed_probe
+assert json.loads((config/'deployment.json').read_text())['batch_preflight'] is True
+assert 'MUD86_BATCH_PREFLIGHT=1' in (config/'runtime.env').read_text().splitlines()
+for boot in boots:
+    evidence=json.loads((boot/'batch-proof.json').read_text())
+    assert evidence['boot_id']==boot.name
+    assert completed_probe(evidence['log'],boot.name[:6],boot.name,evidence['request'])
+print(json.dumps({'verified_boots':len(boots),'monitor_scope':True,'batch_verified_boots':len(boots)}))''')
     return json.loads(invoke(container,'python3.12','-c',script))

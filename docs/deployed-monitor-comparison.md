@@ -230,3 +230,24 @@ not automatic acceptance success.59 focused tests and workflow lint passed.
 These fixes expose failures rather than curing native BATCON startup. The
 previous green run is explicitly not clean lifecycle/release evidence, and no
 unchanged native rerun followed it.
+
+## Combined monitor and batch-readiness candidate
+
+The next explicit option is `setup.sh --monitor-scope --batch-preflight`.
+This reuses the existing local batch executor before native/external admission,
+after verified monitor correction. It requires a full current boot ID, matching
+queue request, real DAYTIME output and batch logout, not a running-process name
+or queue acknowledgement. Proof is stored privately beside the monitor records.
+Failed execution or proof publication is a non-retryable bootstrap failure.
+No BATCON replacement, OPSER fallback, extra KSYS command or longer deadline.
+
+The batch option requires monitor scope, defaults off, is preserved in installer
+metadata/environment on reruns, and passes explicitly into private cutover.
+Acceptance validates both proofs for every recorded boot. The existing local
+launcher keeps its monitor-authority wrapper around the shared executor.
+75 focused tests passed, including boot ordering, no admission/retry on failure,
+selection persistence, cutover propagation and stale/missing batch proof rejection.
+
+Workflow `fresh_external_only=true,batch_preflight=true` is the focused combined
+candidate check. It must pass the strengthened managed restart and final native
+shutdown verification; a green application report alone remains insufficient.

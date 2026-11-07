@@ -103,6 +103,10 @@
   job is not clean acceptance. New red/green management restart/stop gate and
   CI final-marker verification expose this;59 focused pass. No native startup
   fix/query-cause claim; stream capture empty because no stream log was named.
+  Combined candidate --monitor-scope --batch-preflight reuses native DAYTIME
+  executor before admission, current-boot/request/result/logout proof. Defaults
+  off; metadata/env/cutover preserve flags; batch failure exits78/no retry. Local
+  authority wrapper retained.75 focused tests pass; native combined pending.
 
 - Release shutdown guards are deliberately separate from BATCON research.
   Setup must check confirmed native shutdown before changing the active release;

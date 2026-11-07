@@ -37,12 +37,23 @@ def selected_monitor_scope(requested, previous):
     return existing if requested is None else requested
 
 
-def monitor_scope_options(enabled):
-    return ['--monitor-scope'] if enabled else []
+def selected_batch_preflight(requested,previous,monitor_scope):
+    existing=previous.get('batch_preflight',False)
+    if type(existing) is not bool or requested is not None and type(requested) is not bool:
+        raise ValueError('Invalid batch preflight selection')
+    enabled=existing if requested is None else requested
+    if enabled and not monitor_scope:
+        raise ValueError('Batch preflight requires monitor scope')
+    return enabled
 
 
-def runtime_environment(executable, monitor_scope):
-    return f'SIMH_BIN={executable}\nMUD86_MONITOR_SCOPE={int(monitor_scope)}\n'
+def monitor_scope_options(enabled,batch_preflight=False):
+    return (['--monitor-scope'] if enabled else [])+(['--batch-preflight'] if batch_preflight else [])
+
+
+def runtime_environment(executable, monitor_scope, batch_preflight=False):
+    return (f'SIMH_BIN={executable}\nMUD86_MONITOR_SCOPE={int(monitor_scope)}\n'
+            f'MUD86_BATCH_PREFLIGHT={int(batch_preflight)}\n')
 
 
 def selected_backend(requested,previous):
@@ -344,6 +355,7 @@ def install(args):
     domain = validate_domain(args.domain)
     previous_metadata=json.loads((CONFIG/'deployment.json').read_text()) if (CONFIG/'deployment.json').exists() else {}
     monitor_scope=selected_monitor_scope(getattr(args,'monitor_scope',None),previous_metadata)
+    batch_preflight=selected_batch_preflight(getattr(args,'batch_preflight',None),previous_metadata,monitor_scope)
     backend=selected_backend(getattr(args,'persona_storage',None),previous_metadata)
     external_existing=previous_metadata.get('persona_storage')=='mariadb'
     pending_cutover=(STATE/'external/cutover.json').exists()
@@ -385,7 +397,7 @@ def install(args):
     link.unlink(missing_ok=True)
     link.symlink_to(release)
     link.replace(APP / 'current')
-    (CONFIG / 'runtime.env').write_text(runtime_environment(executable,monitor_scope))
+    (CONFIG / 'runtime.env').write_text(runtime_environment(executable,monitor_scope,batch_preflight))
     for name in ('mud86-runtime.service', 'mud86-gateway.service'):
         shutil.copyfile(release / 'deploy' / name, Path('/etc/systemd/system') / name)
     run('systemctl', 'daemon-reload')
@@ -417,11 +429,11 @@ def install(args):
                 raise RuntimeError('A confirmed stopped native snapshot is required for cutover')
             # Execute from the installed release, never this checkout's test helpers.
             run(release/'.venv/bin/python','-m','tools.external_cutover','--state',STATE,'--config-dir',CONFIG,'--simh',executable,
-                *monitor_scope_options(monitor_scope),cwd=release)
+                *monitor_scope_options(monitor_scope,batch_preflight),cwd=release)
         for path in [external,*external.rglob('*')]: shutil.chown(path,user='mud86',group='mud86')
         shutil.chown(CONFIG/'personas.json',user='mud86',group='mud86')
         configure_external_units(release)
-        (CONFIG/'deployment.json').write_text(json.dumps({'domain':domain,'release':release.name,'persona_storage':'mariadb','monitor_scope':monitor_scope})+'\n')
+        (CONFIG/'deployment.json').write_text(json.dumps({'domain':domain,'release':release.name,'persona_storage':'mariadb','monitor_scope':monitor_scope,'batch_preflight':batch_preflight})+'\n')
         configure_database_editor(release)
         run('systemctl','start','mud86-runtime.service')
     if backend=='mariadb':
@@ -431,7 +443,7 @@ def install(args):
     (CONFIG / 'provisioned').write_text('All seven archwizard records verified nonzero.\n')
     run('systemctl', 'start', 'mud86-gateway.service')
     configure_proxy(domain, args.http_only, args.email)
-    (CONFIG / 'deployment.json').write_text(json.dumps({'domain': domain, 'release': release.name,'persona_storage':backend,'monitor_scope':monitor_scope}, indent=2) + '\n')
+    (CONFIG / 'deployment.json').write_text(json.dumps({'domain': domain, 'release': release.name,'persona_storage':backend,'monitor_scope':monitor_scope,'batch_preflight':batch_preflight}, indent=2) + '\n')
     install_control()
     print(f'MUD ready: {"http" if args.http_only else "https"}://{domain}')
     print('Management: sudo mud86ctl status | maintenance on/off/status | restart | backup | personas | files | errors')
@@ -617,6 +629,8 @@ def main():
     parser.add_argument('--image', type=Path, help='Use a local archive matching the pinned manifest')
     parser.add_argument('--monitor-scope',action='store_true',default=None,
                         help='Opt into the pinned monitor correction on every boot; reruns preserve selection')
+    parser.add_argument('--batch-preflight',action='store_true',default=None,
+                        help='Require current-boot native batch execution before admission; requires monitor scope')
     parser.add_argument('--persona-storage',choices=('native','mariadb'),default=None,
                         help='Native is the fresh-install default; existing selection is preserved; MariaDB cutover is one-way')
     args = parser.parse_args()

@@ -14,6 +14,8 @@ import time
 from tools.guest_control import ControlError, COPY_READY_DELAY, console_byte, console_notice, operator_redraw, submit_line
 from server.monitor_bootstrap import MonitorBootstrap
 from server.monitor_scope import MonitorBootstrapError
+from server.local_batch import execute_probe, BatchBootstrapError
+from tools.persona_snapshot import publish_private
 
 BOOT_TIMEOUT = 60
 SHUTDOWN_TIMEOUT = 90
@@ -75,7 +77,9 @@ def probe_game(port):
 
 
 class Runtime:
-    def __init__(self, state, executable, port=2020, idle=False,persona_config=None, *, monitor_scope=False):
+    def __init__(self, state, executable, port=2020, idle=False,persona_config=None, *, monitor_scope=False, batch_preflight=False):
+        if batch_preflight and not monitor_scope:
+            raise ValueError('Batch preflight requires the selected monitor correction')
         self.state, self.executable = Path(state), str(executable)
         self.port, self.idle = port, idle
         self.child = None
@@ -85,6 +89,7 @@ class Runtime:
         self.bridge=self.store=None
         self.control_prompt = None
         self.monitor_scope = monitor_scope
+        self.batch_preflight = batch_preflight
         self.scope = None
 
     def _submit_control(self, text, deadline, *, operator=False):
@@ -121,7 +126,7 @@ class Runtime:
             self.control_prompt = prompt
         return output
 
-    def copy_text(self, filename, text):
+    def copy_text(self, filename, text, *, timeout=BOOT_TIMEOUT):
         """Owned COPY dialogue; callers stage and verify before activation."""
         import re
         if not re.fullmatch(r'(?:sys:)?[a-z0-9]{1,6}\.[a-z0-9]{1,3}', filename):
@@ -129,7 +134,7 @@ class Runtime:
         if self.control_prompt != MONITOR_PROMPT:
             raise RuntimeError('Guest COPY requires a confirmed monitor prompt')
         self.control_prompt = None
-        deadline = time.monotonic() + BOOT_TIMEOUT
+        deadline = time.monotonic() + timeout
         self._submit_control('copy ' + filename + '=tty:', deadline)
         self.child.expect_exact('\r\n', timeout=max(0, deadline - time.monotonic()))
         time.sleep(COPY_READY_DELAY)
@@ -185,6 +190,14 @@ class Runtime:
                     self.scope.arm_from_loader()
                 self.child.send(response + '\r')
         self.booted = True
+        if self.batch_preflight:
+            try:
+                proof=execute_probe(self,self.scope.evidence.name)
+                publish_private(self.scope.evidence/'batch-proof.json',lambda stream:stream.write(
+                    (json.dumps(proof,indent=2)+'\n').encode('ascii')))
+                self.scope.record('batch-ready',batch_ready=True,batch_probe_request=proof['request'])
+            except Exception as error:
+                raise BatchBootstrapError('Batch readiness failed; no admission or retry') from error
         if self.persona_config:
             from server.persona_bridge import PersonaBridge
             from tools.persona_migrate import load_config
@@ -319,10 +332,11 @@ def main():
     parser.add_argument('--persona-config',type=Path,default=os.environ.get('MUD86_PERSONA_CONFIG'))
     parser.add_argument('--monitor-scope',action='store_true',default=os.environ.get('MUD86_MONITOR_SCOPE')=='1',
                         help='Opt-in pinned per-boot monitor correction')
+    parser.add_argument('--batch-preflight',action='store_true',default=os.environ.get('MUD86_BATCH_PREFLIGHT')=='1')
     args = parser.parse_args()
     try:
         Runtime(args.state.resolve(), args.simh.resolve(), args.port, args.idle,args.persona_config,
-                monitor_scope=args.monitor_scope).run()
+                monitor_scope=args.monitor_scope,batch_preflight=args.batch_preflight).run()
     except MonitorBootstrapError:
         print('Monitor correction failed; inspect private boot evidence before restarting.',file=sys.stderr)
         raise SystemExit(BOOTSTRAP_FAILURE_EXIT) from None
