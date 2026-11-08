@@ -52,6 +52,15 @@
 
 ## Important findings
 
+- Release1.1 preparation is consolidated from merged main50092ed, not the full
+  investigation history. Guarded setup explicitly selects --monitor-scope and
+  --batch-preflight; fresh defaults remain native/unguarded, reruns preserve
+  flags and private cutover receives them. No STOMP change or private-capture
+  tooling is included. CI has independent native-upgrade and fresh-mariadb jobs,
+  both with final native-shutdown verification; default CI guarded_profile=true
+  is not an installer-default change.521 host/Chromium tests and actionlint pass;
+  exact consolidated native acceptance remains unrun. See docs/release-1.1.0.md.
+
 - Release shutdown guards are deliberately separate from BATCON research.
   Setup must check confirmed native shutdown before changing the active release;
   rejected backups must not reboot an unclean disk in finally. Both have failing/

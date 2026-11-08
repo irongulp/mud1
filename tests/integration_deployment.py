@@ -23,7 +23,7 @@ SLEEP_SECONDS = 6
 SLEEP_TOLERANCE = 1.5
 
 
-def invoke(container, *command):
+def invoke(container, *command, log=None):
     # docker exec uses the image's root user. Calling sudo here needlessly
     # invokes PAM; newer minimal AlmaLinux images have a locked root account.
     if command and command[0]=='sudo': command=command[1:]
@@ -31,6 +31,7 @@ def invoke(container, *command):
                             capture_output=True, text=True, timeout=900)
     text = re.sub(r'(?m)^(Richard|Roy|Brian|Ronan|Friday|Yawn|Debugger): [a-z0-9]{8} —',
                   r'\1: [redacted] —', result.stdout + result.stderr)
+    if log is not None: log.write_text(text)
     if result.returncode:
         raise AssertionError(text)
     return text
@@ -78,6 +79,7 @@ async def saved_player(url, creating):
 
 
 def main():
+    from tests.deployment_scope import setup_options, verify_scope
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--container', default='mud86-install-test')
     parser.add_argument('--url', default='http://127.0.0.1:38080')
@@ -87,7 +89,7 @@ def main():
     command = ['bash', '/checkout/setup.sh', '--domain', 'mud.etimbo.com', '--http-only',
                '--image', '/artifacts/mud86-runtime.tar.gz']
     print('AlmaLinux: install', flush=True)
-    (output / 'install.log').write_text(invoke(args.container, *command))
+    invoke(args.container, *command, *setup_options(), log=output/'install.log')
     sleeps = [asyncio.run(saved_player(args.url, creating=True))]
     print('AlmaLinux: read-only inspection', flush=True)
     personas = json.loads(invoke(args.container, 'sudo', 'mud86ctl', 'personas', '--json'))
@@ -100,11 +102,11 @@ def main():
     assert errors['coverage']['requested_sources']
     print('AlmaLinux: saved player created through Nginx/WebSocket; rerun setup', flush=True)
     before = invoke(args.container, 'sha256sum', '/var/lib/mud86/private/archwizard-credentials.json')
-    (output / 'rerun.log').write_text(invoke(args.container, *command))
+    invoke(args.container, *command, log=output/'rerun.log')
     assert invoke(args.container, 'sha256sum', '/var/lib/mud86/private/archwizard-credentials.json') == before
     sleeps.append(asyncio.run(saved_player(args.url, creating=False)))
     print('AlmaLinux: backup and restart', flush=True)
-    (output / 'backup.log').write_text(invoke(args.container, 'sudo', 'mud86ctl', 'backup'))
+    invoke(args.container, 'sudo', 'mud86ctl', 'backup', log=output/'backup.log')
     sleeps.append(asyncio.run(saved_player(args.url, creating=False)))
     (output / 'status.log').write_text(invoke(args.container, 'sudo', 'mud86ctl', 'status'))
     report = {'complete': True, 'player_name': PLAYER_NAME, 'platform': 'AlmaLinux 9 container, systemd',
@@ -114,6 +116,7 @@ def main():
                           'credential preservation', 'clean shutdown backup', 'restart and persona re-entry',
                           'read-only persona/file inspection', 'journal error scan'],
               'not_exercised': ['public ACME issuance', 'SELinux enforcing kernel', 'IONOS host reboot']}
+    report['monitor_scope']=verify_scope(args.container,invoke)
     (output / 'report.json').write_text(json.dumps(report, indent=2) + '\n')
     print(json.dumps(report, indent=2))
 

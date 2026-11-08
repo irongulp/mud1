@@ -10,6 +10,21 @@ from tools import deploy
 
 
 class DeploymentShutdownTests(unittest.TestCase):
+    def test_restart_never_starts_after_unconfirmed_stop(self):
+        self.marker.write_text('{"clean":false}')
+        with self.assertRaisesRegex(RuntimeError,'shutdown was not confirmed clean'):
+            deploy.runtime_action('restart')
+        self.assertEqual([call.args for call in self.run.call_args_list],
+                         [('systemctl','stop','mud86-runtime.service')])
+
+    def test_restart_waits_for_clean_marker_before_starting_services(self):
+        self.marker.write_text('{"clean":true}')
+        deploy.runtime_action('restart')
+        self.assertEqual([call.args for call in self.run.call_args_list],[
+            ('systemctl','stop','mud86-runtime.service'),
+            ('systemctl','start','mud86-runtime.service'),
+            ('systemctl','start','mud86-gateway.service')])
+
     def setUp(self):
         self.stack = ExitStack()
         self.addCleanup(self.stack.close)

@@ -6,17 +6,40 @@ from unittest.mock import patch
 
 from tests import deployment_diagnostics
 from tests.integration_external_deployment import invoke
+from tests.integration_deployment import invoke as native_invoke
 
 
 class DeploymentDiagnosticsTests(unittest.TestCase):
+    def test_verification_rejects_unclean_shutdown_even_if_systemctl_succeeded(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory)
+            container=root/'fixture'
+            container.mkdir()
+            marker=container/'after-stop-shutdown.log'
+            marker.write_text('{"clean":false}\n\nexit_status=0\n')
+            with self.assertRaisesRegex(RuntimeError,'Unconfirmed'):
+                deployment_diagnostics.verify(root)
+            marker.write_text('{"clean":true}\n\nexit_status=0\n')
+            deployment_diagnostics.verify(root)
+
+    def test_verification_needs_a_real_marker_and_rejects_failed_reads(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory)
+            with self.assertRaises(RuntimeError): deployment_diagnostics.verify(root)
+            container=root/'fixture'
+            container.mkdir()
+            (container/'after-stop-shutdown.log').write_text('permission denied\nexit_status=1\n')
+            with self.assertRaises(RuntimeError): deployment_diagnostics.verify(root)
+
     def test_failed_command_retains_redacted_log_before_raising(self):
         result = subprocess.CompletedProcess([], 1, 'Roy: abcdefgh — initial\n', 'shutdown failed\n')
-        with tempfile.TemporaryDirectory() as directory:
-            log = Path(directory) / 'backup.log'
-            with patch('tests.integration_external_deployment.subprocess.run', return_value=result):
-                with self.assertRaisesRegex(AssertionError, 'shutdown failed'):
-                    invoke('fixture', 'mud86ctl', 'backup', log=log)
-            self.assertEqual(log.read_text(), 'Roy: [redacted] — initial\nshutdown failed\n')
+        for helper in (invoke,native_invoke):
+            with self.subTest(helper=helper.__module__),tempfile.TemporaryDirectory() as directory:
+                log = Path(directory) / 'backup.log'
+                with patch('subprocess.run', return_value=result):
+                    with self.assertRaisesRegex(AssertionError, 'shutdown failed'):
+                        helper('fixture', 'mud86ctl', 'backup', log=log)
+                self.assertEqual(log.read_text(), 'Roy: [redacted] — initial\nshutdown failed\n')
 
     def test_collects_both_containers_before_and_after_cleanup(self):
         commands = []
