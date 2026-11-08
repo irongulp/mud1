@@ -52,6 +52,13 @@
 
 ## Important findings
 
+- Explicit initializer comparison from8e6352a uses two disposable native x86
+  installations, same guarded startup/browser workload and matched private reboot.
+  Candidate alone removes STOMP using existing verified staging; original and
+  selected process/config states required, no unclean reboot or retries.23
+  focused tests pass; local Docker unavailable for lint. Main/live defaults stay.
+  See docs/native-initializer-comparison.md for scope and upcoming result.
+
 - Monitor comparison branches from50092ed: opt-in Runtime --monitor-scope reuses
   existing bootstrap before OPR/admission, UTC/bridge ports/default native path
   preserved. Failed/unverified scope never boot-retries. Focused paired x86
