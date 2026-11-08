@@ -45,19 +45,41 @@ dependency versions must be investigated; external-service failures remain visib
 ## Manual deployment acceptance
 
 `Manual AlmaLinux deployment acceptance` (`deployment.yml`) runs only through
-`workflow_dispatch`. The full existing sequence is retained: native x86 AlmaLinux
-systemd setup/rerun, persona re-entry/timing, stopped backup/restart, Chromium
-multiplayer over HTTP/HTTPS, container reboot, populated native-to-MariaDB cutover,
-fresh external installation and SQL editor checks. Shutdown/backup checks and
-failure artifact upload retain their existing behavior. Nothing is made successful
-with `continue-on-error` or automatic test retries.
+`workflow_dispatch`. Two independently reported native-x86 AlmaLinux jobs retain
+the acceptance requirements:
+
+- **native-upgrade:** systemd setup/rerun, saved persona/timing, stopped backup/
+  restart, Chromium HTTP/HTTPS multiplayer, container reboot, then populated
+  native-to-MariaDB cutover/rerun/persistence and SQL editor checks. This preserves
+  the end-to-end upgrade sequence on one installation.
+- **fresh-mariadb:** a separate fresh external installation, persistence, rerun,
+  backup/restart and SQL editor checks. It runs even if the native-upgrade job
+  fails, instead of losing all external evidence behind a browser failure.
+
+Both use one CPU/two GiB disposable systemd containers. Matrix fail-fast is off;
+an individual scenario still stops at its first failing step. Neither scenario
+can substitute for the other. Both always collect lifecycle evidence and require
+confirmed final native shutdown, independently of systemd's exit status. Nothing
+is made successful with `continue-on-error` or test retries.
+
+The single `guarded_profile` input defaults to true in CI, explicitly passing
+`--monitor-scope --batch-preflight` to first setup. Installer reruns omit the
+flags and must preserve the recorded selection. Current-boot monitor and native
+batch execution proofs are verified before successful scenario reporting. This
+does **not** change installer defaults or validate the unguarded profile.
 
 Before a release or deployment, deliberately run this workflow for the candidate:
 
 ```sh
-gh workflow run deployment.yml --ref <candidate-branch-or-tag>
+gh workflow run deployment.yml --ref <candidate-branch-or-tag> -f guarded_profile=true
 gh run list --workflow deployment.yml
 ```
+
+Select `guarded_profile=false` for a separate check of historical/default startup.
+Artifacts are named `deployment-results-native-upgrade` and
+`deployment-results-fresh-mariadb`. Fast host/Chromium tests and dependency audits
+remain independent workflows; publishing requires acceptance of the exact
+intended release configuration and commit. See [release-1.1.0.md](release-1.1.0.md).
 
 Manual dispatch requires the workflow to exist on the default branch; use the
 Actions UI or CLI to select the candidate ref once this split is merged. Inspect
@@ -78,7 +100,7 @@ journals, selected service states and shutdown markers before and after stopping
 the runtimes. Commands have bounded deadlines; missing containers and timeouts
 are recorded without blocking the other container's collection. Credential
 files, service environment variables and database records are excluded.
-External install/rerun/backup logs are written with credential redaction before
+Native and external install/rerun/backup logs are written with credential redaction before
 checking the exit status, retaining failed-command output.
 
 Runtime shutdown reports the failure phase and exception type, plus verified
@@ -90,5 +112,7 @@ clean-shutdown gate. Later investigation run 42243789230 demonstrated explicit
 native BATCON startup failure and confirmed that the corrected setup gate stops
 before activating/rebooting after unconfirmed shutdown. This establishes a
 host-side continuation fix, not a BATCON repair. The native release blocker
-remains open. This patch includes no experimental workflow scenarios, monitor
-changes, batch preflight or private memory-capture tools.
+remains open. PR16 supplied those host guards without monitor changes. The
+release candidate adds separately tested opt-in monitor/batch integration, but
+excludes private memory capture and experimental diagnostic modes. Previous
+partial successes do not establish full acceptance of the consolidated commit.

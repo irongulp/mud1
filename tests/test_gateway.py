@@ -40,6 +40,7 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
             purge_menu = False
             admission_step = 0
             try:
+                writer.write('Connected to the PDP-10 simulator DZ device, line 0\r\n')
                 await reader.readuntil(b"\r")
                 writer.write("\r\n.")
                 login = (await reader.readuntil(b"\r")).decode("ascii")
@@ -1037,7 +1038,7 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
 
         async def simh(reader, writer):
             try:
-                writer.write(b'\xff\xfb\x22\r\n\n.')  # SIMH's WILL LINEMODE
+                writer.write(b'\xff\xfb\x22\r\nConnected to the PDP-10 simulator DZ device, line 0\r\n\n.')
                 setup = await reader.readuntil(b"set tty type vt100\r")
                 writer.write(b"\r\n.")
                 await reader.readuntil(b"set tty width 80\r")
@@ -1068,7 +1069,7 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_stale_upstream_session_is_not_exposed_to_a_new_browser(self):
         async def stale(reader, writer):
-            writer.write(b"\r\n.")
+            writer.write(b"Connected to the PDP-10 simulator DZ device, line 0\r\n\r\n.")
             await reader.readuntil(b"set tty type vt100\r")
             writer.write(b"\r\n.")
             await reader.readuntil(b"set tty width 80\r")

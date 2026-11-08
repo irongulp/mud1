@@ -57,6 +57,32 @@ disabled and a single build job. Its [active-interval timer correction](simh-tim
 uses a separate versioned build cache. Docker and Chromium are test tools, not
 VPS runtime dependencies.
 
+## Guarded startup profile (release candidate)
+
+The recommended profile being qualified for 1.1.0 is explicit:
+
+```sh
+sudo ./setup.sh --domain mud.etimbo.com --monitor-scope --batch-preflight
+```
+
+Fresh setup without these flags retains the existing startup path. Reruns
+preserve recorded selections; batch preflight requires monitor scope. This is
+independent of persona storage, so native builds do not acquire a MariaDB
+dependency. Private cutover boots receive the same selected guards.
+
+Monitor scope reuses the fingerprint-checked local RAM correction described in
+[local-monitor-fix.md](local-monitor-fix.md); it is installed on every cold boot,
+not written to SYSTEM.EXE. Unsupported/uncertain bootstrap aborts admission and
+returns exit78, which systemd will not automatically restart. Batch preflight
+requires matching current-boot/request identity, actual native DAYTIME output
+and batch logout. Guarded shutdown checks a real queue listing before one KSYS,
+within the original deadline. No original game source or mutable disk is replaced.
+Private proof files remain under `/var/lib/mud86/monitor-boots/`.
+
+The native terminal initializer is unchanged. Earlier intermittent admission and
+shutdown failures remain tracked; these guards are not a universal repair claim.
+See [release scope and validation gates](release-1.1.0.md) before deployment.
+
 ## Scheduled maintenance
 
 For the combined first upgrade, MariaDB editor setup, and later maintenance
@@ -208,6 +234,12 @@ sudo mud86ctl start
 sudo journalctl -u mud86-runtime -u mud86-gateway -f
 ```
 
+Managed stop/restart requires a confirmed native clean-shutdown marker after
+stopping the runtime. An unconfirmed stop leaves services stopped rather than
+automatically booting that disk again. Preserve the runtime journal and
+`/var/lib/mud86/shutdown.json` for investigation; systemd stop success alone does
+not prove native KSYS completion.
+
 Read-only inspection and error summaries are available after updating:
 
 ```sh
@@ -255,6 +287,11 @@ disk against another supervisor, and archives the game and private credential
 journal. It restarts the services if they were running. The archive is `0600` and
 contains secrets: keep it in private off-host storage. Backup causes a maintenance
 interruption; no unattended backup schedule is installed by default.
+
+Backup does not restart services when native shutdown is unconfirmed, and setup
+stops before changing the active release in that case. Archive failures after a
+confirmed clean stop still restore previously running services. No failed or
+uncertain KSYS request is automatically replayed.
 
 If native shutdown is unconfirmed, backup leaves the services stopped and does
 not create an archive or automatically reboot the disk. Setup reruns likewise
