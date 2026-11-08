@@ -58,6 +58,11 @@
   selected process/config states required, no unclean reboot or retries.23
   focused tests pass; local Docker unavailable for lint. Main/live defaults stay.
   See docs/native-initializer-comparison.md for scope and upcoming result.
+  Single42499025178/28669d4 passed both enabled/disabled arms: config/process
+  proofs, matched clean reboot, HTTP/HTTPS editing/reconnect, final clean. No
+  warning/retry/quieting/shutdown failures. Enabled control did not reproduce
+  failure, so no causal STOMP benefit or production-default change. Full
+  release/migration acceptance remains separate; no unchanged rerun.
 
 - Monitor comparison branches from50092ed: opt-in Runtime --monitor-scope reuses
   existing bootstrap before OPR/admission, UTC/bridge ports/default native path

@@ -33,4 +33,37 @@ matched functional evidence, not a controlled performance benchmark.
 Unit tests cover matched reboot counts, candidate-only configuration change,
 verification of original/selected state, and no reboot after failed shutdown.
 23 focused tests passed locally. Docker was unavailable locally for actionlint;
-GitHub workflow execution supplies native validation. Results pending.
+GitHub workflow execution supplies the native results below.
+
+## Result
+
+Single native-x86 run
+[42499025178](https://github.com/irongulp/mud1/actions/runs/42499025178) at
+`28669d4` passed both arms. Each completed native installation/rerun/backup,
+the matched configuration/reboot preparation, HTTP multiplayer/editing/reconnect,
+HTTPS multiplayer/editing/reconnect and verified final native shutdown.
+
+- Enabled arm: original/after configuration hash
+  `09bb64fb6f96f7f1a275432996aebcb46c23906800107ffb78db06369fa7a70f`;
+  STOMPR positively observed running after reboot.
+- Disabled arm: same original hash; after hash
+  `8a33d861b4cc232da7ba8a1c9bb854c184ddb082ecfee65b554d699d504ddee5`;
+  STOMPR absent after reboot.
+- Both configuration and final shutdown markers were clean. Retained service
+  journals had no shutdown failures, retry messages, gateway warnings or TTY
+  quieting errors. Artifacts are `initializer-enabled` and `initializer-disabled`.
+
+Conclusion: configuration application and both workflows succeeded in this
+comparison, but the original failure did not reproduce in the enabled control.
+There is no demonstrated causal benefit from disabling STOMP and no production
+default change is justified by this result alone. Additional equal reboots in
+both arms, runner scheduling and world state differ from earlier full runs;
+do not attribute the pass to any one of those differences without evidence.
+
+This is not the full release matrix: populated native-to-external migration,
+fresh external deployment and the broader database checks were not exercised by
+this job. No unchanged rerun or additional initializer modification followed.
+Main remains unchanged and v1.1.0 remains unpublished. The practical next release
+gate is review of the accumulated candidate and validation of the intended
+installed profile, keeping intermittent admission failures explicitly tracked
+rather than claiming the initializer comparison resolved them.
