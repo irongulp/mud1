@@ -93,3 +93,22 @@ directories retain census/device/report evidence. The wrapper calls original
 Runtime.stop once and records exception types without payloads. Five capture
 tests,75 focused gateway/carrier/evidence tests and actionlint pass. This mode
 is diagnostic, not full release acceptance; no production unit/runtime changes.
+
+Installed-path run42878923580 at3e5926b passed native install, Nginx HTTP/WS,
+saved persona, setup rerun/credential preservation, clean backup, restart/
+re-entry and read-only inspection. Three guarded boot/batch proofs and three
+native KSYS completions passed; sleep checks measured5.990/5.979/6.000s.
+Artifact13793023769 retains all three standalone censuses/reports plus service
+journals; final shutdown clean:true. No gateway warning or shutdown failure was
+observed. The container was removed after evidence collection.
+
+Censuses showed BATCON SL SW (4+40 pages), SL (46+40), then SL SW (4+40);
+the latter two also had a LOGIN job on line0 (SL then EW). All had no busy
+devices and subsequently completed KSYS. Resident/swapped BATCON or a remaining
+LOGIN job alone therefore does not identify the failure. Pre-shutdown SYSTAT
+also changes timing/workload; these passes are not a causal fix comparison.
+Failure-device capture remains host-tested only. Do not repeat these passing
+controls unchanged as a release fix. The next useful capture is the external
+installed restart/final-stop path that previously emitted BATCON failed to
+startup, with evidence attached to that exact boot. Full uninstrumented release
+acceptance and a justified runtime correction remain open.

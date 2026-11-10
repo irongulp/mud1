@@ -41,7 +41,12 @@
   census retained in console despite omitted standalone artifact (now fixed).
   Failed-KSYS capture unexercised. Diagnostic shutdown_reproduction now uses
   installed-runtime service override/shared observer for real native rerun/
-  backup/restart;75 tests/actionlint pass. See docs/terminal-lifecycle.md.
+  backup/restart;75 tests/actionlint pass.42878923580/3e5926b passed that sequence,
+  three scope/batch boots/three censuses/three clean KSYS; artifact13793023769.
+  BATCON resident/swapped and LOGIN SL/EW all preceded success, not causal fixes.
+  Census changes workload/timing; failure capture still host-only. Next exact
+  external installed restart/final-stop capture, not unchanged positive reruns.
+  See docs/terminal-lifecycle.md; release gate remains blocked.
 
 - macOS arm64; use Python 3.12 for the security-updated dependencies. Legacy
   Python 3.9 `.venv` directories need fresh recreation (README host setup).
