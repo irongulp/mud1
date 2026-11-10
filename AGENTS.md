@@ -52,6 +52,14 @@
 
 ## Important findings
 
+- Terminal-lifecycle branch from merged1a858df: manual42533310887 fresh MariaDB
+  passed but both jobs had logout warnings; native HTTPS stage=monitor failed.
+  Added payload-free banner/line/carrier/monitor phase facts and complete KJOB
+  accounting/prompt gate (same3s/one command). Controlled prefix-only regression
+  fails old code;78 gateway/Chromium/transport tests pass. Focused fixture holds
+  failed upstream line for bounded CTY SYSTAT/show DZ before closure, no memory
+  or raw player transcript. No STOMPR-cause/native-removal claim. See terminal-lifecycle.md.
+
 - Release1.1 preparation is consolidated from merged main50092ed, not the full
   investigation history. Guarded setup explicitly selects --monitor-scope and
   --batch-preflight; fresh defaults remain native/unguarded, reruns preserve

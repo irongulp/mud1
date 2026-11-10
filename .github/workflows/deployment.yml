@@ -6,10 +6,15 @@ on:
         type: boolean
         default: true
         description: Test recommended monitor-scope and batch-preflight deployment (installer defaults remain unchanged)
+      terminal_lifecycle:
+        type: boolean
+        default: false
+        description: Focused native terminal-reuse diagnostic only, not full release acceptance
 permissions:
   contents: write # Needed to download the draft runtime asset before publication.
 jobs:
   alma9:
+    if: ${{ !inputs.terminal_lifecycle }}
     name: AlmaLinux / ${{ matrix.scenario }}
     runs-on: ubuntu-24.04
     timeout-minutes: 120
@@ -123,3 +128,47 @@ jobs:
             runtime/external-deployment-*/**/*.log
             runtime/external-deployment-*/**/report.json
             runtime/database-editor-ci/report.json
+  terminal-lifecycle:
+    if: inputs.terminal_lifecycle
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Prepare pinned media and browser fixture
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p runtime/release-v1 runtime/terminal-lifecycle
+          gh release download runtime-v1 --pattern mud86-runtime.tar.gz --dir runtime/release-v1
+          docker build --target browser-tests -t mud86-terminal-fixture -f deploy/Dockerfile.alma9 .
+          docker run --name mud86-terminal-tools mud86-terminal-fixture dnf install -y procps-ng
+          docker commit mud86-terminal-tools mud86-terminal-fixture
+          docker rm mud86-terminal-tools
+          docker run -d --name mud86-focused --memory=2g --user "$(id -u):$(id -g)" -e HOME=/tmp \
+            -v "$PWD:/checkout:ro" -v "$PWD/runtime/terminal-lifecycle:/evidence" \
+            -w /checkout mud86-terminal-fixture sleep infinity
+          docker exec mud86-focused bash -euc '
+            python -m unittest tests.test_gateway_lifecycle_evidence tests.test_gateway_carrier -v
+            git clone --no-checkout https://github.com/simh/simh.git /tmp/simh
+            git -C /tmp/simh checkout --detach 47b7ddabbe5b548cfc32f2fd45f7bed238ff7921
+            python -m tools.local_simulator --source /tmp/simh --cache /tmp/simh-cache
+          '
+      - name: One bounded native terminal lifecycle
+        run: |
+          docker update --cpus=1 mud86-focused
+          docker exec mud86-focused python -m tests.integration_terminal_lifecycle \
+            --output /evidence/probe --archive /checkout/runtime/release-v1/mud86-runtime.tar.gz \
+            --simh /tmp/simh-cache/source/BIN/pdp10
+      - name: Remove fixture
+        if: always()
+        run: docker rm -f mud86-focused
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: terminal-lifecycle
+          path: |
+            runtime/terminal-lifecycle/probe/*.json
+            runtime/terminal-lifecycle/probe/*.log
+            runtime/terminal-lifecycle/probe/failure-*.txt

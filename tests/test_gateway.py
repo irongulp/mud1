@@ -93,7 +93,7 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
                         writer.write("\r\n.")
                     elif "kjob\r" in data:
                         await self.allow_logout.wait()
-                        writer.write("Logged-off\r\n.")
+                        writer.write("Logged-off TTY0\r\nRuntime: 0:00:00\r\nDisk Reads:1, Writes:0, Blocks saved:0\r\n\r\n.")
                         break
                     else:
                         writer.write(data)
@@ -1049,7 +1049,7 @@ class GatewayTests(unittest.IsolatedAsyncioTestCase):
                 await reader.read(100)
                 writer.write(b"\r\n.")
                 await reader.readuntil(b"kjob\r")
-                writer.write(b"Logged-off")
+                writer.write(b"Logged-off TTY0\r\nRuntime: 0:00:00\r\nDisk Reads:1, Writes:0, Blocks saved:0\r\n\r\n.")
             finally:
                 writer.close()
                 await writer.wait_closed()

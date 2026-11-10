@@ -48,7 +48,7 @@ class CarrierAdmissionTests(unittest.IsolatedAsyncioTestCase):
             elif data=='login mudguest\r':
                 reader.feed_data(b'By what name shall I call you?\r\n*')
             elif data=='kjob\r':
-                reader.feed_data(b'Logged-off\r\n.')
+                reader.feed_data(b'Logged-off TTY0\r\nRuntime: 0:00:00\r\nDisk Reads:1, Writes:0, Blocks saved:0\r\n\r\n.')
         writer.write.side_effect=write
         async def banner():
             nonlocal ready

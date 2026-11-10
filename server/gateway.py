@@ -17,6 +17,7 @@ from aiohttp import WSMsgType, web
 from server.password_input import PasswordInput
 from server.terminal_prompts import NATIVE_PROMPT_REDRAW
 from server.maintenance import MAINTENANCE_FILE, MESSAGE, RETRY_SECONDS, CLOSE_CODE
+from tools.guest_control import completed_logout
 
 ROOT = Path(__file__).resolve().parents[1]
 WEB = ROOT / "web"
@@ -133,23 +134,42 @@ async def send_browser(socket, data):
         raise BrowserDisconnected() from error
 
 
-async def wake_monitor(reader, writer):
+async def wake_monitor(reader, writer, *, progress=None):
     """Wait for the assigned DZ line before one wakeup CR; no replay."""
+    progress = {} if progress is None else progress
+    progress.update(stage='banner',line=None,wakeup_submitted=False,monitor_seen=False)
     await reader.readuntil(SIMH_LINE_BANNER)
+    progress['stage']='line-assignment'
     line = await reader.readuntil(b'\n')
     if not re.fullmatch(rb'[0-9]+\r?\n', line):
         raise OSError('Invalid SIMH line assignment')
+    progress.update(line=int(line),stage='carrier-settling')
     # Match native maintenance admission: carrier establishment can clear the
     # terminal's typeahead after the socket is accepted.
     await asyncio.sleep(TTY_CARRIER_SETTLE_SECONDS)
+    progress.update(stage='monitor-response',wakeup_submitted=True)
     writer.write('\r')
     await reader.readuntil(b'.')
+    progress.update(stage='complete',monitor_seen=True)
+
+
+def terminal_response_facts(reader, consumed=b''):
+    """Bounded structure only, never terminal payloads. Pinned reader buffer hook."""
+    buffer=getattr(reader,'_buffer',b'')
+    if not isinstance(buffer,(bytes,bytearray)): buffer=b''
+    if isinstance(consumed,str): consumed=consumed.encode('ascii',errors='replace')
+    if not isinstance(consumed,bytes): consumed=b''
+    sample=consumed[-READ_SIZE:]+bytes(buffer[-READ_SIZE:])
+    return dict(response_bytes=len(consumed)+len(buffer),eof=reader is not None and reader.at_eof() is True,
+                kjob_echo_seen=b'kjob\r\n' in sample.lower(),logged_off_seen=b'Logged-off' in sample,
+                accounting_seen=b'Disk Reads:' in sample,final_prompt_seen=sample.endswith(b'\n.'))
 
 
 async def logout_guest(reader, writer, *, entered, monitor, connection_id):
     """Bounded QUIT -> monitor recovery -> KJOB; callers own the TTY until done."""
     stage = 'quit' if entered else 'interrupt'
     recovered = False
+    reply=b''
     try:
         if not monitor and entered:
             writer.write("\x15quit\r")
@@ -167,12 +187,20 @@ async def logout_guest(reader, writer, *, entered, monitor, connection_id):
             await asyncio.wait_for(reader.readuntil(b"\n."), LOGOUT_TIMEOUT)
         stage = 'logout'
         writer.write("kjob\r")
-        await asyncio.wait_for(reader.readuntil(b"Logged-off"), LOGOUT_TIMEOUT)
+        reply=await asyncio.wait_for(reader.readuntil(b"\n."), LOGOUT_TIMEOUT)
+        text=reply.decode('ascii',errors='replace') if isinstance(reply,bytes) else reply
+        if not completed_logout(text):
+            raise OSError('Incomplete native logout report')
         LOG.info("Terminal logout complete: connection=%s recovered=%s", connection_id, recovered)
+        return True
     except (OSError, EOFError, asyncio.TimeoutError, asyncio.IncompleteReadError, asyncio.LimitOverrunError) as error:
         # No raw terminal output, persona names, or exception payloads here.
-        LOG.warning("Terminal logout did not complete; check the guest job: connection=%s stage=%s error=%s",
-                    connection_id, stage, type(error).__name__)
+        facts=terminal_response_facts(reader,getattr(error,'partial',reply))
+        LOG.warning("Terminal logout did not complete; check the guest job: connection=%s stage=%s error=%s "
+                    "response_bytes=%s eof=%s kjob_echo_seen=%s logged_off_seen=%s accounting_seen=%s final_prompt_seen=%s",
+                    connection_id, stage, type(error).__name__,facts['response_bytes'],facts['eof'],
+                    facts['kjob_echo_seen'],facts['logged_off_seen'],facts['accounting_seen'],facts['final_prompt_seen'])
+        return False
 
 
 def create_app(upstream_host="127.0.0.1", upstream_port=2020, *, session_bootstrap=None,
@@ -234,7 +262,7 @@ def create_app(upstream_host="127.0.0.1", upstream_port=2020, *, session_bootstr
             await socket.send_str('\r\n' + MESSAGE + '\r\n')
             await socket.close(code=CLOSE_CODE, message=b'Scheduled maintenance')
             return socket
-        writer = None
+        reader = writer = None
         close_code = 1000
         tasks = []
         entered = False
@@ -242,6 +270,7 @@ def create_app(upstream_host="127.0.0.1", upstream_port=2020, *, session_bootstr
         login_started = False
         connection_id = uuid4().hex
         stage = 'connect'
+        admission_progress={}
         LOG.info("Terminal session started: connection=%s style=%s", connection_id, style)
         password_input = PasswordInput()
         input_ready = asyncio.Event()
@@ -257,7 +286,8 @@ def create_app(upstream_host="127.0.0.1", upstream_port=2020, *, session_bootstr
             # TOPS-10 treats CR and LF as separate input terminators. A trailing
             # LF after LOGIN reaches MUD as an empty name and repeats its prompt.
             stage = 'monitor'
-            await asyncio.wait_for(wake_monitor(reader, writer), CONNECT_TIMEOUT)
+            await asyncio.wait_for(wake_monitor(reader, writer,progress=admission_progress), CONNECT_TIMEOUT)
+            LOG.info('Terminal line assigned: connection=%s line=%s',connection_id,admission_progress['line'])
             # Telnet's terminal name does not configure TOPS-10's local DZ TTY.
             # Select display editing rather than printing-terminal rubout echo.
             stage = 'terminal-type'
@@ -388,8 +418,12 @@ def create_app(upstream_host="127.0.0.1", upstream_port=2020, *, session_bootstr
             LOG.info("Browser terminal disconnected during output: connection=%s stage=%s", connection_id, stage)
         except (OSError, EOFError, asyncio.TimeoutError, asyncio.IncompleteReadError,
                 asyncio.LimitOverrunError) as error:
-            LOG.warning("Terminal connection ended: connection=%s stage=%s upstream %s",
-                        connection_id, stage, type(error).__name__)
+            facts=terminal_response_facts(reader,getattr(error,'partial',b''))
+            LOG.warning("Terminal connection ended: connection=%s stage=%s upstream %s "
+                        "admission_stage=%s line=%s wakeup_submitted=%s monitor_seen=%s response_bytes=%s eof=%s",
+                        connection_id, stage, type(error).__name__,admission_progress.get('stage'),
+                        admission_progress.get('line'),admission_progress.get('wakeup_submitted',False),
+                        admission_progress.get('monitor_seen',False),facts['response_bytes'],facts['eof'])
             if not socket.closed:
                 try:
                     await send_browser(socket, "\r\n[The original MUD server is unavailable. Please reconnect.]\r\n")
