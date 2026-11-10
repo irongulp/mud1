@@ -112,3 +112,13 @@ controls unchanged as a release fix. The next useful capture is the external
 installed restart/final-stop path that previously emitted BATCON failed to
 startup, with evidence attached to that exact boot. Full uninstrumented release
 acceptance and a justified runtime correction remain open.
+
+Select `shutdown_reproduction=true` with `shutdown_scenario=fresh-mariadb`
+for the external installed path. It uses the original fresh-external acceptance
+driver followed by the14 editor/recovery checks, then the same final stop and
+clean-shutdown verification. Per-stop capture uses the same service-only
+drop-in and observer; the separate build guest is not instrumented by this
+drop-in. Native remains the diagnostic default. Both modes retain per-stop
+censuses/reports, any failed-KSYS DZ report and service journals; external mode
+also retains its scenario/editor reports. Actionlint and10 focused capture/
+lifecycle tests passed before this external invocation.

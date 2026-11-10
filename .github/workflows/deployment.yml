@@ -14,6 +14,11 @@ on:
         type: boolean
         default: false
         description: Installed native rerun/backup/restart with fixture-only shutdown capture
+      shutdown_scenario:
+        type: choice
+        default: native
+        options: [native, fresh-mariadb]
+        description: Installed lifecycle exercised when shutdown_reproduction is enabled
 permissions:
   contents: write # Needed to download the draft runtime asset before publication.
 jobs:
@@ -185,6 +190,8 @@ jobs:
     env:
       MUD86_TEST_MONITOR_SCOPE: '1'
       MUD86_TEST_BATCH_PREFLIGHT: '1'
+      ACCEPTANCE_CONTAINER: ${{ inputs.shutdown_scenario == 'fresh-mariadb' && 'mud86-external-fresh' || 'mud86-install-test' }}
+      ACCEPTANCE_HTTP_PORT: ${{ inputs.shutdown_scenario == 'fresh-mariadb' && '48080' || '38080' }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -202,29 +209,39 @@ jobs:
           mkdir -p runtime/release-v1 runtime/shutdown-capture
           gh release download runtime-v1 --pattern mud86-runtime.tar.gz --dir runtime/release-v1
           docker build -t mud86-alma9 -f deploy/Dockerfile.alma9 .
-          docker run -d --name mud86-install-test --privileged --cgroupns=host \
+          docker run -d --name "$ACCEPTANCE_CONTAINER" --privileged --cgroupns=host \
             --cpus=1 --memory=2g --tmpfs /run --tmpfs /tmp \
             -v /sys/fs/cgroup:/sys/fs/cgroup:rw \
             -v "$PWD:/checkout:ro" -v "$PWD/runtime/release-v1:/artifacts:ro" \
-            -p 127.0.0.1:38080:80 -p 127.0.0.1:38443:443 mud86-alma9
+            -p "127.0.0.1:$ACCEPTANCE_HTTP_PORT:80" -p 127.0.0.1:38443:443 mud86-alma9
           for _ in $(seq 1 60); do
-            docker exec mud86-install-test systemctl show-environment >/dev/null 2>&1 && break
+            docker exec "$ACCEPTANCE_CONTAINER" systemctl show-environment >/dev/null 2>&1 && break
             sleep 1
           done
-          docker exec mud86-install-test install -Dm644 /checkout/tests/fixtures/shutdown-capture.conf /etc/systemd/system/mud86-runtime.service.d/shutdown-capture.conf
+          docker exec "$ACCEPTANCE_CONTAINER" install -Dm644 /checkout/tests/fixtures/shutdown-capture.conf /etc/systemd/system/mud86-runtime.service.d/shutdown-capture.conf
       - name: Installed native lifecycle
+        if: inputs.shutdown_scenario != 'fresh-mariadb'
         run: .venv/bin/python -m tests.integration_deployment
+      - name: Installed external lifecycle
+        if: inputs.shutdown_scenario == 'fresh-mariadb'
+        run: .venv/bin/python -m tests.integration_external_deployment --fresh --container mud86-external-fresh --url http://127.0.0.1:48080
+      - name: External database editor and recovery
+        if: inputs.shutdown_scenario == 'fresh-mariadb'
+        run: |
+          docker exec -w /checkout "$ACCEPTANCE_CONTAINER" runuser -u mud86 -- /opt/mud86/current/.venv/bin/python -m tests.integration_database_access --output /var/lib/mud86/editor-acceptance
+          mkdir -p runtime/database-editor-ci
+          docker cp "$ACCEPTANCE_CONTAINER:/var/lib/mud86/editor-acceptance/report.json" runtime/database-editor-ci/report.json
       - name: Retain service and shutdown evidence
         if: always()
         run: |
           python3 -m tests.deployment_diagnostics
-          docker cp mud86-install-test:/var/lib/mud86/shutdown-capture/. runtime/shutdown-capture/
+          docker cp "$ACCEPTANCE_CONTAINER:/var/lib/mud86/shutdown-capture/." runtime/shutdown-capture/
       - name: Verify final native shutdown
         if: always()
         run: python3 -m tests.deployment_diagnostics --verify
       - name: Remove fixture
         if: always()
-        run: docker rm -f mud86-install-test
+        run: docker rm -f "$ACCEPTANCE_CONTAINER"
       - uses: actions/upload-artifact@v7
         if: always()
         with:
@@ -234,3 +251,6 @@ jobs:
             runtime/deployment-*/**/report.json
             runtime/shutdown-capture/**/*.json
             runtime/shutdown-capture/**/*.txt
+            runtime/external-deployment-*/**/*.log
+            runtime/external-deployment-*/**/report.json
+            runtime/database-editor-ci/report.json
