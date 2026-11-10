@@ -31,6 +31,14 @@
 
 ## Current working system
 
+- Terminal focused CI42850687405 at9d9bcd3 passed eight logouts/line reuse and
+  clean KSYS with STOMP retained. Full42851873419 failed both shutdown gates:
+  native rerun KSYS timeout; external scenario/editor passed but final BATCON
+  startup failed. External failed logout preceded CLEAN shutdown; next boot's
+  complete logout preceded FAILED KSYS. No common-cause claim. Fixture-only
+  pre-shutdown SYSTAT/failed-KSYS DZ capture now has three red/green regressions,
+  73 focused tests; native new-capture proof pending. See terminal-lifecycle.md.
+
 - macOS arm64; use Python 3.12 for the security-updated dependencies. Legacy
   Python 3.9 `.venv` directories need fresh recreation (README host setup).
 - SIMH revision `47b7ddabbe5b548cfc32f2fd45f7bed238ff7921`, `upstream/simh/BIN/pdp10`.

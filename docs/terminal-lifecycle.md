@@ -48,3 +48,32 @@ The fixture's diagnostic teardown allowance is separate from the completed
 production timeout. Production gateway deadlines remain unchanged. The normal
 release workflow is still available with this option false. The focused run is
 not full installation, migration or release acceptance.
+
+## Native evidence and shutdown follow-up
+
+Focused run42850687405 at9d9bcd3 passed both browser rounds, eight complete
+logouts/line0-1 reuse and clean KSYS with the original STOMP initializer enabled.
+Artifact13781515719 retains the evidence; no failure capture triggered.
+
+Full matrix42851873419 at the same commit failed both final shutdown gates.
+Native-upgrade stopped during installer rerun: complete browser logout, empty
+SHOW QUEUES and one queued KSYS, then completion timeout (artifact13780648179).
+Fresh-MariaDB passed installation/persistence/rerun/backup/restart, six guarded
+boot/batch proofs and14 editor cases, but final KSYS reported BATCON failed to
+startup and timed out (artifact13782678284). Scenario complete:true does not
+override shutdown clean:false.
+
+External journal ordering matters:16:38:13 UTC KJOB-echo-only logout timeout
+(6 bytes/no Logged-off/accounting/prompt/EOF=false) preceded a CLEAN KSYS at
+16:38:15. After a new boot,16:39:22 logout completed but final KSYS failed.
+Do not conflate these events or infer empty queues/startup batch execution
+guarantees later shutdown. The earlier admission timeout remains unresolved.
+
+The fixture now records SYSTAT before shutdown at a known monitor, retaining the
+original queue check and single KSYS deadline. After a failed KSYS it captures
+SIMH DZ state before exit, without resuming or sending another guest command.
+An uncertain census fences guest cleanup. Capture errors preserve the original
+shutdown exception. No automatic OPSER fallback or unconfirmed-disk promotion.
+Three red/green tests and73 gateway/carrier/evidence tests pass; this new shutdown
+capture still needs native execution. Temporary-worktree loss required recovery
+from9d9bcd3; recovered tests live in tests/test_terminal_shutdown_capture.py.
