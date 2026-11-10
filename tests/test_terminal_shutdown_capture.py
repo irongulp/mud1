@@ -1,14 +1,38 @@
 """Failure ownership for the disposable shutdown diagnostic."""
 from pathlib import Path
+import json
 import tempfile
 import unittest
 from unittest.mock import Mock
 
 from server.runtime import MONITOR_PROMPT
 from tests import integration_terminal_lifecycle as fixture
+from tests.shutdown_capture import capture_runtime_shutdown
 
 
 class ShutdownCaptureTests(unittest.TestCase):
+    def test_installed_wrapper_calls_original_once_and_retains_exception_type(self):
+        with tempfile.TemporaryDirectory() as directory:
+            runtime=Mock(state=Path(directory),booted=False)
+            original=Mock(side_effect=TimeoutError('private buffer'))
+            with self.assertRaises(TimeoutError):
+                capture_runtime_shutdown(runtime,original)
+            original.assert_called_once_with(runtime)
+            runtime.stop.assert_not_called()
+            reports=list((Path(directory)/'shutdown-capture').glob('*/report.json'))
+            self.assertEqual(len(reports),1)
+            report=json.loads(reports[0].read_text())
+            self.assertFalse(report['shutdown_clean'])
+            self.assertEqual(report['error_type'],'TimeoutError')
+            self.assertNotIn('private buffer',reports[0].read_text())
+
+    def test_installed_wrapper_without_child_preserves_original_stop(self):
+        runtime=Mock(child=None)
+        original=Mock(return_value=False)
+        self.assertFalse(capture_runtime_shutdown(runtime,original))
+        original.assert_called_once_with(runtime)
+        runtime.command.assert_not_called()
+
     def test_failed_ksys_captures_without_guest_replay_or_resume(self):
         runtime=Mock(booted=True,control_prompt=MONITOR_PROMPT)
         def command(text,*args,**kwargs):

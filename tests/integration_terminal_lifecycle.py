@@ -16,7 +16,8 @@ from unittest.mock import patch
 from aiohttp.test_utils import TestServer
 
 from server import gateway
-from server.runtime import Runtime, MONITOR_PROMPT
+from server.runtime import Runtime
+from tests.shutdown_capture import observed_stop
 from tests.browser_smoke import main as browser_smoke
 from tools.deploy import install_image
 
@@ -117,47 +118,6 @@ async def exercise(runtime,output,report):
         gateway.LOG.removeHandler(records)
         gateway.LOG.setLevel(old_level)
         (output/'gateway.json').write_text(json.dumps(records.messages,indent=2)+'\n')
-
-
-def observed_stop(runtime,output,report):
-    """Fixture-only evidence around the original single-attempt shutdown."""
-    evidence={}
-    report['shutdown_evidence']=evidence
-    if runtime.booted and runtime.control_prompt==MONITOR_PROMPT:
-        try:
-            status=runtime.command('systat',timeout=STATE_CAPTURE_SECONDS)
-            (output/'pre-shutdown-systat.txt').write_text(status)
-            evidence['census_completed']=True
-        except Exception as error:
-            evidence['census_error_type']=type(error).__name__
-            runtime.booted=False
-            runtime.control_prompt=None
-    original_command=runtime.command
-
-    def command(text,*args,**kwargs):
-        try:
-            return original_command(text,*args,**kwargs)
-        except Exception as error:
-            if text=='set ksys now':
-                evidence['error_type']=type(error).__name__
-                console=runtime.scope.console
-                console.deadline=time.monotonic()+STATE_CAPTURE_SECONDS
-                try:
-                    console.halt()
-                    status=console.command('show dz')
-                    (output/'shutdown-failure-dz.txt').write_text(status)
-                    evidence['device_report_completed']=True
-                except Exception as capture_error:
-                    evidence['device_error_type']=type(capture_error).__name__
-                finally:
-                    # Runtime.stop owns exit from SCP; never resume failed KSYS.
-                    runtime.booted=False
-                    runtime.control_prompt=None
-                    console.deadline=None
-            raise
-
-    with patch.object(runtime,'command',command):
-        return runtime.stop()
 
 
 def run(output,archive,executable):

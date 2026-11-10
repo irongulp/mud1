@@ -37,7 +37,11 @@
   startup failed. External failed logout preceded CLEAN shutdown; next boot's
   complete logout preceded FAILED KSYS. No common-cause claim. Fixture-only
   pre-shutdown SYSTAT/failed-KSYS DZ capture now has three red/green regressions,
-  73 focused tests; native new-capture proof pending. See terminal-lifecycle.md.
+  73 focused tests. New42877224223/052d458 passed census/8 logouts/clean KSYS;
+  census retained in console despite omitted standalone artifact (now fixed).
+  Failed-KSYS capture unexercised. Diagnostic shutdown_reproduction now uses
+  installed-runtime service override/shared observer for real native rerun/
+  backup/restart;75 tests/actionlint pass. See docs/terminal-lifecycle.md.
 
 - macOS arm64; use Python 3.12 for the security-updated dependencies. Legacy
   Python 3.9 `.venv` directories need fresh recreation (README host setup).

@@ -77,3 +77,19 @@ shutdown exception. No automatic OPSER fallback or unconfirmed-disk promotion.
 Three red/green tests and73 gateway/carrier/evidence tests pass; this new shutdown
 capture still needs native execution. Temporary-worktree loss required recovery
 from9d9bcd3; recovered tests live in tests/test_terminal_shutdown_capture.py.
+
+Follow-up42877224223 at052d458 passed both browser rounds, eight complete logouts,
+no gateway warnings, pre-shutdown census and clean KSYS. Artifact13791928242's
+console.log retains SYSTAT: BATCON sleeping, two LOGIN jobs on lines0/1, no busy
+devices; shutdown then completed. The separate census file was omitted by the
+old artifact whitelist; upload now includes both new shutdown filenames. Failed
+KSYS capture remains host-tested, not exercised by this passing run.
+
+`shutdown_reproduction=true` runs only the actual native installation/rerun/
+saved-login/timing/backup/restart fixture. A disposable systemd drop-in launches
+tests/shutdown_capture.py using the installed venv/cwd/server code, unchanged
+service identity/environment/deadlines, and the shared observer. Per-stop UUID
+directories retain census/device/report evidence. The wrapper calls original
+Runtime.stop once and records exception types without payloads. Five capture
+tests,75 focused gateway/carrier/evidence tests and actionlint pass. This mode
+is diagnostic, not full release acceptance; no production unit/runtime changes.
