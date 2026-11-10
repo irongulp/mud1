@@ -31,6 +31,15 @@
 
 ## Current working system
 
+- External shutdown diagnostic42913344093/16bc7e0 passed fresh install/rerun/
+  persistence/backup/restart,14 editor cases,6 scope/batch proofs and final clean
+  KSYS. Artifact13809302847 retains5 service-stop censuses/reports, all clean;
+  separate build guest is not a sixth service capture. No gateway warnings or
+  failed-KSYS capture. BATCON SL/SL SW with/without LOGIN preceded success.
+  Pre-stop SYSTAT changes timing/workload; no causal fix. Next matched failure-
+  only capture without pre-stop census (not implemented), not another unchanged
+  positive run or production SYSTAT workaround. Full release gate remains.
+
 - Terminal focused CI42850687405 at9d9bcd3 passed eight logouts/line reuse and
   clean KSYS with STOMP retained. Full42851873419 failed both shutdown gates:
   native rerun KSYS timeout; external scenario/editor passed but final BATCON

@@ -122,3 +122,26 @@ drop-in. Native remains the diagnostic default. Both modes retain per-stop
 censuses/reports, any failed-KSYS DZ report and service journals; external mode
 also retains its scenario/editor reports. Actionlint and10 focused capture/
 lifecycle tests passed before this external invocation.
+
+External run42913344093 at16bc7e0 passed fresh installation, persistence, rerun,
+backup/restart, all14 MariaDB10.5.29 editor/recovery cases and final clean
+shutdown. Artifact13809302847 retains five service-stop censuses/reports, all
+shutdown_clean:true, alongside five native KSYS completions and no gateway
+warnings. The scenario verified six guarded boot/batch proofs; these include
+the separate build guest, so do not label all six as service-stop captures.
+The disposable container was removed after evidence collection.
+
+The initial native service census contained STOMPR and BATCON SL SW; the four
+external service censuses had BATCON SL or SL SW, sometimes with a line0 LOGIN
+job. All reported no busy devices. The final external stop had BATCON4+40/SL SW,
+no LOGIN job and confirmed KSYS completion. No failed-KSYS DZ capture triggered.
+This repeats successful shutdown across the actual external lifecycle, not a
+diagnosis of42913344093's predecessors or a production reliability fix.
+
+Both installed diagnostic paths now pass with pre-shutdown census enabled.
+Before another run, isolate that observation's timing/workload effect: a matched
+failure-only capture mode should omit SYSTAT before shutdown but retain the
+original queue check, original KSYS budget and post-failure device capture.
+Such a comparison is not yet implemented or executed. Do not promote SYSTAT
+into a production workaround or run unchanged positive fixtures until green.
+Release acceptance on the final uninstrumented main commit remains required.
