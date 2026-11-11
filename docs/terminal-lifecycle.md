@@ -145,3 +145,13 @@ original queue check, original KSYS budget and post-failure device capture.
 Such a comparison is not yet implemented or executed. Do not promote SYSTAT
 into a production workaround or run unchanged positive fixtures until green.
 Release acceptance on the final uninstrumented main commit remains required.
+
+Failure-only comparison is now selectable with `shutdown_census=false` alongside
+`shutdown_reproduction=true` and the chosen scenario. A fixture-only systemd
+environment drop-in sets MUD86_CAPTURE_CENSUS=0; each report explicitly records
+census_enabled:false. No SYSTAT is issued before shutdown. The observer passes
+through original commands/timeouts and captures DZ only after failed KSYS,
+without resume/replay. One red/green regression with success/failure subcases
+plus existing capture/lifecycle tests totals11 passing tests; actionlint passes.
+The earlier statement that this comparison was unimplemented describes the
+42913344093 boundary; native failure-only evidence is still pending.

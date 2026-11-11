@@ -19,6 +19,10 @@ on:
         default: native
         options: [native, fresh-mariadb]
         description: Installed lifecycle exercised when shutdown_reproduction is enabled
+      shutdown_census:
+        type: boolean
+        default: true
+        description: Run pre-shutdown SYSTAT in diagnostic mode; false captures failures only
 permissions:
   contents: write # Needed to download the draft runtime asset before publication.
 jobs:
@@ -219,6 +223,9 @@ jobs:
             sleep 1
           done
           docker exec "$ACCEPTANCE_CONTAINER" install -Dm644 /checkout/tests/fixtures/shutdown-capture.conf /etc/systemd/system/mud86-runtime.service.d/shutdown-capture.conf
+      - name: Select failure-only shutdown capture
+        if: ${{ !inputs.shutdown_census }}
+        run: docker exec "$ACCEPTANCE_CONTAINER" install -Dm644 /checkout/tests/fixtures/shutdown-no-census.conf /etc/systemd/system/mud86-runtime.service.d/shutdown-no-census.conf
       - name: Installed native lifecycle
         if: inputs.shutdown_scenario != 'fresh-mariadb'
         run: .venv/bin/python -m tests.integration_deployment

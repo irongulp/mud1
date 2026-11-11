@@ -1,5 +1,6 @@
 """Disposable CI shutdown observer, also usable as an installed-runtime launcher."""
 import json
+import os
 from pathlib import Path
 import sys
 import time
@@ -15,11 +16,11 @@ from server.runtime import Runtime, MONITOR_PROMPT, main
 STATE_CAPTURE_SECONDS=10
 
 
-def observed_stop(runtime,output,report,*,stop=None):
+def observed_stop(runtime,output,report,*,stop=None,census=True):
     """Fixture-only evidence around the original single-attempt shutdown."""
-    evidence={}
+    evidence=dict(census_enabled=census)
     report['shutdown_evidence']=evidence
-    if runtime.booted and runtime.control_prompt==MONITOR_PROMPT:
+    if census and runtime.booted and runtime.control_prompt==MONITOR_PROMPT:
         try:
             status=runtime.command('systat',timeout=STATE_CAPTURE_SECONDS)
             (output/'pre-shutdown-systat.txt').write_text(status)
@@ -55,7 +56,7 @@ def observed_stop(runtime,output,report,*,stop=None):
         return (stop or runtime.stop)()
 
 
-def capture_runtime_shutdown(runtime,original_stop):
+def capture_runtime_shutdown(runtime,original_stop,*,census=True):
     if runtime.child is None:
         return original_stop(runtime)
     output=runtime.state/'shutdown-capture'/uuid.uuid4().hex
@@ -63,7 +64,7 @@ def capture_runtime_shutdown(runtime,original_stop):
     report=dict(shutdown_clean=False)
     try:
         report['shutdown_clean']=observed_stop(runtime,output,report,
-                                              stop=lambda:original_stop(runtime))
+                                              stop=lambda:original_stop(runtime),census=census)
         return report['shutdown_clean']
     except Exception as error:
         report['error_type']=type(error).__name__
@@ -74,5 +75,6 @@ def capture_runtime_shutdown(runtime,original_stop):
 
 if __name__=='__main__':
     original_stop=Runtime.stop
-    with patch.object(Runtime,'stop',lambda runtime:capture_runtime_shutdown(runtime,original_stop)):
+    census=os.environ.get('MUD86_CAPTURE_CENSUS','1')!='0'
+    with patch.object(Runtime,'stop',lambda runtime:capture_runtime_shutdown(runtime,original_stop,census=census)):
         main()

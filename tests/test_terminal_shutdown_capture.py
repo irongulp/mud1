@@ -11,6 +11,38 @@ from tests.shutdown_capture import capture_runtime_shutdown
 
 
 class ShutdownCaptureTests(unittest.TestCase):
+    def test_failure_only_mode_retains_original_commands_and_captures_after_failure(self):
+        for failure in (False,True):
+            with self.subTest(failure=failure),tempfile.TemporaryDirectory() as directory:
+                runtime=Mock(state=Path(directory),booted=True,control_prompt=MONITOR_PROMPT)
+                def command(text,*args,**kwargs):
+                    if text=='show queues': return 'The queues are empty'
+                    if text=='set ksys now':
+                        if failure: raise TimeoutError('private buffer')
+                        return 'KSYS processing completed'
+                    self.fail('Unexpected guest command: '+text)
+                runtime.command.side_effect=command
+                original_command=runtime.command
+                def stop(instance):
+                    instance.command('show queues',timeout=90)
+                    try: instance.command('set ksys now',timeout=89)
+                    except TimeoutError: return False
+                    return True
+                original_stop=Mock(side_effect=stop)
+                runtime.scope.console.command.return_value='DZ state'
+                self.assertEqual(capture_runtime_shutdown(runtime,original_stop,census=False),not failure)
+                original_stop.assert_called_once_with(runtime)
+                self.assertEqual([call.args[0] for call in original_command.call_args_list],
+                                 ['show queues','set ksys now'])
+                self.assertEqual(original_command.call_args_list[-1].kwargs['timeout'],89)
+                reports=list((Path(directory)/'shutdown-capture').glob('*/report.json'))
+                report=json.loads(reports[0].read_text())
+                self.assertFalse(report['shutdown_evidence']['census_enabled'])
+                self.assertFalse((reports[0].parent/'pre-shutdown-systat.txt').exists())
+                self.assertEqual((reports[0].parent/'shutdown-failure-dz.txt').exists(),failure)
+                self.assertEqual(runtime.scope.console.halt.call_count,int(failure))
+                runtime.scope.console.resume.assert_not_called()
+
     def test_installed_wrapper_calls_original_once_and_retains_exception_type(self):
         with tempfile.TemporaryDirectory() as directory:
             runtime=Mock(state=Path(directory),booted=False)
