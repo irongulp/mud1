@@ -31,6 +31,15 @@
 
 ## Current working system
 
+- Failure-only external43116428884/806d3f2 passed scenario/14 editor cases/6
+  scope-batch proofs and5 clean service stops with census_enabled:false;
+  artifact13899823286/no census or failed-DZ files. KJOB-echo-only logout warning
+  at23:26:50 UTC (6 bytes/no Logged-off/accounting/prompt/EOF=false) preceded
+  same-boot clean KSYS. Green CI is not warning-free lifecycle or a runtime fix.
+  Next bounded command-free post-timeout observation while line stays open,
+  fixture-only/no KJOB replay/no production timeout increase (not implemented).
+  See docs/terminal-lifecycle.md; source/server unchanged, release still blocked.
+
 - External shutdown diagnostic42913344093/16bc7e0 passed fresh install/rerun/
   persistence/backup/restart,14 editor cases,6 scope/batch proofs and final clean
   KSYS. Artifact13809302847 retains5 service-stop censuses/reports, all clean;

@@ -155,3 +155,28 @@ without resume/replay. One red/green regression with success/failure subcases
 plus existing capture/lifecycle tests totals11 passing tests; actionlint passes.
 The earlier statement that this comparison was unimplemented describes the
 42913344093 boundary; native failure-only evidence is still pending.
+
+Failure-only external run43116428884 at806d3f2 completed in26m19s and passed
+installation/persistence/rerun/backup/restart, six scope/batch proofs,14 editor
+cases and final clean shutdown. Artifact13899823286 contains five service-stop
+reports, all census_enabled:false/shutdown_clean:true, with five native KSYS
+completions and no census/device-failure files. This demonstrates successful
+shutdown without the extra census in this run, not that earlier failures are
+fixed or that census has no timing effect. The local gh-watch command timed out;
+the independent completed GitHub result and artifacts establish the outcome.
+
+Importantly, the service journal retained a warning at23:26:50 UTC: connection
+af9163f6e8b84d35bb90d87eb82a6899, stage=logout, TimeoutError,6 response bytes,
+KJOB echo=true, Logged-off/accounting/final prompt=false, EOF=false. The same
+boot completed KSYS (journal23:26:57; guest23:26:46). This repeats
+KJOB-echo-only failure with clean subsequent shutdown. The green workflow
+therefore means scenario/editor/final-shutdown checks passed, not warning-free
+terminal lifecycle. The fixture container was removed after evidence capture.
+
+Next target is that reproduced terminal boundary, not another unchanged KSYS
+control. A disposable gateway-only observer could keep the failed connection
+open for a separately bounded, command-free observation after the production
+deadline, recording only completion/EOF/timing flags. That would distinguish
+a late complete logout from continued silence without increasing the production
+timeout, replaying KJOB, or declaring cleanup successful. This observer is not
+yet implemented; original warning and shutdown evidence must remain separate.
