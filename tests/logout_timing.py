@@ -4,8 +4,13 @@ import time
 
 from server import gateway
 from tools.guest_control import completed_logout
-from tests.logout_census import REQUEST_SECONDS
-from tests.logout_observer import OBSERVATION_SECONDS
+if __package__:
+    from .logout_census import REQUEST_SECONDS
+    from .logout_observer import OBSERVATION_SECONDS
+else:
+    # The installed gateway launches the fixture by path; releases omit tests.
+    from logout_census import REQUEST_SECONDS
+    from logout_observer import OBSERVATION_SECONDS
 
 MAX_REPORT_BYTES = 16384
 

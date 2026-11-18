@@ -610,3 +610,29 @@ cancellation, actual-send timestamps and classification. All40 focused tests,
 actionlint and diff checks pass. One original-sequence CI execution is the
 budget, ending at the first warning; native outcome pending. A post-CTY result
 alone will not justify a causal recovery claim or another unchanged run.
+
+#### Initial timing run: fixture import failure before admission
+
+Run **44419471205**, commit `2252521`, artifact **14482557212**, ended after
+20m34s with `experiment-error`/`AssertionError`, phase `host-command:bash`,
+zero browser admissions. The installed gateway launcher failed at23:37:38 UTC:
+`logout_timing.py` imported `tests.logout_census`, but the installed release
+does not contain the checkout's `tests` package. The subsequent gateway
+readiness timeout at23:38:08 was a consequence of that import error, not a
+native admission or logout stall.
+
+Only the census owner file exists: no failure request, SYSTAT response or timing
+observation was generated. Both captured runtime stops were clean; final
+shutdown verification and fixture removal passed. Private evidence is retained
+at `runtime/logout-timing-44419471205/`. This is neither a negative recurrence
+result nor evidence for either timing hypothesis.
+
+A subprocess regression reproduced the exact missing-package error with only
+`server`/`tools` available in an isolated release layout. Direct fixture launch
+now imports sibling helpers; package-based unit tests use relative imports.
+The regression also launches the real observer with timing/census enabled and
+`--help`, checking imports without booting or connecting to a guest. It runs in
+the existing pre-install test step, before expensive external compilation.
+All41 focused tests and actionlint pass. One corrected execution of the
+unexercised experiment is planned; there is no changed production deadline or
+guest-command policy and no automatic series of retries.

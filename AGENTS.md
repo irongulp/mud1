@@ -31,6 +31,15 @@
 
 ## Current working system
 
+- Timing run44419471205/2252521/artifact14482557212 failed before any admission:
+  new fixture imported tests.logout_census from an installed release without
+  tests. Gateway ModuleNotFoundError then readiness timeout; no census/request
+  or timing evidence.2 clean runtime stops/final verify/removal passed. Exact
+  isolated-release subprocess regression failed then passed with sibling imports
+  for direct launch, relative imports in package mode; real launcher --help also
+  checks timing/census selection.41 tests/actionlint pass. One corrected timing
+  execution planned; this is a harness fix, not guest reliability evidence.
+
 - Logout timing fixture now reads silently10s after original failure, requests
   one census only if still incomplete/open, and reads concurrently through the
   remaining12s (same22s maximum). Payload-free monotonic new-data/prompt and

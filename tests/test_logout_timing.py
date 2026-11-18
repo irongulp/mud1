@@ -1,5 +1,10 @@
 import asyncio
 import json
+import os
+from pathlib import Path
+import subprocess
+import sys
+import tempfile
 import time
 import unittest
 from unittest.mock import AsyncMock, Mock
@@ -12,6 +17,27 @@ REPORT = (b'kjob\r\nprivate name\r\nLogged-off TTY0\r\n'
 
 
 class TimingTests(unittest.IsolatedAsyncioTestCase):
+    def test_fixture_imports_from_installed_release_without_tests_package(self):
+        checkout = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as directory:
+            release = Path(directory).resolve()
+            for name in ('server', 'tools'):
+                (release / name).symlink_to(checkout / name, target_is_directory=True)
+            environment = dict(os.environ, PYTHONPATH=str(release),
+                               MUD86_LOGOUT_TIMING='1', MUD86_LOGOUT_CENSUS='1')
+            result = subprocess.run(
+                [sys.executable, '-c',
+                 'import sys; sys.path.insert(0, sys.argv[1]); '
+                 'import logout_timing; import server.gateway; '
+                 'assert server.gateway.__file__.startswith(sys.argv[2]), server.gateway.__file__; '
+                 'assert "tests" not in sys.modules; '
+                 'import runpy; from pathlib import Path; '
+                 'launcher = str(Path(sys.argv[1]) / "logout_observer.py"); '
+                 'sys.argv = [launcher, "--help"]; runpy.run_path(launcher, run_name="__main__")',
+                 str(checkout / 'tests'), str(release)],
+                cwd=release, env=environment, capture_output=True, text=True, timeout=15)
+            self.assertEqual(result.returncode, 0, result.stderr)
+
     async def test_passive_completion_skips_census_and_preserves_failure(self):
         reader = asyncio.StreamReader()
         reader.feed_data(b'kjob\r\n')
