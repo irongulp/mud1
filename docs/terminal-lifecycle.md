@@ -191,3 +191,31 @@ wrapper; the target KJOB-echo-only timeout leaves its bytes in the reader buffer
 Four observer tests plus11 lifecycle/capture tests pass; actionlint passes.
 Native execution remains pending. This extends fixture line ownership after a
 failure, not production timeouts or a claim of successful cleanup.
+
+## Passive observer native result
+
+Run44342075420 atf1c7ed9 passed the external scenario, six boot/batch proofs,
+14 editor/recovery checks and five clean service shutdowns, all with census
+disabled. Artifact14446641567 retains three ORIGINAL logout warnings followed
+by three passive observations, not warning-free acceptance:
+
+| Journal UTC | Connection | Additional observation |
+| --- | --- | --- |
+| 16:21:43 | d2d44d11ff2041908061e82995a41afc | 10.0035s, timeout |
+| 16:24:19 | ffdd5cf233f14d29a66bddeea50b6d92 | 10.0023s, timeout |
+| 16:25:44 | 0845ff287d7347b786ff2a69ba00c457 | 10.0036s, timeout |
+
+All three remained open before/after observation, EOF=false, buffer6 bytes,
+KJOB echo=true and Logged-off/accounting/final prompt=false. No extra bytes
+arrived during observation and late_complete remained false. Original failed
+cleanup results were retained; no additional command or KJOB replay occurred.
+Each corresponding boot subsequently completed KSYS. The fixture was removed.
+
+This establishes continued silence for the bounded interval, not permanent
+deadlock, a guest root cause, or that the job was already gone. It supplies no
+support for increasing the production three-second timeout. Next capture should
+correlate the affected terminal with a bounded read-only guest job census while
+the line is still held, via the runtime-owned CTY (never a second unsynchronised
+console writer). That fixture coordination is not implemented. Preserve the
+passive-only result separately because CTY inspection itself changes workload.
+Release remains blocked pending lifecycle resolution and final main acceptance.

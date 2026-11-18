@@ -31,6 +31,15 @@
 
 ## Current working system
 
+- Passive logout observer44342075420/f1c7ed9 captured3 KJOB-echo-only failures:
+  each stayed6 bytes/EOFfalse/open throughout an extra10s, no late report.
+  Artifact14446641567; scenario/14 editor/6 boot-batch proofs/5 clean service
+  stops passed with census off. Green is not warning-free acceptance. No
+  production timeout increase/replay or root-cause claim. Next affected-line
+  census during stalled logout via runtime-owned CTY, fixture coordination
+  not implemented; keep passive-only evidence separate.15 tests/actionlint
+  precede native run. See docs/terminal-lifecycle.md; release gate remains.
+
 - Failure-only external43116428884/806d3f2 passed scenario/14 editor cases/6
   scope-batch proofs and5 clean service stops with census_enabled:false;
   artifact13899823286/no census or failed-DZ files. KJOB-echo-only logout warning
