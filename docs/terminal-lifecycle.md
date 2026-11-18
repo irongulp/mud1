@@ -257,3 +257,19 @@ Existing bounded interrupt/KJOB cleanup must complete. Its healthy-report.json
 is distinct from failed-logout evidence. No consumed request is retried.
 Two control tests plus20 observer/capture tests and actionlint pass; native
 control pending. This is a name-prompt/OS-job control, not gameplay acceptance.
+
+Healthy control44391196288 atd9e3db3 passed. Artifact14468392490 contains the
+claimed request, matching response and SYSTAT for token
+69929433876047529d78f43bbe94eafe: line0/job2/PPN2653,2653/MUD11+117/SL.
+The terminal remained open at the original name prompt, completed normal logout,
+and healthy-report.json is complete:true. The native installation/rerun/backup/
+restart driver also passed three scope/batch proofs and three clean KSYS stops,
+all pre-shutdown census disabled; no gateway warnings were observed. The fixture
+container was removed.
+
+This natively qualifies owner rendezvous, held-line correlation and cleanup in a
+healthy session. It is not a census of a failed KJOB or a fix for44342075420.
+Next use a finite terminal-reuse/restart workload with first-failure capture and
+no replay; avoid another full external compile solely to repeat healthy proof.
+That workload remains to be implemented. Original code and production deadlines
+remain unchanged; release/root-cause gates remain open.

@@ -31,6 +31,14 @@
 
 ## Current working system
 
+- Healthy owner-census44391196288/d9e3db3 passed line0/job2/MUDGUEST/MUD at
+  original name prompt, held connection/normal logout; artifact14468392490 has
+  claimed request/response/SYSTAT/healthy-report. Native install/rerun/backup/
+  restart/3 scope-batch proofs/3 clean KSYS/no gateway warnings also passed.
+  This qualifies rendezvous, not failed-KJOB diagnosis. Next finite terminal
+  reuse/restart first-failure capture, not full compile/healthy-proof repetition.
+  22 focused tests/actionlint baseline. See docs/terminal-lifecycle.md.
+
 - Coordinated census44348369009/817e5de passed external scenario/14 editor/6
   boot-batch proofs/5 clean service stops,4 complete gateway logouts/no warning.
   Artifact14448428693 has owner token only, no census request/response/SYSTAT:
