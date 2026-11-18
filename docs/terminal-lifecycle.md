@@ -273,3 +273,24 @@ Next use a finite terminal-reuse/restart workload with first-failure capture and
 no replay; avoid another full external compile solely to repeat healthy proof.
 That workload remains to be implemented. Original code and production deadlines
 remain unchanged; release/root-cause gates remain open.
+
+## Bounded recurrence experiment
+
+`logout_workload=true` with shutdown_reproduction/fresh-mariadb, no shutdown
+census, and logout observer+census enabled selects one fresh external install
+and at most3 cycles. Cycle1 creates/SAVEs one ordinary persona; each cycle
+logs in, SCOREs, QUITs and closes the browser. Clean cycle1 permits one backup,
+clean cycle2 permits one restart, then cycle3 ends the budget. No installer
+rerun/editor matrix or repeated compilation is performed within this experiment.
+Journal cursors isolate each cycle; the first warning fences later cycles.
+A bounded30s observer allows the existing failed-logout census/observation to
+finish, then classifies reproduced-captured, reproduced-capture-failed,
+cleanup-unconfirmed or not-reproduced. Reproduction intentionally returns a
+nonzero diagnostic status; cleanup and evidence upload still run.
+
+This serialized workload waits for cleanup evidence before management commands,
+unlike the original driver's immediate continuation after socket closure. A
+negative result cannot exclude a management/cleanup overlap race. Existing
+KSYS/admission failures remain separate, not inferred from logout results.
+Four classifier/control tests plus22 existing focused tests pass; actionlint
+passes. No original source/server changes. Native result pending.

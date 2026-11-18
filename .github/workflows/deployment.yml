@@ -35,6 +35,10 @@ on:
         type: boolean
         default: false
         description: Explicit native name-prompt census control after installed native lifecycle
+      logout_workload:
+        type: boolean
+        default: false
+        description: Three-cycle first-warning external logout experiment; diagnostic only
 permissions:
   contents: write # Needed to download the draft runtime asset before publication.
 jobs:
@@ -221,7 +225,7 @@ jobs:
         run: |
           python3 -m venv .venv
           .venv/bin/pip install -r requirements-dev.txt
-          .venv/bin/python -m unittest tests.test_healthy_census tests.test_logout_census tests.test_logout_observer tests.test_terminal_shutdown_capture tests.test_gateway_lifecycle_evidence -v
+          .venv/bin/python -m unittest tests.test_logout_workload tests.test_healthy_census tests.test_logout_census tests.test_logout_observer tests.test_terminal_shutdown_capture tests.test_gateway_lifecycle_evidence -v
           mkdir -p runtime/release-v1 runtime/shutdown-capture
           gh release download runtime-v1 --pattern mud86-runtime.tar.gz --dir runtime/release-v1
           docker build -t mud86-alma9 -f deploy/Dockerfile.alma9 .
@@ -250,13 +254,16 @@ jobs:
         if: inputs.shutdown_scenario != 'fresh-mariadb'
         run: .venv/bin/python -m tests.integration_deployment
       - name: Installed external lifecycle
-        if: inputs.shutdown_scenario == 'fresh-mariadb'
+        if: inputs.shutdown_scenario == 'fresh-mariadb' && !inputs.logout_workload
         run: .venv/bin/python -m tests.integration_external_deployment --fresh --container mud86-external-fresh --url http://127.0.0.1:48080
+      - name: Bounded external logout workload
+        if: inputs.shutdown_scenario == 'fresh-mariadb' && inputs.logout_workload
+        run: .venv/bin/python -m tests.integration_logout_workload
       - name: Healthy native census control
         if: inputs.healthy_census && inputs.logout_census && inputs.logout_observation && inputs.shutdown_scenario == 'native'
         run: docker exec -w /checkout "$ACCEPTANCE_CONTAINER" runuser -u mud86 -- /opt/mud86/current/.venv/bin/python -m tests.integration_healthy_census
       - name: External database editor and recovery
-        if: inputs.shutdown_scenario == 'fresh-mariadb'
+        if: inputs.shutdown_scenario == 'fresh-mariadb' && !inputs.logout_workload
         run: |
           docker exec -w /checkout "$ACCEPTANCE_CONTAINER" runuser -u mud86 -- /opt/mud86/current/.venv/bin/python -m tests.integration_database_access --output /var/lib/mud86/editor-acceptance
           mkdir -p runtime/database-editor-ci
@@ -289,3 +296,5 @@ jobs:
             runtime/database-editor-ci/report.json
             runtime/logout-census/**/*.json
             runtime/logout-census/**/*.txt
+            runtime/logout-workload/*.json
+            runtime/logout-workload/*.log
