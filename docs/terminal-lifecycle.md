@@ -219,3 +219,14 @@ the line is still held, via the runtime-owned CTY (never a second unsynchronised
 console writer). That fixture coordination is not implemented. Preserve the
 passive-only result separately because CTY inspection itself changes workload.
 Release remains blocked pending lifecycle resolution and final main acceptance.
+
+Coordinated census is now selectable with logout_observation=true and
+logout_census=true. The runtime fixture installs a main-thread read hook after
+boot; only that owner executes one8s SYSTAT for a fresh per-boot request while
+at a known monitor. Re-entrant command reads bypass request processing. Requests
+expire, pending cancellation prevents dispatch, and uncertain execution fences
+guest cleanup. Gateway retains line ownership for a bounded12s rendezvous, then
+the existing10s observation; it sends no guest command. Reports preserve line,
+connection, boot token, outcome and separate SYSTAT output. A cancelled census
+already executing cannot be undone; no retry is allowed. No production files
+changed.20 capture/observer/lifecycle tests and actionlint pass; native pending.

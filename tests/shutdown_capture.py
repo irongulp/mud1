@@ -74,7 +74,14 @@ def capture_runtime_shutdown(runtime,original_stop,*,census=True):
 
 
 if __name__=='__main__':
+    from logout_census import install_owner
+    original_boot=Runtime.boot
+    def boot(runtime):
+        result=original_boot(runtime)
+        if os.environ.get('MUD86_LOGOUT_CENSUS')=='1':
+            install_owner(runtime)
+        return result
     original_stop=Runtime.stop
     census=os.environ.get('MUD86_CAPTURE_CENSUS','1')!='0'
-    with patch.object(Runtime,'stop',lambda runtime:capture_runtime_shutdown(runtime,original_stop,census=census)):
+    with patch.object(Runtime,'boot',boot),patch.object(Runtime,'stop',lambda runtime:capture_runtime_shutdown(runtime,original_stop,census=census)):
         main()
