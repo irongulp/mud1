@@ -31,13 +31,24 @@
 
 ## Current working system
 
+- First failed logout census44414949900/263637a/artifact14480551130 reproduced
+  echo-only KJOB at login2 after rerun; fenced before backup/later sessions.
+  Line0/job2/2653,2653/LOGIN10+31/RN/runtime6/$; LOGIN highseg1 user. Census
+  completed, then full180-byte late report1.108328475s into post-timeout window.
+  Includes census time, not exact arrival; no SYSTAT-caused-recovery claim.
+  Original cleanup remains failed;3 captured clean stops/final verify/container
+  removal passed. Desired runnable-state split obtained, one-run budget ended.
+  Next distinguish natural delayed vs CTY-induced progress with actual-binary
+  matched evidence, not unchanged installs/timeout increase. See lifecycle doc;
+  private downloaded evidence runtime/logout-sequence-captured-44414949900.
+
 - Original-sequence logout recurrence is a single original external-driver run,
   hard4 browser admissions, preserving editor/inspection/setup rerun absent
   from the negative serialized test. First observed warning fences next driver
   operation; in-flight operations keep original deadlines/no replay. Existing
   census/classifier; no healthy inter-operation acknowledgement wait, final
   check requires all4 connections.7 new/33 total focused tests/actionlint pass.
-  Native result pending. One-run budget, no unchanged repetition; journal
+  Native result captured above. One-run budget, no unchanged repetition; journal
   checks perturb timing. See docs/terminal-lifecycle.md.
 
 - KJOB source review: SCNSER echo/request precedes dispatch; logged-in COMCON

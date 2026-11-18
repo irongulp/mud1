@@ -493,6 +493,83 @@ Initial external preparation still costs roughly twenty minutes.
 Seven new sequence tests cover first-warning fencing, in-flight operation
 completion, unchanged healthy operation order, the four-login cap, final-session
 cleanup and concurrent driver/capture errors. All33 focused tests and actionlint
-pass. Runtime outcome pending. Select shutdown_reproduction/fresh-mariadb,
+pass. The first native outcome is below. Select shutdown_reproduction/fresh-mariadb,
 logout_observation/logout_census/logout_sequence=true and shutdown_census=false;
 the workflow rejects combination with the old workload or healthy control.
+
+### First failed-session census: reproduced, captured, then late report
+
+Run **44414949900**, commit `263637a`, artifact **14480551130**, finished with
+the intended diagnostic failure after21m21s. `logout-sequence/report.json`
+reports `reproduced-captured`, phase `login-2`, `logins_submitted=2`. The first
+creation/logout, inspection/editor checks and installer rerun completed. The
+second session reproduced the echo-only KJOB timeout; the driver stopped before
+backup or either subsequent login. The external acceptance report correctly
+remains `complete:false`. Evidence was also downloaded privately to
+`runtime/logout-sequence-captured-44414949900/` in the diagnostic worktree.
+
+The census request/response match connection
+`5647fe11ff514a9698cc92c4a5e46011`, line0 and boot token
+`dd0e515186be41e6b6143881efc156e2`. Its original SYSTAT row is:
+
+```text
+Job    Who     Line#    What   Size(P)  State   Run Time
+ 2  2653,2653    0      LOGIN   10+31   RN             6 $
+```
+
+The LOGIN high segment is also listed with one user. FILDAE is `HB SW`,
+ACTDAE `SL`, BATCON `SL`; the report says no busy devices. These are
+instantaneous observations, not evidence of the preceding wait's cause.
+The six runtime units belong to the job's reported cumulative runtime; they
+are not six seconds spent in KJOB. The existing source caveat about the program
+label and non-atomic state sampling still applies.
+
+Host journal UTC ordering:
+
+| Event | Time |
+| --- | --- |
+| Session started | 23:08:56.130493 |
+| Line0 assigned | 23:08:57.005004 |
+| Original logout timeout, six echo bytes only | 23:09:06.551951 |
+| Runtime-owned SYSTAT output recorded | 23:09:07 (service log resolution) |
+| Complete late logout report observed | 23:09:07.660740 |
+| Gateway stopping | 23:09:07 (service log resolution) |
+| Runtime stopping | 23:09:08 |
+| KSYS completion recorded | 23:09:10 |
+
+The observer recorded `late_complete:true`,180 bytes including the original
+echo, `Logged-off`, disk accounting and final dot, with the terminal open
+throughout. Elapsed time was1.108328475 host seconds from the start of the
+post-timeout observation, which includes the census rendezvous. The journal
+warning-to-observation interval is1.108789s. Neither is an exact guest execution
+or byte-arrival timestamp: the observer waits for the census response before
+reading the terminal, so the report may already have been buffered.
+
+**Interpretation:** the sampled branch is LOGIN-labelled/runnable, rather than
+MUD/stopped, absent job or a sampled terminal/disk wait. This supports focusing
+on scheduling/progress or a transient wait that had ended by the sample. It
+does not establish a loop, starvation, a particular blocked resource, or a
+transport fault. The same echo-only timeout signature now has a witnessed
+late report, unlike44342075420's three ten-second passive-silence cases.
+
+SYSTAT introduces a runnable CTY job and terminal activity. Its temporal
+association with the late report is **not** proof that it unblocked LOGIN;
+natural delayed completion and an observation-induced scheduling effect remain
+distinguishable hypotheses. Do not prescribe SYSTAT as a workaround, increase
+the production timeout, upgrade the original failed cleanup, or infer the
+three earlier stalls would also have finished at this time.
+
+All three captured service stops have `shutdown_clean:true` and
+`census_enabled:false`; the failure-triggered census was separate. Final
+shutdown verification and container removal passed. No second KJOB or failed
+census replay occurred. Existing host late-report tests already assert that
+the original failed result remains false. No code change or new run was needed
+to record this result.
+
+The one-run recurrence budget is exhausted, with the desired state split now
+obtained. Before further native work, select a targeted way to distinguish
+natural runnable progress from CTY-induced progress; any PC/queue sampling must
+be matched to the actual runtime binary and must acknowledge its own timing
+effects. More unchanged installation cycles or generic timeout extensions
+cannot answer that question. Admission and KSYS/BATCON failures remain separate,
+and this diagnostic failure is not release acceptance.
