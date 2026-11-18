@@ -247,3 +247,13 @@ owner rendezvous in a short disposable fixture; keep that control distinct from
 a naturally failed logout. Then target a bounded terminal-reuse/restart workload
 to capture an actual recurrence. Neither follow-up is implemented here, and full
 release acceptance/root-cause resolution remain open.
+
+`healthy_census=true` now selects an explicit native control after the native
+installed lifecycle, with logout_census/logout_observation enabled. It opens a
+direct private terminal, verifies the original MUD name prompt (no persona
+created), holds that line while requesting the same runtime-owned rendezvous,
+and requires exactly one MUDGUEST/MUD job on the assigned line in SYSTAT.
+Existing bounded interrupt/KJOB cleanup must complete. Its healthy-report.json
+is distinct from failed-logout evidence. No consumed request is retried.
+Two control tests plus20 observer/capture tests and actionlint pass; native
+control pending. This is a name-prompt/OS-job control, not gameplay acceptance.
