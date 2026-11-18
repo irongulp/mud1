@@ -311,3 +311,41 @@ management continuation versus explicit cleanup acknowledgement could then
 test the overlap hypothesis, but neither a causal overlap claim nor such a
 comparison has been established. Keep original admission and KSYS/BATCON
 failures separate; resolving this negative experiment does not close them.
+
+## Existing-journal ordering review (no new CI run)
+
+Artifact14446641567 (44342075420) establishes the following sequence using
+HOST JOURNAL UTC timestamps throughout, not the embedded guest clock:
+
+| Connection prefix | Logout timeout | Gateway stopping | Observation ends | Runtime stopping | KSYS completed |
+| --- | --- | --- | --- | --- | --- |
+| d2d44d11 | 16:21:43 | 16:21:50 | 16:21:53 | 16:21:53 | 16:21:55 |
+| ffdd5cf2 | 16:24:19 | 16:24:26 | 16:24:29 | 16:24:29 | 16:24:31 |
+| 0845ff28 | 16:25:44 | 16:25:55 | 16:25:54 | 16:25:55 | 16:25:57 |
+
+All were line0. In the first two cases gateway shutdown began during the
+additional passive observation, seven seconds AFTER the original timeout;
+cleanup was awaited, not cancelled. In the third, the full ten-second
+observation ended before gateway shutdown began. All retained only the KJOB
+echo, then closed the upstream connection and later completed KSYS.
+
+The non-passive run43116428884/artifact13899823286 independently corroborates
+the ordering: connectionaf9163f6 warned/closed23:26:50, gateway/runtime stopping
+23:26:54, operator launch23:26:55, KSYS completion23:26:57 (2026-11-11 UTC).
+Thus the logged service stops cannot explain the ONSET of these four stalls.
+This is narrower than excluding all earlier management activity or every
+historical failure, but it removes the evidence basis for the proposed
+immediate-versus-delayed service-stop experiment. Do not run that comparison
+based solely on the preceding negative serialized workload.
+
+Exact QUIT, browser-close receipt and KJOB-dispatch timestamps were not logged.
+The six-byte echo plus timeout establish that KJOB was submitted before the
+warning; subtracting3s is only an estimate, not a recorded dispatch timestamp.
+The timestamp inside aiohttp's access message is request start, NOT closure.
+Use journal timestamps for service ordering and retain that precision limit.
+
+Next analysis should focus on the guest KJOB/LOGIN/terminal execution path and
+the missing stalled-job state. Healthy rendezvous qualification does not fill
+that gap. Any further native experiment needs a distinct hypothesis and bounded
+budget; no new run or production correction was made for this review. Admission
+and KSYS/BATCON failures remain separate unresolved tracks.

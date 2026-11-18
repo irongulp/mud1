@@ -31,6 +31,15 @@
 
 ## Current working system
 
+- Existing-journal review:44342075420's3 logout warnings precede gateway stop
+  by7/7/11s; runtime stop later, all clean KSYS. Non-passive43116428884 warning
+  precedes gateway/runtime stop4s. Logged service stops cannot explain onset
+  of these4 stalls; no basis for proposed immediate/delayed-stop comparison.
+  QUIT/browser-close/KJOB dispatch times absent; aiohttp embedded timestamp is
+  request start, not close. Use host journal clock, not embedded guest times.
+  Next guest KJOB/LOGIN/TTY path/missing stalled census, separate admission and
+  KSYS tracks. No new run/fix; see docs/terminal-lifecycle.md.
+
 - Bounded logout44396531095/cc163f9 exhausted3 cycles with not-reproduced:
   3 complete logouts/no warnings/no census request,4 clean service stops.
   Artifact14470764931.24m36s still dominated by initial external preparation.
