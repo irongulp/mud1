@@ -31,6 +31,17 @@
 
 ## Current working system
 
+- KJOB source review: SCNSER echo/request precedes dispatch; logged-in COMCON
+  KJOB runs SYS:LOGIN. JBTPRG changes before load, so SYSTAT LOGIN is not proof
+  of executing LOGIN code. LOGIN does switch/temp/quota work before summary;
+  summary's final dot/output wait precedes LOGOUT UUO, so full report alone
+  does not prove job-slot removal. Preserve existing report gate. Pinned
+  Stacken sources/local monitor hashes agree, not instruction-matched runtime
+  binaries. docs/terminal-lifecycle.md has source lines and census decision
+  table. Existing one-shot full census suffices for first split; stalled state
+  still missing, no new run/fix. Do not require MUD/PPN on failed-session rows
+  or infer detached identity/loop/resource from a single program/state label.
+
 - Existing-journal review:44342075420's3 logout warnings precede gateway stop
   by7/7/11s; runtime stop later, all clean KSYS. Non-passive43116428884 warning
   precedes gateway/runtime stop4s. Logged service stops cannot explain onset

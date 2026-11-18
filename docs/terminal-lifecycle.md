@@ -349,3 +349,110 @@ the missing stalled-job state. Healthy rendezvous qualification does not fill
 that gap. Any further native experiment needs a distinct hypothesis and bounded
 budget; no new run or production correction was made for this review. Admission
 and KSYS/BATCON failures remain separate unresolved tracks.
+
+## Source trace: what an echo-only KJOB does and does not prove
+
+This is source analysis, not a captured failing guest PC or a binary-equivalence
+claim. References use the Stacken archive at commit
+`6e18f5ebefd9acb0d718ef31a08f33a60fc9fca2`:
+
+- [COMCON.MAC][kjob-comcon], V1736, blob
+  `de5809c4ab5ca2270c25718c1d76bef6b1b5f5ea`.
+- [SCNSER.MAC][kjob-scnser], blob
+  `873207618feab8bc059d3a74adbcafc8b928fc51`.
+- [LOGIN.MAC][kjob-login], V65(3010), blob
+  `8591b0ee13be2caa57fe9bf91054f2448a347932`.
+- [SYSTAT.MAC][kjob-systat], V704(416), blob
+  `a8e584a9c2f542144495551b0ff74e5c5eedee5e`, and
+  [SYSTAT.HLP][kjob-help], blob `d3fb83a168264983677e5e29cd2a0dba8c0c6c88`.
+
+The existing local `build/monitor/dskb:10_7.mon..comcon.mac` and
+`dskb:10_7.mon..scnser.mac` have Git blob hashes matching the archived files;
+these local reference files were read without modification. The running
+runtime-v1 monitor/LOGIN/SYSTAT binaries have not been matched instruction by
+instruction to these sources; do not derive live addresses from this review.
+
+### Execution boundaries
+
+1. **Terminal echo precedes command execution.** SCNSER's `ECHBRK`
+   (2281–2283) calls `COMSET` (8895–8906), which marks a command request and
+   wakes COMCON. `TTYCOM` (8981–9032) subsequently selects the line.
+   Receiving `kjob\r\n` proves that an echo reached the host, not that logout
+   code ran or that the job was destroyed.
+2. **Logged-in KJOB runs SYS:LOGIN.** COMCON `KJOB3` (728–753) attaches the
+   terminal, sets the bypass-forced-program bit, ensures the memory limit
+   permits LOGIN, and jumps through `RUNAME`. It is not immediate job deletion.
+   A job that is not logged in follows a different `KJOB4`/`JOBKL` path.
+3. **The program-name column is not a PC.** `ARCOM1` (4446–4447) stores the
+   requested name in `JBTPRG` before loading. `RUNCM` (4458–4490) may involve
+   the file-daemon path or wait for core; `GJOBX` (9679 onward) loads segments.
+   SYSTAT prints `.PRG` at 2218–2219. Thus `LOGIN` in a census does not prove
+   LOGIN's first user-mode instruction has executed.
+4. **There is work before the report.** LOGIN `KJOB` (1847–1887) scans switches,
+   processes SWITCH.INI, checks locks, handles other jobs, deletes temporary
+   files, sets the path and checks quotas before calling `SUMARY`.
+   `CHKQTA` (2839–2869) includes structure dismount/quota work. Disk or resource
+   waits are candidates, not demonstrated causes. There is no basis here for
+   assuming a MariaDB lookup or an accounting-daemon timeout caused the stall.
+5. **The final dot also precedes final destruction.** `SUMARY` prints
+   `Logged-off` at 2262, disk accounting at 2301 onward, then the dot and output
+   flush at 2320–2323. It waits for output completion at 2337–2344 and returns
+   before the caller executes `LOGOUT` at 1887. A complete report is stronger
+   than the old prefix-only check, but it is not independent proof that the
+   job slot has vanished. Preserve the report requirement; do not replace it
+   with echo, silence or a delay. The echo-only cases have not reached even
+   that report boundary from the host's perspective.
+
+On the host, `server/gateway.py` cancels and awaits the transport tasks before
+calling `logout_guest` (434–447). The normal output reader should therefore
+not compete with the cleanup reader for the KJOB reply. This code ordering is
+not proof that every byte reached Python, and does not exclude transport loss.
+
+### Interpret the first failed-session census
+
+Keep the full current-boot SYSTAT output and correlate the requested terminal,
+connection and owner token. Do not apply the healthy control's requirement
+that the row must say `MUDGUEST/MUD`: logout can change the program and login
+status. Retain other jobs and detached rows too. All four known failures were
+line0, so no decimal/octal line-number conversion is needed for those cases.
+
+| Observed census | Supported interpretation | Next boundary if witnessed |
+| --- | --- | --- |
+| Original line still lists MUD with `^C`, `CW` or `^W` | Old program label and stopped/command-wait state remain visible | Terminal command request/dispatch and run transition; not proof that KJOB was never decoded |
+| Line lists LOGIN with `CW`, `^W`, `^D`, `OW`, `DI`, `PI` or a memory/resource wait | Logout's launch or execution is waiting | Identify that wait's owner/resource and, only then, a version-matched PC/stack capture |
+| LOGIN with `RN`, `WS`, `TS`, `DS` or `PS` | Runnable or wait-satisfied at the sampled instant | Scheduling/progress; one snapshot cannot establish a loop or starvation |
+| LOGIN with `TI` | Terminal input wait | Command rescan/input state; never send an extra CR as a diagnostic retry |
+| LOGIN with `TO` | Terminal output wait | Guest output queue/device/host delivery boundary |
+| LOGIN with `SL` or `HB` | Sleep or hibernation | Determine the caller; `SL` alone does not identify the summary-output wait |
+| No job attached to the held line | No attached job visible at census time | Check detached rows and identity limits, then terminal/report delivery; not automatic proof of successful cleanup |
+| Census unavailable or uncertain | No usable guest-state evidence | Preserve failure and input fence; do not infer absence, replay SYSTAT or issue another KJOB |
+
+SYSTAT's state decoder is at 2261–2293: command/operator/daemon/stopped states
+take precedence; otherwise it reads the monitor queue code, distinguishes
+sleep from hibernation and terminal input from output wait. `SYSTAT.HLP`
+defines the remaining queue codes. A `DI` row does not identify a particular
+file, and `EW` does not identify a particular lock. Collection is sequential,
+not an atomic snapshot. A line-only correlation cannot prove the identity of a
+detached job when the original job number was not recorded.
+
+### Decision after this review
+
+The existing one-shot, runtime-owned census already collects the columns needed
+for this first split. No additional guest commands or production changes are
+justified by the source trace. Healthy census and negative-workload results
+still supply no stalled-job state. The next useful native evidence is one
+natural echo-only failure captured with this mechanism, classified using the
+table above; a successful control or more clean shutdowns cannot substitute.
+
+Do not rerun the exhausted three-cycle workload unchanged. Before authorizing
+another recurrence experiment, specify the workload difference and finite
+budget, and preserve the original cleanup sequence rather than silently adding
+acknowledgement waits. Select deeper tracing only from the observed branch.
+There is no demonstrated root cause or fix, and no basis to combine admission,
+logout and KSYS/BATCON failures into one defect.
+
+[kjob-comcon]: https://github.com/PDP-10/stacken/blob/6e18f5ebefd9acb0d718ef31a08f33a60fc9fca2/files/stacken-tape-backup/dskb:10_7/mon/comcon.mac
+[kjob-scnser]: https://github.com/PDP-10/stacken/blob/6e18f5ebefd9acb0d718ef31a08f33a60fc9fca2/files/stacken-tape-backup/dskb:10_7/mon/scnser.mac
+[kjob-login]: https://github.com/PDP-10/stacken/blob/6e18f5ebefd9acb0d718ef31a08f33a60fc9fca2/files/stacken-tape-backup/dskb:10_7/login/login.mac
+[kjob-systat]: https://github.com/PDP-10/stacken/blob/6e18f5ebefd9acb0d718ef31a08f33a60fc9fca2/files/stacken-tape-backup/dskb:10_7/systat/systat.mac
+[kjob-help]: https://github.com/PDP-10/stacken/blob/6e18f5ebefd9acb0d718ef31a08f33a60fc9fca2/files/stacken-tape-backup/dskb:10_7/systat/systat.hlp
