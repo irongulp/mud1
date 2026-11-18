@@ -31,6 +31,14 @@
 
 ## Current working system
 
+- Bounded logout44396531095/cc163f9 exhausted3 cycles with not-reproduced:
+  3 complete logouts/no warnings/no census request,4 clean service stops.
+  Artifact14470764931.24m36s still dominated by initial external preparation.
+  Budget ended, not a fix; no identical retry/extension. Serialized cleanup
+  before management differs from original driver. Review existing failing
+  journal ordering before any matched overlap experiment; admission/KSYS
+  tracks remain separate. See docs/terminal-lifecycle.md.
+
 - Healthy owner-census44391196288/d9e3db3 passed line0/job2/MUDGUEST/MUD at
   original name prompt, held connection/normal logout; artifact14468392490 has
   claimed request/response/SYSTAT/healthy-report. Native install/rerun/backup/

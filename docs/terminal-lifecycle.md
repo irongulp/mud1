@@ -294,3 +294,20 @@ negative result cannot exclude a management/cleanup overlap race. Existing
 KSYS/admission failures remain separate, not inferred from logout results.
 Four classifier/control tests plus22 existing focused tests pass; actionlint
 passes. No original source/server changes. Native result pending.
+
+Bounded run44396531095 atcc163f9 exhausted its3-cycle budget with explicit
+outcome:not-reproduced. Artifact14470764931 retains all three completed-logout
+journals, four census-disabled clean service shutdown reports and final
+clean:true. No gateway warning, census request or stalled-job snapshot occurred.
+The container was removed. This is a negative experiment, not a fix or full
+release acceptance. It excludes neither intermittency nor teardown overlap.
+
+Total runtime24m36s remained dominated by initial external preparation; reducing
+post-install cycles did not make the overall run short. Do not extend the budget
+or repeat the same run unchanged. If continuing logout diagnosis, first review
+the existing failing journals for the ordering of socket close, KJOB warning,
+gateway stop and runtime stop. A matched bounded comparison of immediate
+management continuation versus explicit cleanup acknowledgement could then
+test the overlap hypothesis, but neither a causal overlap claim nor such a
+comparison has been established. Keep original admission and KSYS/BATCON
+failures separate; resolving this negative experiment does not close them.
