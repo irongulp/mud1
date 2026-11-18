@@ -31,6 +31,14 @@
 
 ## Current working system
 
+- Coordinated census44348369009/817e5de passed external scenario/14 editor/6
+  boot-batch proofs/5 clean service stops,4 complete gateway logouts/no warning.
+  Artifact14448428693 has owner token only, no census request/response/SYSTAT:
+  dispatch remains host-only, not a fix or stalled-job proof. Next short explicit
+  healthy-session rendezvous control before bounded recurrence workload, not
+  unchanged full-compilation retries.20 tests/actionlint baseline; release gate
+  remains. See docs/terminal-lifecycle.md.
+
 - Passive logout observer44342075420/f1c7ed9 captured3 KJOB-echo-only failures:
   each stayed6 bytes/EOFfalse/open throughout an extra10s, no late report.
   Artifact14446641567; scenario/14 editor/6 boot-batch proofs/5 clean service

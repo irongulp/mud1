@@ -230,3 +230,20 @@ the existing10s observation; it sends no guest command. Reports preserve line,
 connection, boot token, outcome and separate SYSTAT output. A cancelled census
 already executing cannot be undone; no retry is allowed. No production files
 changed.20 capture/observer/lifecycle tests and actionlint pass; native pending.
+
+Coordinated run44348369009 at817e5de completed the external scenario, six
+boot/batch proofs,14 editor checks and five clean service stops. All four
+recorded gateway logouts completed; no logout warning or observer event occurred.
+Artifact14448428693 retains five census-disabled shutdown reports and the last
+logout-census owner token, but no request/response/SYSTAT file. The runtime
+rendezvous was initialized; dispatch and stalled-job inspection were NOT
+exercised natively. The fixture container was removed.
+
+This is a successful no-trigger control, not evidence that adding coordination
+fixed the three stalls in44342075420. Do not repeat full external compilation
+unchanged just to obtain another pass. Before relying on the new diagnostic,
+qualify one explicitly labelled healthy-session census request through the same
+owner rendezvous in a short disposable fixture; keep that control distinct from
+a naturally failed logout. Then target a bounded terminal-reuse/restart workload
+to capture an actual recurrence. Neither follow-up is implemented here, and full
+release acceptance/root-cause resolution remain open.
