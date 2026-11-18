@@ -42,7 +42,7 @@ on:
       logout_sequence:
         type: boolean
         default: false
-        description: Original four-session external sequence with first-warning fence; requires logout observer and census
+        description: Original four-session sequence with passive-before-census timing; requires logout observer and census
 permissions:
   contents: write # Needed to download the draft runtime asset before publication.
 jobs:
@@ -234,7 +234,7 @@ jobs:
         run: |
           python3 -m venv .venv
           .venv/bin/pip install -r requirements-dev.txt
-          .venv/bin/python -m unittest tests.test_logout_sequence tests.test_logout_workload tests.test_healthy_census tests.test_logout_census tests.test_logout_observer tests.test_terminal_shutdown_capture tests.test_gateway_lifecycle_evidence -v
+          .venv/bin/python -m unittest tests.test_logout_timing tests.test_logout_sequence tests.test_logout_workload tests.test_healthy_census tests.test_logout_census tests.test_logout_observer tests.test_terminal_shutdown_capture tests.test_gateway_lifecycle_evidence -v
           mkdir -p runtime/release-v1 runtime/shutdown-capture
           gh release download runtime-v1 --pattern mud86-runtime.tar.gz --dir runtime/release-v1
           docker build -t mud86-alma9 -f deploy/Dockerfile.alma9 .
@@ -259,6 +259,9 @@ jobs:
         run: |
           docker exec "$ACCEPTANCE_CONTAINER" install -Dm644 /checkout/tests/fixtures/logout-census.conf /etc/systemd/system/mud86-runtime.service.d/logout-census.conf
           docker exec "$ACCEPTANCE_CONTAINER" install -Dm644 /checkout/tests/fixtures/logout-census.conf /etc/systemd/system/mud86-gateway.service.d/logout-census.conf
+      - name: Select passive-before-census timing
+        if: inputs.logout_sequence
+        run: docker exec "$ACCEPTANCE_CONTAINER" install -Dm644 /checkout/tests/fixtures/logout-timing.conf /etc/systemd/system/mud86-gateway.service.d/logout-timing.conf
       - name: Installed native lifecycle
         if: inputs.shutdown_scenario != 'fresh-mariadb'
         run: .venv/bin/python -m tests.integration_deployment

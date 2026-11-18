@@ -27,6 +27,10 @@ def classify(messages):
             if marker in row:
                 observation=json.loads(row.split(marker,1)[1])
                 if connection and observation.get('connection')==connection:
+                    if (observation.get('late_complete') is True
+                            and observation.get('census',{}).get('outcome')=='not-requested-passive-complete'):
+                        return dict(outcome='reproduced-passive-completion',
+                                    connection=connection,observation=observation)
                     captured=observation.get('census',{}).get('completed') is True
                     return dict(outcome='reproduced-captured' if captured else 'reproduced-capture-failed',
                                 connection=connection,observation=observation)

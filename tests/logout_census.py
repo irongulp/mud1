@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 import time
 import uuid
+from unittest.mock import patch
 from server.runtime import MONITOR_PROMPT
 
 CENSUS_SECONDS=8
@@ -33,7 +34,23 @@ def service_request(runtime,root,token):
         publish(root/'response.json',record)
         return
     try:
-        status=runtime.command('systat',timeout=CENSUS_SECONDS)
+        original_send=runtime.child.send
+        def send(data):
+            first='cty_first_write_before' not in record
+            if first:
+                record['cty_first_write_before']=time.monotonic()
+            if data=='\r':
+                record['cty_enter_write_before']=time.monotonic()
+            result=original_send(data)
+            if first:
+                record['cty_first_write_after']=time.monotonic()
+            if data=='\r':
+                record['cty_enter_write_after']=time.monotonic()
+            return result
+        # In-memory timestamps only: no file I/O inserted between guest bytes.
+        with patch.object(runtime.child,'send',send):
+            status=runtime.command('systat',timeout=CENSUS_SECONDS)
+        record['command_returned_at']=time.monotonic()
         (root/'systat.txt').write_text(status)
         record.update(completed=True,outcome='completed')
     except Exception as error:
@@ -80,6 +97,7 @@ async def request_census(reader,connection):
     except FileExistsError:
         return dict(outcome='already-requested')
     publish(root/'request.json',dict(token=token,connection=connection,
+            request_published_at=time.monotonic(),
             line=getattr(reader,'fixture_line',None),deadline=time.monotonic()+REQUEST_SECONDS))
     deadline=time.monotonic()+REQUEST_SECONDS
     try:

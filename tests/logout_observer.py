@@ -49,6 +49,10 @@ async def observe_logout(original,reader,writer,*,emit,seconds=OBSERVATION_SECON
 
 if __name__=='__main__':
     from logout_census import request_census
+    observer=observe_logout
+    if os.environ.get('MUD86_LOGOUT_TIMING')=='1':
+        from logout_timing import observe_timed_logout
+        observer=observe_timed_logout
     original=gateway.logout_guest
     original_wake=gateway.wake_monitor
     async def wake(reader,writer,*,progress=None):
@@ -60,7 +64,7 @@ if __name__=='__main__':
     def emit(record):
         gateway.LOG.warning('Fixture post-timeout logout observation: %s',json.dumps(record,sort_keys=True))
     async def observed(reader,writer,**kwargs):
-        return await observe_logout(original,reader,writer,emit=emit,
+        return await observer(original,reader,writer,emit=emit,
                     census=request_census if os.environ.get('MUD86_LOGOUT_CENSUS')=='1' else None,**kwargs)
     with patch.object(gateway,'wake_monitor',wake),patch.object(gateway,'logout_guest',observed):
         gateway.main()

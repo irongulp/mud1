@@ -31,6 +31,15 @@
 
 ## Current working system
 
+- Logout timing fixture now reads silently10s after original failure, requests
+  one census only if still incomplete/open, and reads concurrently through the
+  remaining12s (same22s maximum). Payload-free monotonic new-data/prompt and
+  runtime first-write/Enter brackets resolve observation ordering. Before first
+  CTY write excludes that SYSTAT as trigger; afterward is not causal proof.
+  Other driver activity still needs journal review. Cancellation reaps reader;
+  original failure stays false.7 added/40 focused tests/actionlint pass; native
+  one-run budget pending. See docs/terminal-lifecycle.md.
+
 - First failed logout census44414949900/263637a/artifact14480551130 reproduced
   echo-only KJOB at login2 after rerun; fenced before backup/later sessions.
   Line0/job2/2653,2653/LOGIN10+31/RN/runtime6/$; LOGIN highseg1 user. Census

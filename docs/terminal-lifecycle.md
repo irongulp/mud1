@@ -573,3 +573,40 @@ be matched to the actual runtime binary and must acknowledge its own timing
 effects. More unchanged installation cycles or generic timeout extensions
 cannot answer that question. Admission and KSYS/BATCON failures remain separate,
 and this diagnostic failure is not release acceptance.
+
+### Passive-before-census timing experiment
+
+The next distinct experiment retains the original four-admission driver and
+first-warning fence, but reverses the post-failure observation order:
+
+1. After the unchanged production cleanup timeout, read the failed terminal
+   silently for ten seconds. A complete late report ends observation without
+   requesting SYSTAT, and is classified `reproduced-passive-completion`.
+2. Only an incomplete, still-open terminal gets the existing one-shot census.
+   Terminal reads continue concurrently with its twelve-second rendezvous.
+   Total post-failure time is bounded at22 seconds, the previous maximum.
+3. Record host monotonic observation times for the first bytes beyond the
+   initial buffer and the report prompt. The runtime brackets its actual first
+   CTY write and Enter write, and records command return. No terminal payload
+   is added to the report; original raw census output remains private evidence.
+
+The runtime and gateway share the container's monotonic clock. A prompt observed
+before the first CTY write proves that this diagnostic SYSTAT did not trigger
+the report. A prompt observed after Enter only establishes ordering: native
+completion or transport delivery could precede the host read. Overlap with a
+write bracket is ambiguous. Other driver/runtime activity must still be checked
+in the journals; the silent phase suppresses this diagnostic request, not every
+possible guest or host activity.
+
+The terminal reader is cancelled and reaped on deadline/cancellation. EOF,
+unexpected prompt or the16-KiB observation limit stops observation without an
+extra guest command. A timed-out census retains its existing cancellation/input
+fence. All late outcomes preserve the original failed cleanup result.
+
+This is fixture-only (`logout_sequence` selects `logout-timing.conf`); the old
+passive observer remains available to other diagnostics. Seven added tests
+cover passive completion, concurrent reading, terminal termination, bounded
+cancellation, actual-send timestamps and classification. All40 focused tests,
+actionlint and diff checks pass. One original-sequence CI execution is the
+budget, ending at the first warning; native outcome pending. A post-CTY result
+alone will not justify a causal recovery claim or another unchanged run.

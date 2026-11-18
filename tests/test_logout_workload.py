@@ -8,6 +8,13 @@ from tests.integration_logout_workload import classify
 
 
 class WorkloadTests(unittest.TestCase):
+    def test_passive_completion_is_reproduction_without_claiming_census(self):
+        warning='Terminal logout did not complete; check the guest job: connection=a stage=logout'
+        observation='Fixture post-timeout logout observation: '+json.dumps(dict(
+            connection='a',late_complete=True,
+            census=dict(outcome='not-requested-passive-complete')))
+        self.assertEqual(classify([warning,observation])['outcome'],'reproduced-passive-completion')
+
     def test_first_warning_stops_before_restart_or_next_login(self):
         for outcome,count in [('reproduced-captured',1),('not-reproduced',3)]:
             with self.subTest(outcome=outcome),tempfile.TemporaryDirectory() as directory:

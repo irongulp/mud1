@@ -8,6 +8,27 @@ from tests.logout_census import service_request, install_owner
 
 
 class CensusTests(unittest.TestCase):
+    def test_dispatch_timestamps_bracket_actual_sends_without_recording_input(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory)
+            runtime=Mock(booted=True,control_prompt=MONITOR_PROMPT)
+            runtime.stopping.is_set.return_value=False
+            original_send=runtime.child.send
+            def command(*args,**kwargs):
+                for character in 'systat\r':
+                    runtime.child.send(character)
+                return 'fixture status'
+            runtime.command.side_effect=command
+            (root/'request.json').write_text('{"token":"boot"}')
+            service_request(runtime,root,'boot')
+            record=json.loads((root/'response.json').read_text())
+            self.assertLessEqual(record['cty_first_write_before'],record['cty_first_write_after'])
+            self.assertLessEqual(record['cty_first_write_after'],record['cty_enter_write_before'])
+            self.assertLessEqual(record['cty_enter_write_before'],record['cty_enter_write_after'])
+            self.assertLessEqual(record['cty_enter_write_after'],record['command_returned_at'])
+            self.assertIs(runtime.child.send,original_send)
+            self.assertEqual(original_send.call_count,7)
+
     def test_cancelled_pending_request_sends_nothing(self):
         with tempfile.TemporaryDirectory() as directory:
             root=Path(directory)
