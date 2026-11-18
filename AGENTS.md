@@ -31,6 +31,15 @@
 
 ## Current working system
 
+- Original-sequence logout recurrence is a single original external-driver run,
+  hard4 browser admissions, preserving editor/inspection/setup rerun absent
+  from the negative serialized test. First observed warning fences next driver
+  operation; in-flight operations keep original deadlines/no replay. Existing
+  census/classifier; no healthy inter-operation acknowledgement wait, final
+  check requires all4 connections.7 new/33 total focused tests/actionlint pass.
+  Native result pending. One-run budget, no unchanged repetition; journal
+  checks perturb timing. See docs/terminal-lifecycle.md.
+
 - KJOB source review: SCNSER echo/request precedes dispatch; logged-in COMCON
   KJOB runs SYS:LOGIN. JBTPRG changes before load, so SYSTAT LOGIN is not proof
   of executing LOGIN code. LOGIN does switch/temp/quota work before summary;

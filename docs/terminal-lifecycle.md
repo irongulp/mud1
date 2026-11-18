@@ -456,3 +456,43 @@ logout and KSYS/BATCON failures into one defect.
 [kjob-login]: https://github.com/PDP-10/stacken/blob/6e18f5ebefd9acb0d718ef31a08f33a60fc9fca2/files/stacken-tape-backup/dskb:10_7/login/login.mac
 [kjob-systat]: https://github.com/PDP-10/stacken/blob/6e18f5ebefd9acb0d718ef31a08f33a60fc9fca2/files/stacken-tape-backup/dskb:10_7/systat/systat.mac
 [kjob-help]: https://github.com/PDP-10/stacken/blob/6e18f5ebefd9acb0d718ef31a08f33a60fc9fca2/files/stacken-tape-backup/dskb:10_7/systat/systat.hlp
+
+## Original-sequence recurrence budget
+
+Further inspection of artifact14446641567 places the successful creation/logout
+at16:20:12–20, followed by the installer rerun's stop/restart, then the three
+saved-player failures listed above. The serialized three-cycle experiment
+omitted the preceding installed editor/inspection checks and installer rerun.
+Their relevance is unknown; the proposed recurrence preserves them rather than
+assuming the reduced workload is equivalent.
+
+`logout_sequence=true` selects `tests.integration_logout_sequence`: **one**
+execution of the original fresh-external driver, capped at its four browser
+admissions. It retains the original create/SAVE, inspection/editor, setup rerun,
+saved login, backup, saved login, restart, saved login and editor-restart order.
+No extra healthy cleanup acknowledgement wait is inserted between operations.
+The separate fourteen-case database-editor matrix is omitted.
+
+Host journal reads before/after driver operations fence the next operation
+when a logout warning is observed. An operation already in flight finishes
+under its existing deadline; it is not terminated or replayed. A warning uses
+the existing bounded observation/census path and ends the budget, reporting
+reproduced-captured or reproduced-capture-failed. A driver error is retained
+separately even when cleanup also fails. At the end only, a bounded settle
+requires complete-logout evidence for all four connection IDs; an earlier
+success cannot cover a missing final cleanup. Installer readiness failures and
+final native shutdown remain separate outcomes.
+
+This changes the exhausted experiment by restoring the original workload,
+not by assuming a shutdown-overlap cause. Journal reads and diagnostic hooks
+still perturb timing. A negative result is not evidence that the precursor
+steps are irrelevant, and does not authorize an unchanged rerun. One CI
+execution is the budget; stop/retain/classify on its first observable warning.
+Initial external preparation still costs roughly twenty minutes.
+
+Seven new sequence tests cover first-warning fencing, in-flight operation
+completion, unchanged healthy operation order, the four-login cap, final-session
+cleanup and concurrent driver/capture errors. All33 focused tests and actionlint
+pass. Runtime outcome pending. Select shutdown_reproduction/fresh-mariadb,
+logout_observation/logout_census/logout_sequence=true and shutdown_census=false;
+the workflow rejects combination with the old workload or healthy control.
