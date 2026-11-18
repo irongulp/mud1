@@ -23,6 +23,10 @@ on:
         type: boolean
         default: true
         description: Run pre-shutdown SYSTAT in diagnostic mode; false captures failures only
+      logout_observation:
+        type: boolean
+        default: false
+        description: Diagnostic-only passive ten-second observation after failed gateway logout
 permissions:
   contents: write # Needed to download the draft runtime asset before publication.
 jobs:
@@ -209,7 +213,7 @@ jobs:
         run: |
           python3 -m venv .venv
           .venv/bin/pip install -r requirements-dev.txt
-          .venv/bin/python -m unittest tests.test_terminal_shutdown_capture tests.test_gateway_lifecycle_evidence -v
+          .venv/bin/python -m unittest tests.test_logout_observer tests.test_terminal_shutdown_capture tests.test_gateway_lifecycle_evidence -v
           mkdir -p runtime/release-v1 runtime/shutdown-capture
           gh release download runtime-v1 --pattern mud86-runtime.tar.gz --dir runtime/release-v1
           docker build -t mud86-alma9 -f deploy/Dockerfile.alma9 .
@@ -226,6 +230,9 @@ jobs:
       - name: Select failure-only shutdown capture
         if: ${{ !inputs.shutdown_census }}
         run: docker exec "$ACCEPTANCE_CONTAINER" install -Dm644 /checkout/tests/fixtures/shutdown-no-census.conf /etc/systemd/system/mud86-runtime.service.d/shutdown-no-census.conf
+      - name: Select passive logout observer
+        if: inputs.logout_observation
+        run: docker exec "$ACCEPTANCE_CONTAINER" install -Dm644 /checkout/tests/fixtures/logout-observer.conf /etc/systemd/system/mud86-gateway.service.d/logout-observer.conf
       - name: Installed native lifecycle
         if: inputs.shutdown_scenario != 'fresh-mariadb'
         run: .venv/bin/python -m tests.integration_deployment

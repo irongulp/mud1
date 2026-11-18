@@ -180,3 +180,14 @@ deadline, recording only completion/EOF/timing flags. That would distinguish
 a late complete logout from continued silence without increasing the production
 timeout, replaying KJOB, or declaring cleanup successful. This observer is not
 yet implemented; original warning and shutdown evidence must remain separate.
+
+The passive observer is now available with `logout_observation=true` in the
+installed shutdown diagnostic. A gateway-only service drop-in loads installed
+server code, preserves the original logout warning/result, then waits at most
+10s for a prompt after failure. It sends no input and logs structural facts,
+elapsed time, EOF/cancellation and complete-report recognition only. Successful
+cleanup adds no wait. Partial consumed reports cannot be reconstructed from this
+wrapper; the target KJOB-echo-only timeout leaves its bytes in the reader buffer.
+Four observer tests plus11 lifecycle/capture tests pass; actionlint passes.
+Native execution remains pending. This extends fixture line ownership after a
+failure, not production timeouts or a claim of successful cleanup.
