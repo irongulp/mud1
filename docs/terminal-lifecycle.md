@@ -636,3 +636,51 @@ the existing pre-install test step, before expensive external compilation.
 All41 focused tests and actionlint pass. One corrected execution of the
 unexercised experiment is planned; there is no changed production deadline or
 guest-command policy and no automatic series of retries.
+
+#### Corrected timing run: cutover console boundary blocked
+
+Run **44422985974**, commit `a2be938`, artifact **14483726865**, ended after
+18m35s with `experiment-error`/`AssertionError`, phase `host-command:bash`,
+zero browser admissions. The installer failed inside `external_cutover`,
+after the build branch and before external import/admission:
+
+```text
+external_install.cutover -> protect_bridge_terminals
+ -> machine.command('type sys:tty.ini')
+ -> submit_line -> pending(encoded[:position])
+ControlError: Unexpected pending control output
+```
+
+The retained traceback identifies the per-character pending-output check at
+`tools/guest_control.py:89`, before the Enter write at115. This command was not
+submitted with Enter; the retained report does not identify how many preceding
+characters, if any, had been sent. The rejected byte and pending frame are not
+in the traceback. Do not label the preceding BATCON idle notice as the culprit
+merely because it appears earlier in the transcript, or relax the guard to
+discard unidentified output. The bridge-terminal routine failed on its first
+TYPE, before its configuration writes.
+
+The installer transcript records the cutover guest's subsequent SHOW QUEUES,
+one KSYS with completion, and simulator Goodbye. Its embedded guest clock
+crossed midnight (`0:00:33`/`0:00:34`); these are not host UTC timestamps.
+The separate initial service stop has `shutdown_clean:true` in the retained
+shutdown-capture report. Only one such service report exists: do not describe
+the cutover's foreground shutdown as a second captured service stop. Final
+shutdown verification and fixture removal passed.
+
+Only a census owner file was retained, with no request/response; the sequence
+journal is empty and external acceptance is `complete:false`. Private evidence:
+`runtime/logout-timing-44422985974/`. The corrected gateway launcher was never
+reached, so this run neither establishes its native startup nor exercises
+passive-before-census timing. The installed-layout host regression remains its
+verification. The prior runnable-LOGIN capture remains the latest logout evidence.
+
+The corrected one-run budget is now exhausted. No further CI run is launched.
+Before another expensive installation, the separate cutover console boundary
+needs a focused evidence plan: retain the bounded pending frame and command
+stage from a disposable build, without publishing persona capture/password
+data, replaying partial input or weakening exact-echo guards. A source review
+alone cannot reconstruct the missing byte. The natural-versus-CTY timing
+question remains unanswered; this setup failure supplies no evidence for either
+hypothesis. This update is documentation-only; the previous41 host tests remain
+the code baseline.

@@ -31,6 +31,16 @@
 
 ## Current working system
 
+- Corrected timing44422985974/a2be938/artifact14483726865 stopped before browser
+  admission in external cutover after build: protect_bridge_terminals first
+  TYPE SYS:TTY.INI rejected pending control output at submit_line89, before
+  Enter. Partial-character count/rejected byte unknown; do not blame preceding
+  BATCON notice or discard output. Cutover transcript has KSYS completion/
+  Goodbye; separate initial service has one clean capture. Final verify/removal
+  passed. No census request/timing or corrected-launcher native exercise.
+  Budget exhausted/no rerun; next focused cutover-boundary evidence plan before
+  more compilation.41 host baseline unchanged; see terminal-lifecycle.md.
+
 - Timing run44419471205/2252521/artifact14482557212 failed before any admission:
   new fixture imported tests.logout_census from an installed release without
   tests. Gateway ModuleNotFoundError then readiness timeout; no census/request
