@@ -684,3 +684,52 @@ alone cannot reconstruct the missing byte. The natural-versus-CTY timing
 question remains unanswered; this setup failure supplies no evidence for either
 hypothesis. This update is documentation-only; the previous41 host tests remain
 the code baseline.
+
+#### Focused boundary review: witnessed midnight BIGBEN format
+
+The follow-up review found useful evidence already in the retained install
+transcript, lines665–668, immediately before cleanup's Ctrl-C sequence:
+
+```text
+Monitor KS10
+System uptime :14:43
+Current date/time Thursday 19-Nov-126 0.00
+```
+
+Although the traceback does not identify the rejected byte, this complete
+visible notice has a definite incompatibility with the host parser. Its uptime
+format was accepted, but the current-time field required nonempty hours and
+`HH:MM:SS`; `0.00` was rejected. Replaying this notice with CRLF framing through
+`submit_line` reproduced `Unexpected pending control output` at the same
+per-character pending check, before any input. The artifact was collected as
+normalized text, so this does not reconstruct the original byte boundary or
+prove that no other pending content existed.
+
+Pinned [COMCON.MAC][kjob-comcon] explains the representation:
+
+- `BIGBEN`,5343–5358, prints uptime with `PRTIME`, then calls `DAYTIM`.
+- `DAYTIM`/`DATIME`,5268–5282, call `PRNOW` for the time of day.
+- `PRNOW`/`PRTIM`,7449–7479, use seconds.hundredths below one minute,
+  suppress zero hours otherwise, and print full hours when nonzero.
+
+The local COMCON reference still hashes to
+`de5809c4ab5ca2270c25718c1d76bef6b1b5f5ea`. This remains a source-format
+explanation corroborated by output, not an instruction-level runtime binary
+comparison. In particular, `0.00` is seconds.hundredths at midnight, not an
+hour.minute display.
+
+The narrow host correction extends only the current-time field in the existing
+complete BIGBEN recognizer to accept these formats. Two added regression tests
+cover the witnessed midnight frame and source-supported variants, incomplete
+frames, malformed times, unknown trailing output, absent command echoes and
+an interleaved notice without the expected echo. All89 guest-control,
+verified-controller, deployment/external-deployment and diagnostic tests pass.
+The diagnostic pre-install test step now includes the control regressions.
+Blue review retained the bounded complete-frame recognizer, exact command
+echoes, existing deadlines and no-replay behavior.
+
+This resolves a reproduced host parsing defect and supersedes the proposal to
+add capture instrumentation for this particular mismatch: existing evidence
+was sufficient for a focused test and correction. Native cutover with the fix
+has not run. No new CI execution was launched during this review, and neither
+the LOGIN timing question nor the release acceptance gates are closed.

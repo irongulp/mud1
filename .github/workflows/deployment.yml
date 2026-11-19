@@ -234,7 +234,7 @@ jobs:
         run: |
           python3 -m venv .venv
           .venv/bin/pip install -r requirements-dev.txt
-          .venv/bin/python -m unittest tests.test_logout_timing tests.test_logout_sequence tests.test_logout_workload tests.test_healthy_census tests.test_logout_census tests.test_logout_observer tests.test_terminal_shutdown_capture tests.test_gateway_lifecycle_evidence -v
+          .venv/bin/python -m unittest tests.test_guest_control tests.test_verified_controllers tests.test_logout_timing tests.test_logout_sequence tests.test_logout_workload tests.test_healthy_census tests.test_logout_census tests.test_logout_observer tests.test_terminal_shutdown_capture tests.test_gateway_lifecycle_evidence -v
           mkdir -p runtime/release-v1 runtime/shutdown-capture
           gh release download runtime-v1 --pattern mud86-runtime.tar.gz --dir runtime/release-v1
           docker build -t mud86-alma9 -f deploy/Dockerfile.alma9 .

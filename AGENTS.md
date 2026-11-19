@@ -31,6 +31,16 @@
 
 ## Current working system
 
+- Focused44422985974 review found retained BIGBEN notice at install.log665–668:
+  uptime :14:43/current Thursday19-Nov-1260.00. Host current-time grammar required
+  HH:MM:SS; exact frame replay reproduces pending-output failure before input.
+  Pinned COMCON5343–58/5268–82/7449–79 uses PRTIM for both fields: 0.00 is
+  seconds.hundredths at midnight, zero hours suppressed before1h. Narrow current-
+  time regex correction plus2 regressions preserves full frames/exact echoes/
+  deadlines/no replay;89 relevant tests pass. Existing normalized transcript
+  does not identify rejected byte/other pending data. No extra instrumentation
+  or new native run; cutover acceptance and logout timing still open.
+
 - Corrected timing44422985974/a2be938/artifact14483726865 stopped before browser
   admission in external cutover after build: protect_bridge_terminals first
   TYPE SYS:TTY.INI rejected pending control output at submit_line89, before
