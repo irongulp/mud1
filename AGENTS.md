@@ -31,6 +31,19 @@
 
 ## Current working system
 
+- Halted KSYS diagnostics now preserve complete bounded BATCON/QUASAR name
+  match indices and independently decode the PSB PID slot even when BATCON
+  lookup fails. Generation-matched/in-range candidates expose raw monitor
+  name/status/core/UPT; stale entries never read replacement-job metadata,
+  unallocated candidates skip current-context traversal. Context agreement is
+  not image identity; existing unique/resident/backlink/version/code gates
+  still control BATCON fields/binding.6 red-green tests/131 focused/actionlint
+  pass; native04 saved-word replay matches old state plus job12/context1
+  metadata at27 pages (offline, no new guest). See ksys-image-layout.md.
+  One amended35-minute original-sequence diagnostic selected to resolve
+  missing-name/PID ownership, not launch/exit history or release acceptance.
+  Record its run/outcome; do not infer absent BATCON from an unreadable scan.
+
 - Failure capture run44810792691 at408f1ad reproduced backup KSYS failure:
   two normal browser logouts, then wait20:44:31UTC/explicit BATCON-startup-expiry
   notices20:45:10/halt20:45:59.21 physical pages/1.442s verified QUASAR7/UPT346,

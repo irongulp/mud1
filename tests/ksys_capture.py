@@ -83,8 +83,13 @@ def capture_halted(console, report, *, scope_verified):
                                            evidence=dict(first=first, last=last))
         report['monitor_verified'] = True
         report['jobs'] = {}
+        report['job_name_matches'] = {}
         readers = {}
         for name, fields in (('quasar', mapping.QUASAR_FIELDS), ('batcon', mapping.BATCON_FIELDS)):
+            matches = attempt(name + '_names', lambda: mapping.job_name_matches(executive, name.upper()))
+            if matches is None:
+                continue
+            report['job_name_matches'][name] = matches
             def identify():
                 job = mapping.find_job(executive, physical, name.upper())
                 reader = lambda address: mapper.word(job['upt'], address)
@@ -109,6 +114,22 @@ def capture_halted(console, report, *, scope_verified):
                 value = attempt(name + '_' + field, lambda: reader(address))
                 if value is not None:
                     report[name + '_fields'][field] = value
+        if 'registration' in report:
+            report['psb_pid_current_context'] = 'unknown'
+            identity = attempt('psb_pid_entry', lambda: mapping.pid_entry(
+                executive, report['registration']['psb_pid']))
+            if identity is not None:
+                report['psb_pid_entry'] = identity
+                candidate = attempt('psb_pid_job', lambda: mapping.pid_job(executive, identity))
+                if candidate is not None:
+                    report['psb_pid_job'] = candidate
+                    if candidate['allocated']:
+                        current = attempt('psb_pid_context', lambda: mapping.current_context(
+                            executive, candidate['job']))
+                        if current is not None:
+                            report['psb_pid_job']['current_context'] = current
+                            report['psb_pid_current_context'] = (
+                                'matches' if current == candidate['context'] else 'mismatch')
         if 'registration' in report and 'batcon' in readers:
             context = attempt('binding', lambda: mapping.bind_pid(
                 executive, report['registration'], batcon_job=report['jobs']['batcon']['job']))

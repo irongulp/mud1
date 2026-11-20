@@ -127,14 +127,19 @@ class Mapper:
         return self.physical(self.address(upt, address))
 
 
-def find_job(read_executive, read_physical, name):
+def job_name_matches(read_executive, name):
+    """Complete bounded name scan; no allocation, residency or identity claim."""
     if name not in ('BATCON', 'QUASAR'):
         raise MappingError('Only the two diagnostic system jobs are supported')
     encoded = sixbit(name)
-    jobs = [job for job in range(1, LAYOUT['max_job'] + 1)
+    return [job for job in range(1, LAYOUT['max_job'] + 1)
             if read_word(read_executive, LAYOUT['name'] + job) == encoded]
+
+
+def find_job(read_executive, read_physical, name):
+    jobs = job_name_matches(read_executive, name)
     if len(jobs) != 1:
-        raise MappingError('Missing or ambiguous job name')
+        raise MappingError('Missing or ambiguous job name', evidence=dict(name=name, matches=jobs))
     job = jobs[0]
     if not read_word(read_executive, LAYOUT['status'] + job) & ALLOCATED_JOB:
         raise MappingError('Unallocated job')
@@ -196,9 +201,8 @@ def registration(quasar):
                 psb_deadline=read_word(quasar, psb + PSB_DEADLINE), psbs_seen=len(seen))
 
 
-def bind_pid(executive, observed, *, batcon_job):
-    """Validate ownership independently; never mutate raw registration evidence."""
-    pid = observed['psb_pid']
+def pid_entry(executive, pid):
+    """Read the PSB's bounded PID slot without selecting a job or image."""
     mask = read_word(executive, PID_MASK)
     limit = read_word(executive, PID_LIMIT)
     if not pid >> 18 or not 0 < mask <= HALF_MASK or not 0 < limit <= MAX_PID_ENTRIES:
@@ -207,12 +211,33 @@ def bind_pid(executive, observed, *, batcon_job):
     if index >= limit:
         raise MappingError('PID index out of bounds')
     entry = read_word(executive, PID_TABLE + index)
-    if ((entry ^ pid) & (WORD_MASK ^ mask)) or (entry & JOB_MASK) != batcon_job:
+    return dict(psb_pid=pid, pid_mask=mask, pid_limit=limit, pid_index=index,
+                pid_entry=entry, generation_matches=not ((entry ^ pid) & (WORD_MASK ^ mask)),
+                job=entry & JOB_MASK, context=(entry & HALF_MASK) >> CONTEXT_SHIFT)
+
+
+def pid_job(executive, observed):
+    """Raw monitor metadata only; never authorizes image/state interpretation."""
+    job = observed['job']
+    if not observed['generation_matches'] or not 1 <= job <= LAYOUT['max_job']:
+        raise MappingError('Stale PID or out-of-range job')
+    result = dict(job=job, context=observed['context'])
+    for table in ('name', 'status', 'core', 'upt'):
+        result[table + '_word'] = read_word(executive, LAYOUT[table] + job)
+    result['allocated'] = bool(result['status_word'] & ALLOCATED_JOB)
+    return result
+
+
+def bind_pid(executive, observed, *, batcon_job):
+    """Validate ownership independently; never mutate raw registration evidence."""
+    identity = pid_entry(executive, observed['psb_pid'])
+    pid, entry, mask = identity['psb_pid'], identity['pid_entry'], identity['pid_mask']
+    if not identity['generation_matches'] or identity['job'] != batcon_job:
         raise MappingError('PSB PID does not bind to BATCON job', evidence=dict(
             psb=observed['psb'], psb_pid=pid, psb_flags=observed['psb_flags'],
-            pid_mask=mask, pid_limit=limit, pid_index=index, pid_entry=entry,
-            expected_job=batcon_job))
-    context = (entry & HALF_MASK) >> CONTEXT_SHIFT
+            pid_mask=mask, pid_limit=identity['pid_limit'], pid_index=identity['pid_index'],
+            pid_entry=entry, expected_job=batcon_job))
+    context = identity['context']
     if context != current_context(executive, batcon_job):
         raise MappingError('PSB PID is not the current BATCON context', evidence=dict(
             psb_pid=pid, pid_entry=entry, expected_job=batcon_job, pid_context=context))

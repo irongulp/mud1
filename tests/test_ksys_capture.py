@@ -113,6 +113,50 @@ class CaptureTests(unittest.TestCase):
         self.assertEqual(report['batcon_fields']['ksys'], 1)
         self.assertEqual(report['binding']['status'], 'unknown')
 
+    def test_missing_or_duplicate_name_keeps_independent_pid_candidate_unbound(self):
+        for mode in ('renamed', 'duplicate', 'unallocated', 'noncurrent', 'bad-code'):
+            with self.subTest(mode=mode):
+                c, _, put, signatures = self.fixture()
+                if mode in ('renamed', 'unallocated', 'noncurrent'):
+                    put('executive', LAYOUT['name'] + 2, sixbit('LOGIN'))
+                if mode == 'duplicate':
+                    put('executive', LAYOUT['name'] + 3, sixbit('BATCON'))
+                if mode == 'unallocated':
+                    put('executive', LAYOUT['status'] + 2, 0)
+                if mode == 'noncurrent':
+                    put('quasar', 0o2001, (7 << 18) | 0o2003)
+                    put('executive', 0o15740, (7 << 18) | 0o2002)
+                if mode == 'bad-code':
+                    put('batcon', CODE_RANGES['batcon'][0], 0)
+                report = self.run_capture(c, signatures)
+                self.assertEqual(report['job_name_matches']['batcon'],
+                                 [2, 3] if mode == 'duplicate' else
+                                 [2] if mode == 'bad-code' else [])
+                self.assertTrue(report['psb_pid_entry']['generation_matches'])
+                self.assertEqual(report['psb_pid_job']['job'], 2)
+                self.assertEqual(report['psb_pid_job']['name_word'],
+                                 sixbit('BATCON' if mode in ('duplicate', 'bad-code') else 'LOGIN'))
+                self.assertEqual(report['psb_pid_current_context'],
+                                 'unknown' if mode == 'unallocated' else
+                                 'mismatch' if mode == 'noncurrent' else 'matches')
+                self.assertEqual(report['binding']['status'], 'unknown')
+                self.assertNotIn('batcon_fields', report)
+                self.assertEqual(report['outcome'], 'partial')
+
+    def test_missing_name_stale_pid_never_reads_replacement_job(self):
+        c, bases, put, signatures = self.fixture()
+        put('executive', LAYOUT['name'] + 2, sixbit('LOGIN'))
+        put('executive', 0o15740, (8 << 18) | 0o1002)
+        report = self.run_capture(c, signatures)
+        self.assertFalse(report['psb_pid_entry']['generation_matches'])
+        self.assertNotIn('psb_pid_job', report)
+        self.assertEqual(report['psb_pid_current_context'], 'unknown')
+        self.assertEqual(report['binding']['status'], 'unknown')
+        # Neither replacement-job PDB context nor its code is queried.
+        self.assertFalse(any(first <= bases['executive'] + 0o30071 <= last
+                             or first <= bases['batcon'] + 0o137 <= last
+                             for first, last in c.reads))
+
     def test_transport_failure_escapes_private_console_without_raw_payload(self):
         c, _, _, _ = self.fixture()
         def incomplete(*args, **kwargs):

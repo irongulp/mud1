@@ -529,3 +529,53 @@ An unchanged deployment retry cannot recover the operands omitted here.
 The one-run budget is complete; no second run was launched. This evidence-only
 follow-up changes no implementation; the125-test/actionlint baseline remains.
 Both full uninstrumented acceptance jobs on intended main still gate `v1.1.0`.
+
+## Independent PID ownership diagnostics
+
+The next host-only increment addresses the operands missing from44810792691:
+
+- `job_name_matches()` completes the bounded35-slot name scan before reporting
+  match indices. An unreadable scan is an error, never an empty match list.
+  Zero matches and duplicates are distinct; neither alone establishes absence.
+- `pid_entry()` independently reads the verified QUASAR PSB's monitor PID slot,
+  retaining the mask, limit, index, raw entry, generation comparison and decoded
+  job/context. It does not require a BATCON name match. Zero/invalid PID or an
+  out-of-range slot remains unknown.
+- `pid_job()` follows only a matching generation and in-range job number,
+  retaining raw name/status/core/UPT metadata. Stale entries never authorize
+  reads of the replacement job. Unallocated jobs retain their metadata but do
+  not authorize current-context traversal.
+- The capture reports current-context agreement separately from image binding.
+  Another program, duplicate name, stale PID, context mismatch or bad code
+  signature never enables BATCON state reads or a verified BATCON binding.
+  Candidate metadata is explicitly not an image identity.
+
+The strict healthy helper shares the extracted PID decoder and retains its old
+report format. No failure deadline, page budget, halt policy or production
+controller changed. Physical pages remain private and transient.
+
+Six new red/green regressions cover complete/partial name scans, stale PID
+operands without replacement-job reads, other-program/unallocated metadata,
+PID bounds, missing/duplicate names, non-current contexts and bad image code.
+Blue cleanup shares PID decoding with the strict binder. **131 focused tests**
+and actionlint pass. `runtime/ksys-map-04/pid-decoder-replay.json` (0600) records
+offline replay: the prior state/binding matches exactly, name matches are7/12,
+and the PID entry identifies allocated job12/current context1. Replay still
+uses27 physical pages; its host duration is not new native performance evidence.
+
+### Amended experiment decision
+
+A further post-deadline snapshot can now answer the narrow ownership question
+left open by44810792691: zero versus duplicate BATCON names; stale PID versus
+matching-generation owner; owner's current program/context. It cannot prove
+launch/exit history, identify the earlier expired PSB by address alone, or show
+where an already-exited BATCON stopped.
+
+Select one amended35-minute diagnostic with the same original external
+sequence and no pre-shutdown census, adding only these post-halt operands.
+This is a new evidence question, not a retry seeking a green release result.
+Keep the first-warning/four-login fences and single KSYS attempt. A successful
+shutdown is non-reproduction; a partial mapping remains unknown. If the owner
+has already disappeared, use this result to design an earlier observation
+instead of repeatedly sampling the same late boundary. Record the new run ID
+and outcome before claiming any native qualification of these added fields.

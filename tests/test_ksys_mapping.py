@@ -2,7 +2,7 @@ import unittest
 
 from tests.ksys_mapping import (
     Mapper, MappingError, find_job, shutdown_state, verify_image, CODE_RANGES, LAYOUT,
-    registration, bind_pid,
+    registration, bind_pid, job_name_matches, pid_entry, pid_job,
 )
 
 
@@ -129,6 +129,62 @@ class MappingTests(unittest.TestCase):
                      0o12502 + 1: 0o30000, 0o30071: 0}
         batcon = {0o457: 0, 0o553: 0}
         return quasar, executive, batcon
+
+    def test_name_scan_distinguishes_zero_duplicate_and_unreadable_table(self):
+        memory = self.roster()
+        self.assertEqual(job_name_matches(memory.__getitem__, 'BATCON'), [1])
+        memory[LAYOUT['name'] + 1] = sixbit('LOGIN')
+        self.assertEqual(job_name_matches(memory.__getitem__, 'BATCON'), [])
+        memory[LAYOUT['name'] + 1] = memory[LAYOUT['name'] + 3] = sixbit('BATCON')
+        with self.assertRaises(MappingError) as failure:
+            find_job(memory.__getitem__, memory.__getitem__, 'BATCON')
+        self.assertEqual(failure.exception.evidence, dict(name='BATCON', matches=[1, 3]))
+        del memory[LAYOUT['name'] + LAYOUT['max_job']]
+        with self.assertRaises(MappingError):
+            job_name_matches(memory.__getitem__, 'BATCON')
+
+    def test_pid_entry_retains_stale_operands_without_reading_replacement_job(self):
+        q, e, _ = self.state_fixture()
+        e[0o15737] = (8 << 18) | 0o1001
+        reads = []
+        def read(address):
+            reads.append(address)
+            return e[address]
+        observed = pid_entry(read, q[0o2001])
+        self.assertFalse(observed['generation_matches'])
+        self.assertEqual(observed['pid_entry'], e[0o15737])
+        self.assertEqual(observed['pid_index'], 2)
+        with self.assertRaises(MappingError):
+            pid_job(read, observed)
+        self.assertEqual(reads, [0o16101, 0o16102, 0o15737])
+
+    def test_pid_candidate_retains_other_program_and_unallocated_raw_fields(self):
+        q, e, _ = self.state_fixture()
+        memory = self.roster()
+        memory.update(e)
+        memory[LAYOUT['name'] + 1] = sixbit('LOGIN')
+        entry = pid_entry(memory.__getitem__, q[0o2001])
+        candidate = pid_job(memory.__getitem__, entry)
+        self.assertEqual(candidate, dict(job=1, context=1, name_word=sixbit('LOGIN'),
+                                        status_word=0o40000 << 18, core_word=123,
+                                        upt_word=20, allocated=True))
+        memory[LAYOUT['status'] + 1] = 0
+        self.assertFalse(pid_job(memory.__getitem__, entry)['allocated'])
+
+    def test_pid_bounds_reject_zero_invalid_mask_index_and_job_without_table_escape(self):
+        q, e, _ = self.state_fixture()
+        for updates, pid in (({}, 0), ({0o16101: 0}, q[0o2001]),
+                             ({0o16102: 2}, q[0o2001]),
+                             ({0o16101: 1 << 18}, q[0o2001])):
+            memory = e.copy()
+            memory.update(updates)
+            with self.subTest(updates=updates, pid=pid), self.assertRaises(MappingError):
+                pid_entry(memory.__getitem__, pid)
+        for job in (0, LAYOUT['max_job'] + 1):
+            e[0o15737] = (7 << 18) | 0o1000 | job
+            entry = pid_entry(e.__getitem__, q[0o2001])
+            with self.assertRaises(MappingError):
+                pid_job(e.__getitem__, entry)
 
     def test_shutdown_fields_require_pid_generation_and_job_binding(self):
         q, e, b = self.state_fixture()
