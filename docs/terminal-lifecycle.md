@@ -905,3 +905,13 @@ gates unchanged.
 [ksys-quasar]: https://github.com/PDP-10/stacken/blob/6e18f5ebefd9acb0d718ef31a08f33a60fc9fca2/files/stacken-tape-backup/dskb:10_7/galaxy/quasar/quasar.mac
 [ksys-batcon]: https://github.com/PDP-10/stacken/blob/6e18f5ebefd9acb0d718ef31a08f33a60fc9fca2/files/stacken-tape-backup/dskb:10_7/galaxy/batcon/batcon.mac
 [ksys-batmac]: https://github.com/PDP-10/stacken/blob/6e18f5ebefd9acb0d718ef31a08f33a60fc9fca2/files/stacken-tape-backup/dskb:10_7/galaxy/batcon/batmac.mac
+
+### Offline executable layout qualification
+
+The follow-up [image-layout analysis](ksys-image-layout.md) found embedded
+symbols in both distribution executables and two complete byte-identical copies
+of each in the checksum-verified runtime-v1 disk. Seven red/green decoder tests
+pass; an independent, nonexecuting SIMH LOAD/EXAMINE comparison matched all68,608
+mapped words. Candidate PSB/BATCON field addresses and selected instruction
+boundaries are now byte-backed. Monitor job/UPT mapping and resident-image
+identity remain unqualified, so no failure capture or new CI run was enabled.

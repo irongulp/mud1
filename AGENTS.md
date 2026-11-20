@@ -31,6 +31,18 @@
 
 ## Current working system
 
+- Offline KSYS layouts: tests.ksys_image decodes complete t10backup36-bit words,
+  EXE pages/legacy JBSYM/RADIX50 and exact aligned whole-file disk matches.
+  7 red/green tests; independent SIMH LOAD/EXAMINE matched68608 mapped words,
+  no guest execution. Verified runtime-v1 disk has2 full copies each of CUSP
+  BATCON105(5027)/QUASAR5(1512), embedded symbols retained. Candidate virtual
+  HDRPSB60035/G$NOW102624, BATCON G$KSYS457/KSYCNT553; NOT physical/live addresses.
+  t10backup trimmed4 terminal zero bytes, independently checked against raw tape;
+  strict reader still rejects partial words. Private build/ksys-layout evidence,
+  docs/ksys-image-layout.md hashes/limits. Monitor job/UPT mapping/resident-image
+  binding still required before failure reads;96 focused tests pass, no new
+  CI/capture/timeout change.
+
 - KSYS source trace: QSRT10 wait message sets QUASAR PSB PS.KSY, not proof
   BATCON absent/newly launched. Earlier BATCON job1 existed23s before44792601384
   wait. HELLO changes PS.RUN and sends .QOKSY; BATCON scans jobs and emits final
