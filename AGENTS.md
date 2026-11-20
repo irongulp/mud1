@@ -31,6 +31,16 @@
 
 ## Current working system
 
+- Run44792601384/1859326/artifact14659745438 passed install/editor/rerun and
+  two complete browser logouts, then backup KSYS queued/waited for BATCON and
+  timed out. Backup refused, final shutdown verification failed; fixture removed.
+  First native failure-only DZ capture:32 lines/raw6+7/two aggregate connections,
+  PC354741, no job/line ownership or causal interpretation.2 other service stops
+  clean; foreground cutover also KSYS/Goodbye. No logout warning/timing/census;
+  not a full4-session negative. No midnight notice, parser branch remains host-
+  proved. Budget complete/no rerun; next source/state plan for BATCON-start wait.
+  See terminal-lifecycle.md/private runtime/logout-timing-44792601384.
+
 - Focused44422985974 review found retained BIGBEN notice at install.log665–668:
   uptime :14:43/current Thursday19-Nov-1260.00. Host current-time grammar required
   HH:MM:SS; exact frame replay reproduces pending-output failure before input.

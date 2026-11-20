@@ -733,3 +733,71 @@ add capture instrumentation for this particular mismatch: existing evidence
 was sufficient for a focused test and correction. Native cutover with the fix
 has not run. No new CI execution was launched during this review, and neither
 the LOGIN timing question nor the release acceptance gates are closed.
+
+### Post-correction native run: installation passed, backup KSYS failed
+
+User-authorized run **44792601384**, commit `1859326`, artifact **14659745438**,
+ended after23m12s. Initial external installation, persona creation/SAVE,
+inspection/editor checks, installer rerun and the second saved-player login
+completed. Both browser sessions logged complete logout reports with
+`recovered=False`. The wrapper then reported `experiment-error`,
+phase `host-command:sudo`, two admissions: the failing operation was
+`sudo mud86ctl backup`, not a third login or the logout observer.
+
+This is installed-path progress past the previous setup blockers, including
+native launch of the corrected timing fixture. The install log contains no
+BIGBEN midnight notice, so it does not independently exercise the new `0.00`
+branch; that branch retains source/replay-test evidence.
+
+Host service journal UTC:
+
+| Event | Time on 2026-11-20 |
+| --- | --- |
+| Creation-session logout complete (`e42db8b9…`) | 18:45:15 |
+| Installer-rerun shutdown KSYS queued | 18:45:19 |
+| Installer-rerun KSYS completed | 18:45:52 |
+| Saved-session logout complete (`8affd0a8…`) | 18:47:03 |
+| Gateway stopped / runtime stopping for backup | 18:47:03 |
+| SHOW QUEUES reports empty; KSYS queued, request9 | 18:47:06 |
+| Waiting for BATCON to start for KSYS logouts | 18:47:06 |
+| Shutdown deadline, diagnostic halt/DZ report/Goodbye | 18:48:34 |
+
+The queued event and wait message establish that this KSYS was submitted and
+processed beyond echo. No completion message followed before the deadline.
+The preceding rerun shutdown spent about33 host seconds from queued event to
+completion; this is an observation, not justification for increasing deadlines
+or a demonstrated mechanism linking the two stops.
+
+The existing failure-only device capture was exercised natively:
+`shutdown-capture/16e1d7c11d524fcab8ed24061d8be892/report.json` has
+`shutdown_clean:false`, `error_type:TIMEOUT`, `census_enabled:false`,
+`device_report_completed:true`. After the failure, SIMH halted at
+`PC:354741 (MOVE 2,720642)` and one `show dz` returned32 configured lines,
+listener2020, raw listeners6/7 and **two current connections**. That aggregate
+report does not identify the connected lines, their jobs, or BATCON's state.
+The two connections are compatible with the external bridge remaining alive
+during shutdown, but are not independently identified as its sockets. No
+version-matched PC/stack analysis or active-browser inference is justified.
+Capture ended with simulator Goodbye; no resume or second KSYS was issued.
+
+Two other service-capture reports are clean (initial native service and the
+installer-rerun stop). The foreground cutover also recorded KSYS completion
+and Goodbye in `install.log`. The final verification correctly failed because
+the backup stop was unclean. `backup.log` reports:
+`Guest shutdown was not confirmed clean; recover and stop it before continuing`.
+No backup success, restart, later admissions or complete external acceptance
+is claimed. Container removal passed.
+
+Only the census owner file exists; there was no logout warning, census request
+or passive timing observation. Thus this is neither a complete four-session
+negative result nor an answer to natural-versus-CTY progress. Private evidence
+is retained at `runtime/logout-timing-44792601384/`.
+
+The authorized one-run budget is complete. No further CI run was launched.
+The immediate blocker is now the separately evidenced KSYS/BATCON path despite
+successful browser logout reports. Next review should trace the specific
+BATCON-start wait and identify the guest state needed to distinguish a pending
+start from an already-started worker that cannot progress; the aggregate DZ
+capture cannot do that. The logout timing hypothesis remains open. This
+documentation-only result does not change the89-test code baseline or satisfy
+either full uninstrumented release job.
