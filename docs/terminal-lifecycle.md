@@ -952,3 +952,77 @@ Artifact14669540131 and private `runtime/ksys-capture-44810792691/` retain the
 reports. Goodbye, inactive services and container removal passed; native stop
 remained unclean and backup correctly refused. No logout warning/census request
 occurred. One bounded run completed; no further CI dispatch or release occurred.
+
+### Timed logout observation finally exercised: 44835421772
+
+Run [44835421772](https://github.com/irongulp/mud1/actions/runs/44835421772)
+at `a6830f0` ended after22m10s. The original-sequence first-warning fence stopped
+at login2, with `outcome=reproduced-captured`, not a completed four-login sequence.
+Installation/editor/rerun progressed; the first browser logout was normal.
+The second logout timed out with only its six-byte KJOB echo observed. The
+existing failed result was preserved even after the subsequent late completion.
+Backup and later sequence steps were not reached.
+
+Artifact14678913299 (`installed-shutdown-capture`,44,171 bytes), digest
+`sha256:72439275af0cef1ebbb158f577fbc744165142261335a2045df55ec6d427bf4f`,
+is retained with the workflow log under `runtime/ksys-pid-44835421772/`.
+The sequence report identifies connection
+`9c2ff464c33e44b4b5864250a33389dd` and census token
+`52686fbd268e4b8885f803258c7ebdc1`.
+
+This is the first failed logout to exercise the ten-second passive interval
+followed by the timed CTY census:
+
+| Event | Host monotonic seconds |
+| --- | --- |
+| Post-timeout observation started | 1453.567427993 |
+| Census requested after passive interval | 1463.569059626 |
+| First CTY write before/after | 1464.004528433 / 1464.004671560 |
+| CTY Enter write before/after | 1464.147363109 / 1464.147530321 |
+| First new terminal data observed | 1464.327705399 |
+| SYSTAT command returned | 1464.345430666 |
+| Complete logout prompt observed | 1464.353712993 |
+
+No new terminal bytes were observed in the ten-second passive interval.
+First new data followed the CTY Enter write by0.180175 seconds, and the prompt
+by0.206183 seconds. These are host observation/write timestamps, not guest
+instruction timestamps. The terminal collector ran concurrently with census
+handling; first data preceded the census command return by0.017725 seconds.
+The report includes Logged-off, accounting and final prompt, not merely a
+prompt-shaped suffix:180 response bytes versus6 before observation.
+The line remained open through that observation.
+
+SYSTAT showed job2, PPN2653,2653, line0, program LOGIN, `10+31 RN`, run-time15.
+It also showed detached BATCON job1 `4+40 SL SW`, and QUASAR job7 `119+40 SL`.
+This repeats the LOGIN/line0 boundary seen in earlier census evidence. A census
+row is not an instruction trace or an atomic snapshot at the later prompt;
+it cannot identify the exact wait or prove that CTY input released it.
+
+The result establishes **completion after CTY activity**, rather than passive
+completion in the first ten seconds. It does not distinguish CTY-induced
+progress from natural completion coinciding with that activity. There is no
+no-census counterfactual at this elapsed time. Do not adopt a CTY poke as a fix
+or extend production cleanup deadlines from this single observation.
+
+All three shutdown-wrapper reports were clean. Final KSYS completed, Goodbye/
+inactive services/final native verification and fixture removal passed. No
+failed-KSYS halt occurred, so the new name/PID fields were **not exercised**
+natively. They retain the131-test/actionlint/saved-native-replay qualification;
+this run adds no evidence about44810792691's expired registration ownership.
+The workflow remains red because the original logout exceeded its deadline.
+
+#### Next controlled comparison
+
+The useful next logout control is failure-only, passive throughout the same
+22-second maximum post-timeout observation budget (10+12), with **no CTY
+census request or other guest input during observation**. Preserve concurrent
+reads, byte bounds, first-warning fence, original failed result and normal
+shutdown afterward. A late completion there would demonstrate natural progress
+within the comparable window; no completion would motivate further controlled
+comparison, not by itself prove a CTY mechanism. Add explicit host tests before
+dispatching that changed control. This is proposed, not implemented or run.
+
+No further CI run was dispatched. Documentation/evidence reconciliation only:
+the implementation and131-test baseline are unchanged. Initial admission,
+logout and KSYS registration failures remain separate investigations; both
+full uninstrumented release jobs are still required.

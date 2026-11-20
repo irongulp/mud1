@@ -579,3 +579,20 @@ shutdown is non-reproduction; a partial mapping remains unknown. If the owner
 has already disappeared, use this result to design an earlier observation
 instead of repeatedly sampling the same late boundary. Record the new run ID
 and outcome before claiming any native qualification of these added fields.
+
+### Amended run outcome
+
+Run44835421772 at `a6830f0` stopped at the original sequence's second browser
+logout timeout. Its ten-second passive/then-CTY observation finally exercised:
+late full logout followed CTY Enter by about206ms. See the
+[timed logout analysis](terminal-lifecycle.md#timed-logout-observation-finally-exercised-44835421772)
+for the census, concurrent-read timestamps and causality limits.
+
+All three shutdown reports and final native shutdown verification passed.
+No KSYS failure-time capture occurred; the independent name/PID additions
+remain host/replay-qualified, not natively exercised by this run. Artifact
+14678913299 and private `runtime/ksys-pid-44835421772/` retain that negative
+KSYS result alongside the positive logout-timing evidence. The first-warning
+fence preserved the original failure; no backup/later sequence work ran.
+The one-run budget is complete, and the next proposed comparison is
+passive-only logout observation, not an unchanged KSYS retry or release.

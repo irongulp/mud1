@@ -31,6 +31,19 @@
 
 ## Current working system
 
+- Diagnostic44835421772 ata6830f0 stopped at login2 logout timeout, not KSYS.
+  First timed passive-before-census failure:6-byte KJOB echo, no new bytes for
+  10s; census job2/line0/LOGIN10+31/RN, then new data180ms after CTY Enter/
+  complete Logged-off+accounting+prompt206ms/180bytes. Concurrent reader saw
+  new data before census returned; host timestamps, no CTY-causation proof.
+  Original failed result retained. All3 captured stops/final KSYS/Goodbye/
+  inactive services/container removal clean; no PID capture exercised, no
+  backup/later sequence. Artifact14678913299/private ksys-pid run retained.
+  Next proposed control passive-only same22s post-timeout bound/no guest input,
+  source/TDD before dispatch; not implemented.131-test/replay baseline unchanged.
+  See docs/terminal-lifecycle.md. Keep logout/KSYS/admission causes separate;
+  no further CI/release/fix claim.
+
 - Halted KSYS diagnostics now preserve complete bounded BATCON/QUASAR name
   match indices and independently decode the PSB PID slot even when BATCON
   lookup fails. Generation-matched/in-range candidates expose raw monitor
