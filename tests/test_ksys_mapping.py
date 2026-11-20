@@ -2,6 +2,7 @@ import unittest
 
 from tests.ksys_mapping import (
     Mapper, MappingError, find_job, shutdown_state, verify_image, CODE_RANGES, LAYOUT,
+    registration, bind_pid,
 )
 
 
@@ -142,6 +143,20 @@ class MappingTests(unittest.TestCase):
             self.assertEqual(failure.exception.evidence['pid_entry'], value)
             self.assertEqual(failure.exception.evidence['expected_job'], 1)
             self.assertNotIn('validated', failure.exception.evidence)
+
+    def test_raw_registration_survives_zero_or_stale_pid_without_binding(self):
+        for pid in (0, (8 << 18) | 0o1002):
+            q, e, _ = self.state_fixture()
+            q[0o2001] = pid
+            q[0o2004] = 3 << 27
+            observed = registration(q.__getitem__)
+            self.assertEqual(observed['psb_status'], 3)
+            self.assertEqual(observed['psb_pid'], pid)
+            self.assertEqual(observed['psb_deadline'], 100)
+            with self.assertRaises(MappingError):
+                bind_pid(e.__getitem__, observed, batcon_job=1)
+            self.assertNotIn('batcon_context', observed)
+            self.assertEqual(observed['psb_flags'], 3 << 27)
 
     def test_witnessed_pid_has_context_one_not_bare_job_number(self):
         q, e, b = self.state_fixture()

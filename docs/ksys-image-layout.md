@@ -377,3 +377,62 @@ This experiment has **not** been integrated or dispatched. No new CI run was
 launched, no intermittent failure was reproduced by these four healthy fixtures,
 and no root cause or shutdown fix is claimed. Both full uninstrumented release
 acceptance jobs on intended main remain required before `v1.1.0`.
+
+## Failure-only integration
+
+The subsequent implementation adds `tests/ksys_capture.py` to the installed
+diagnostic launcher only, enabled by `MUD86_KSYS_MAPPING=1` in the disposable
+`shutdown-capture.conf`. Full acceptance/production launchers do not use it.
+The observer records whether the original KSYS command's deadline was exhausted
+**when that command failed**, before spending diagnostic time. Early failures
+cannot become eligible merely because the later halt takes time.
+
+After the existing SCP halt and DZ report, the decoder shares the original
+ten-second diagnostic deadline (no reset/extension), with at most128 physical
+pages. It never resumes, deposits memory/registers, issues a guest command,
+retries a read after transport uncertainty, or overrides the original shutdown
+result. Required scope verification and13 monitor hash ranges precede any
+job interpretation. Pinned code digests/version values establish each job
+independently without needing historical binaries in the diagnostic checkout.
+
+`registration()` now reads QUASAR's bounded PSB list independently of
+`bind_pid()`. `shutdown_state()` retains its original strict healthy contract.
+The capture report keeps separate:
+
+- verified job identities (name/table/UPT backlink/version/code signature);
+- QUASAR-owned PSB flags/status/PID/deadline, even with zero/stale PID;
+- individually readable QUASAR and BATCON named state words;
+- PID/current-context binding, explicitly `unknown` unless it verifies;
+- controlled mapping errors or transport error types, never terminal buffers.
+
+A `complete` capture means its mappings/fields/binding decoded successfully,
+not that KSYS completed. A missing or inaccessible job remains unknown, not
+absent. Report values are raw unsigned36-bit words; signed counters and UDT
+differences require their source interpretation.
+
+Raw physical pages remain only in a bounded in-process cache. The existing
+`private_console()` suppresses transcript logging; a transport exception
+propagates through that context so logging remains suppressed during teardown
+if memory output is still queued. Reports are published at0600 and contain
+only named state/identity fields, registers and controlled error metadata.
+
+Red/green tests cover zero/stale PID partial evidence, independent BATCON state,
+bad monitor/job signatures, missing pages, halt/scope/deadline/page limits,
+transport-log suppression, original-deadline eligibility, no resume/replay,
+preserved failed-stop status, and installed imports without a checkout `tests`
+package. Blue extraction separates registration from PID binding while keeping
+the prior healthy report format.125 focused tests and actionlint pass.
+The new decoder replays `ksys-map-04` exactly for the named state/binding;
+`failure-decoder-replay.json` records that offline check. No new local guest
+was needed for this integration.
+
+The selected deployment experiment is **one**35-minute diagnostic on
+`fix/native-terminal-lifecycle`: shutdown reproduction/fresh-mariadb,
+original external sequence, passive logout observation and timed census enabled,
+shutdown census/healthy census/repeated workload disabled. It preserves the
+four-login/first-warning fences from44792601384 and adds only post-deadline
+shutdown mapping. Decisive outcomes are (a) a readable waiting/unregistered PSB,
+(b) a bound running PSB without BATCON KSYS acceptance, (c) accepted KSYS and
+pending work, or (d) explicit unknown mapping/non-reproduction. A single
+snapshot distinguishes boundaries, not the underlying cause. The run and
+retained artifact must be recorded before treating any outcome as witnessed.

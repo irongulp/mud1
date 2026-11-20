@@ -176,8 +176,8 @@ def current_context(executive, job):
     return selected
 
 
-def shutdown_state(quasar, batcon, executive, *, batcon_job):
-    """Read named state only after caller verifies both jobs' code signatures."""
+def registration(quasar):
+    """Read QUASAR-owned PSB fields; these do not establish a current BATCON PID."""
     pointer = read_word(quasar, PSB_HEAD) & HALF_MASK
     seen, matches = set(), []
     while pointer:
@@ -190,7 +190,15 @@ def shutdown_state(quasar, batcon, executive, *, batcon_job):
     if len(matches) != 1:
         raise MappingError('Missing or ambiguous BATCON PSB')
     psb = matches[0]
-    pid = read_word(quasar, psb + PSB_PID)
+    flags = read_word(quasar, psb + PSB_FLAGS)
+    return dict(psb=psb, psb_pid=read_word(quasar, psb + PSB_PID),
+                psb_flags=flags, psb_status=flags >> PSB_STATUS_SHIFT,
+                psb_deadline=read_word(quasar, psb + PSB_DEADLINE), psbs_seen=len(seen))
+
+
+def bind_pid(executive, observed, *, batcon_job):
+    """Validate ownership independently; never mutate raw registration evidence."""
+    pid = observed['psb_pid']
     mask = read_word(executive, PID_MASK)
     limit = read_word(executive, PID_LIMIT)
     if not pid >> 18 or not 0 < mask <= HALF_MASK or not 0 < limit <= MAX_PID_ENTRIES:
@@ -201,17 +209,21 @@ def shutdown_state(quasar, batcon, executive, *, batcon_job):
     entry = read_word(executive, PID_TABLE + index)
     if ((entry ^ pid) & (WORD_MASK ^ mask)) or (entry & JOB_MASK) != batcon_job:
         raise MappingError('PSB PID does not bind to BATCON job', evidence=dict(
-            psb=psb, psb_pid=pid, psb_flags=read_word(quasar, psb + PSB_FLAGS),
+            psb=observed['psb'], psb_pid=pid, psb_flags=observed['psb_flags'],
             pid_mask=mask, pid_limit=limit, pid_index=index, pid_entry=entry,
             expected_job=batcon_job))
     context = (entry & HALF_MASK) >> CONTEXT_SHIFT
     if context != current_context(executive, batcon_job):
         raise MappingError('PSB PID is not the current BATCON context', evidence=dict(
             psb_pid=pid, pid_entry=entry, expected_job=batcon_job, pid_context=context))
-    result = dict(psb=psb, psb_pid=pid,
-                  psb_status=read_word(quasar, psb + PSB_FLAGS) >> PSB_STATUS_SHIFT,
-                  psb_deadline=read_word(quasar, psb + PSB_DEADLINE), psbs_seen=len(seen),
-                  batcon_context=context)
+    return context
+
+
+def shutdown_state(quasar, batcon, executive, *, batcon_job):
+    """Strict healthy-state helper; both jobs' signatures must already match."""
+    result = registration(quasar)
+    result['batcon_context'] = bind_pid(executive, result, batcon_job=batcon_job)
+    del result['psb_flags']  # Preserve the original strict helper's report format.
     result.update(('quasar_' + name, read_word(quasar, address))
                   for name, address in QUASAR_FIELDS.items())
     result.update(('batcon_' + name, read_word(batcon, address))

@@ -31,6 +31,18 @@
 
 ## Current working system
 
+- Failure-only KSYS decoder is now wired into the disposable installed
+  shutdown-capture fixture (MUD86_KSYS_MAPPING=1), not production/full acceptance.
+  Original-deadline exhaustion is recorded at command failure, then existing
+  halt/DZ/physical reads share10s/128 pages; never resume/deposit/replay/clean-upgrade.
+  QUASAR PSB raw fields survive zero/stale PID; independent BATCON fields and
+  current-context binding are separate. Unknown mappings never mean absence.
+  Transport failures escape private_console to keep queued memory out of logs;
+  only named fields/errors/registers enter0600 reports, no raw pages/binaries.
+  Native04 offline replay/125 focused tests/actionlint pass. One bounded35-minute
+  external original-sequence diagnostic is selected; record its outcome before
+  claiming native failure capture. See docs/ksys-image-layout.md.
+
 - KSYS halted-job mapping now has local healthy qualification at
   runtime/ksys-map-04: verified release disk, existing scope/batch proof,
   13 monitor code signatures, QUASAR7/BATCON12, UPT backlinks, exact version/
