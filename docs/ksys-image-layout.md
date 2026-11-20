@@ -436,3 +436,96 @@ shutdown mapping. Decisive outcomes are (a) a readable waiting/unregistered PSB,
 pending work, or (d) explicit unknown mapping/non-reproduction. A single
 snapshot distinguishes boundaries, not the underlying cause. The run and
 retained artifact must be recorded before treating any outcome as witnessed.
+
+## First failure-time capture: registration expiry witnessed
+
+Run [44810792691](https://github.com/irongulp/mud1/actions/runs/44810792691)
+at `408f1ad` completed with failure after23m25s, within the35-minute bound.
+Artifact14669540131 (`installed-shutdown-capture`,40,832 bytes) has digest
+`sha256:e956d589dedce93a1b70c8bbf4395406475b79e57b0a6ba71ab915ac25a0a839`.
+Downloaded evidence and workflow log are retained under
+`runtime/ksys-capture-44810792691/`.
+
+Installation, editor check, installer rerun and two browser sessions progressed;
+both browser logouts completed with `recovered=False`. Backup then refused the
+unclean guest stop. The sequence report retains `experiment-error`,
+`phase=host-command:sudo`, `logins_submitted=2`; it is not a four-login pass.
+No logout warning/census request occurred, so passive-versus-CTY logout progress
+is still untested. Two earlier captured stops were clean.
+
+### Final stop timeline
+
+Times below are UTC host journal timestamps; guest printed times are distinct.
+The authoritative file is
+`artifacts/installed-shutdown-capture/deployment-ci/mud86-external-fresh/after-stop-services.log`.
+
+| Host time | Observed evidence |
+| --- | --- |
+| 20:44:08 | Last boot census: job1 detached BATCON, `26+40 SL`; current-boot DAYTIME output/logoff had completed |
+| 20:44:28 | Second browser logout completed |
+| 20:44:31 | Empty queue response; one `SET KSYS NOW`; event queued and waiting-for-BATCON notice (guest20:44:21) |
+| 20:45:10 | `BATCON failed to startup` and `Use OPSER for KSYS logouts since BATCON didn't start` (guest20:44:59) |
+| 20:45:59 | Original wait failed; diagnostic halt at PC355061 octal, followed by DZ report |
+| 20:46:01 | Partial mapping report, original failed-stop result, simulator Goodbye and runtime exit |
+
+This adds decisive evidence beyond44792601384: QUASAR reached the registration
+expiry reporting path. It is not merely an absent completion message, and it
+does not prove that BATCON never existed (the earlier census showed it).
+Pinned `QSRADM.MAC:2675–2686` compares `PSBUDT` with `G$NOW` and emits these
+notices for the special KSYS waiting state. At2719–2721 it removes that PSB.
+These line numbers count newline characters, not form-feed page separators.
+No OPSER fallback was attempted.
+
+### Halted state and interpretation limit
+
+The existing physical-only capture completed21 page reads in1.442 seconds,
+within the shared ten-second diagnostic budget. Monitor signatures and QUASAR
+job7/UPT346 (decimal) identity/version/code verified. Report
+`shutdown-capture/cff994bf85414f448639c89b5ff38482/report.json` preserves:
+
+| Field | Decimal raw value / interpretation |
+| --- | --- |
+| PSB address | 52860 |
+| PSB PID | 34363671042; **not bound to a current BATCON job** |
+| PSB flags/status | 1310721 / 0 (`PS.RUN`) |
+| PSB deadline | 16086431043 |
+| QUASAR now | 16086431063 |
+| QUASAR KSYS | 68719476735 (36-bit -1, set) |
+| QUASAR wake | 0 |
+| BATCON identity | `Missing or ambiguous job name` |
+| PID/context binding | unknown |
+
+`PS.RUN` is only the later QUASAR-owned record's value. It cannot establish
+successful recovery, HELLO delivery or BATCON's acceptance of KSYS. In
+particular, the source expiry path removes the waiting PSB; this snapshot does
+not establish continuity with that earlier record, even if an address is reused.
+The20-unit difference between the captured time/deadline words is not a host
+latency measurement. BATCON KSYS/count fields were correctly omitted.
+
+The name lookup currently discards its match count and does not inspect the
+PSB PID table entry when BATCON identification fails. Thus zero matches versus
+duplicate names, stale PID versus another current job/context, and a transient
+program-name change remain indistinguishable in this artifact. Raw memory
+pages were intentionally not retained; these missing operands cannot be
+recovered offline. Do not translate this error into “BATCON absent.”
+
+Both service units ended inactive/dead; Goodbye and fixture removal passed.
+Native shutdown remained **unclean**, final verification failed, and backup
+remained refused. No disk promotion, uncertain-command replay or guest resume
+occurred. The capture is native-qualified for partial QUASAR evidence, not a
+complete BATCON-state capture or root-cause fix.
+
+### Next evidence gate
+
+Before another native run, extend only the halted diagnostic to retain bounded
+job-name match counts/indices and independently decode the named PSB PID entry.
+Require the existing generation/allocation/current-context/code checks before
+associating it with BATCON. Preserve zero/stale/other-program outcomes as raw,
+unbound evidence, with red/green tests and replay against the healthy04 operands.
+Then assess whether a single post-expiry snapshot can answer the remaining
+launch/exit/registration question or needs a separately scoped earlier observation.
+An unchanged deployment retry cannot recover the operands omitted here.
+
+The one-run budget is complete; no second run was launched. This evidence-only
+follow-up changes no implementation; the125-test/actionlint baseline remains.
+Both full uninstrumented acceptance jobs on intended main still gate `v1.1.0`.

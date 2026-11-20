@@ -31,6 +31,21 @@
 
 ## Current working system
 
+- Failure capture run44810792691 at408f1ad reproduced backup KSYS failure:
+  two normal browser logouts, then wait20:44:31UTC/explicit BATCON-startup-expiry
+  notices20:45:10/halt20:45:59.21 physical pages/1.442s verified QUASAR7/UPT346,
+  KSYS=-1, raw PS.RUN0/PID34363671042, now16086431063/deadline16086431043.
+  BATCON name missing-or-ambiguous; PID/context unknown, no BATCON fields.
+  QSRADM2675-2686 emits expiry notices,2719-2721 removes waiting PSB: later RUN
+  does not prove same-record continuity/recovery/HELLO/KSYS acceptance. No raw
+  pages retained; cannot recover omitted match count/PID entry offline. Next
+  source/TDD bounded name-match operands and independent unbound PID lookup,
+  not an unchanged native rerun. Artifact14669540131/private ksys-capture run
+  directory retained; Goodbye/inactive services/container removal passed but
+  native_clean=false/backup refused/no promotion. One-run budget complete;
+  no second CI or root-cause/fix/release claim.125-test baseline unchanged.
+  See docs/ksys-image-layout.md; logout passive timing still unexercised.
+
 - Failure-only KSYS decoder is now wired into the disposable installed
   shutdown-capture fixture (MUD86_KSYS_MAPPING=1), not production/full acceptance.
   Original-deadline exhaustion is recorded at command failure, then existing

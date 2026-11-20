@@ -933,3 +933,22 @@ completed native KSYS/Goodbye/process exit; no browser or persona was admitted.
 109 focused tests pass. This qualifies healthy mapping, not any intermittent
 failure's cause. Failure-time partial-evidence integration and one bounded
 deployment experiment remain next; no new CI run or release acceptance occurred.
+
+### Failure-only capture outcome: 44810792691
+
+The subsequent diagnostic at408f1ad reproduced backup's KSYS failure after two
+normal browser logouts. Unlike44792601384, the journal explicitly reports
+`BATCON failed to startup` and the OPSER advice before the host deadline.
+Source QSRADM2675–2686 identifies this as the KSYS registration-expiry path.
+No OPSER fallback or second KSYS was attempted.
+
+The1.442-second halted capture verified QUASAR and retained its set KSYS flag,
+raw PS.RUN registration and PID, but could not uniquely identify BATCON.
+The expiry path removes the waiting PSB; the later raw RUN value is not proof
+of recovery or continued identity. BATCON acceptance/work state remains unknown.
+See [the detailed timeline and next evidence gate](ksys-image-layout.md#first-failure-time-capture-registration-expiry-witnessed).
+
+Artifact14669540131 and private `runtime/ksys-capture-44810792691/` retain the
+reports. Goodbye, inactive services and container removal passed; native stop
+remained unclean and backup correctly refused. No logout warning/census request
+occurred. One bounded run completed; no further CI dispatch or release occurred.
