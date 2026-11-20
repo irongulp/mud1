@@ -915,3 +915,21 @@ pass; an independent, nonexecuting SIMH LOAD/EXAMINE comparison matched all68,60
 mapped words. Candidate PSB/BATCON field addresses and selected instruction
 boundaries are now byte-backed. Monitor job/UPT mapping and resident-image
 identity remain unqualified, so no failure capture or new CI run was enabled.
+
+### Healthy halted-job mapping qualification
+
+The subsequent [mapping follow-up](ksys-image-layout.md#monitor-and-job-mapping-follow-up)
+identified an embedded-symbol monitor image matching all eight scope fingerprints.
+The decoder follows `JBTUPM` to physical user page tables and checks job backlinks,
+version/code signatures, PID generation and current context. PID ownership is a
+job/context handle: a bare-job comparison caused the first two retained capture
+failures. Trial03 correctly rejected an inaccessible QUASAR shutdown-code page;
+fixed page-zero identity signatures now avoid requiring that unused code page.
+
+Local `runtime/ksys-map-04` passed: QUASAR job7/BATCON job12/current context1,
+PS.RUN0, both KSYS fields0 and BATCON count0. The1.930-second physical-only capture
+replays offline from407 private requested words. All four fresh-release fixtures
+completed native KSYS/Goodbye/process exit; no browser or persona was admitted.
+109 focused tests pass. This qualifies healthy mapping, not any intermittent
+failure's cause. Failure-time partial-evidence integration and one bounded
+deployment experiment remain next; no new CI run or release acceptance occurred.

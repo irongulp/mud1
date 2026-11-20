@@ -31,6 +31,25 @@
 
 ## Current working system
 
+- KSYS halted-job mapping now has local healthy qualification at
+  runtime/ksys-map-04: verified release disk, existing scope/batch proof,
+  13 monitor code signatures, QUASAR7/BATCON12, UPT backlinks, exact version/
+  page-zero code and PSB PID generation/job/current-context1 passed. PS.RUN0,
+  both KSYS fields0/count0;27 physical pages/1.930s,407 private0600 requested
+  words replayed offline. Native KSYS/Goodbye/exits clean; all4 labs exited.
+  Monitor EXE at disk offset293919744 matches all8 scope fingerprints; embedded
+  JBTUPM14174 (not JBTPDB12502) gives physical UPT page, .UPJOB322 binds job.
+  PIDTAB RH is job/context:01/02 failed a bare-job comparison,02 operands
+  400017001002/400017001014 identify context1/job12, not stale generation.
+  CTXSER current-context check now required; nonempty chain native, no-chain
+  context1 host/source only.03 rejected type-zero044400000445 for QUASAR's
+  unused KSYS code page; retain failure. Fixed A$HELL333-400/TOPLVL652-707
+  signatures avoid that page, never bypass missing identity/state mappings.
+  tests.ksys_mapping uses physical backing reads, not virtual EXAMINE (which
+  can update CST).13 red/green tests/109 focused pass; no production change.
+  See docs/ksys-image-layout.md. Failure-only integration/partial PSB evidence
+  for zero/stale PID still pending; no new CI/failure cause/release acceptance.
+
 - Offline KSYS layouts: tests.ksys_image decodes complete t10backup36-bit words,
   EXE pages/legacy JBSYM/RADIX50 and exact aligned whole-file disk matches.
   7 red/green tests; independent SIMH LOAD/EXAMINE matched68608 mapped words,

@@ -1,8 +1,9 @@
-# Offline KSYS executable layout qualification
+# KSYS executable and halted-job layout qualification
 
-This follows the [KSYS source trace](terminal-lifecycle.md). It qualifies an
-offline decoder and **candidate executable layouts**, not a live-job decoder,
-a native shutdown fix or a release acceptance run.
+This follows the [KSYS source trace](terminal-lifecycle.md). The original offline
+milestone below qualified candidate executable layouts. The follow-up section
+records monitor identification and halted-job mapping work. Neither milestone
+is a native shutdown fix or a release acceptance run.
 
 ## Media and exact byte matches
 
@@ -141,7 +142,7 @@ boundaries:
 This corroborates those routines in the candidate image, not full source/binary
 equivalence. It cannot explain the previously captured monitor PC354741.
 
-## Remaining live-mapping gate
+## Original live-mapping gate
 
 The source addresses above are enough to describe a targeted capture **after
 identifying and mapping the actual jobs**. The current diagnostic has no
@@ -194,3 +195,185 @@ Host validation: `python -m unittest tests.test_ksys_image` plus the existing
 guest-control/deployment/lifecycle diagnostic regressions: **96 tests passed**.
 No post-green refactor was needed; the reader remains separate from runtime
 capture.
+
+## Monitor and job-mapping follow-up
+
+A read-only scan of the verified release disk found five monitor EXE candidates
+with embedded symbols. The image at byte offset **293919744** matches all eight
+existing `server.monitor_scope.FINGERPRINTS`. Candidates at289690624,295189504,
+300801024 and302091264 do not. Selection therefore uses code fingerprints,
+not the shared version label or job count.
+
+The selected complete little-endian word image is158208 words, SHA-256
+`be33ce5412bc18289cfa88afdd3feb0135b03180372bea4535e4b3c5f4e6d0fb`.
+Its `.JBVER` is `070400033461`;22473 symbol entries include these octal values:
+
+| Symbol | Value | Meaning |
+| --- | --- | --- |
+| `JOBMAX` | `43` | Highest job number (35 decimal) |
+| `JBTSTS` | `10061` | Job status table; LH `JNA=40000` means allocated |
+| `JBTADR` | `10346` | Resident low-segment core descriptor |
+| `JBTPRG` / `JBTNAM` | `12106` | SIXBIT program-name table |
+| `JBTPDB` | `12502` | Job PDB pointer, **not UPT page number** |
+| `JBTUPM` | `14174` | RH is physical UPT page number |
+| `.UPJOB` | `322` | Job backlink within UPT |
+| `SECTAB` | `540` | Section-zero pointer offset |
+| `PIDTAB` | `15735` | IPCF PID-entry table |
+| `%IPCPM` / `%IPCMP` | `16101` / `16102` | Addresses of PID index mask/table limit |
+| `.PDSAC` / `.PDCTC` | `71` / `72` | PDB context-chain/current-context offsets |
+
+Independent SIMH disassembly confirms `MKADD350715` reads `JBTUPM` before
+`WRUBR`, and `VALPID454553` checks PID index/generation before extracting a
+**job/context handle**, not a bare job number. `JBCHCT403450` and
+`FNDPDB406553` corroborate current-context lookup. `PCTXNO402030` is
+`001111000000`: low9 bits of context-block word0. With no context chain,
+`JBCHCT` accepts context1; otherwise the requested context must be located and
+compared with `.PDCTC`. This decoder rejects non-current contexts.
+
+Source provenance is the original `t10mon.tap`'s `APRSER.MAC1559–1656`,
+`IPCSER.MAC326–344` and `CTXSER.MAC1328–1398`, corroborated at the byte-identified
+monitor boundaries above. No replacement historical executable was produced.
+
+### Read-only decoder boundary
+
+`tests/ksys_mapping.py` takes memory-reader callbacks; it issues no guest or
+simulator commands. The caller must establish the monitor fingerprints and keep
+the guest halted throughout. It follows pinned SIMH `pdp10_pag.c:447–545` for
+immediate/shared/indirect section-zero backing, rejects missing/nonresident/
+unsupported/cyclic/out-of-range mappings, and bounds indirection.
+
+This is **resident backing translation**, not an execution-permission or
+CST-age validator. It deliberately avoids virtual console examination:
+`cpu_ex` calls `conmap`, whose page walk can write CST entries. Only physical
+reads and register examination are used in the healthy fixture. The mapper
+does not modify CST, UBR, EBR or page tables. Two independent synthetic SIMH
+oracle cases (immediate and shared/indirect) returned the same words without
+booting or executing guest instructions.
+
+Job selection requires a unique exact name, allocated/resident table entries
+and matching UPT job backlink. Callers then compare `.JBVER` and selected
+immutable code ranges with the identified BATCON/QUASAR images before reading
+state. This is a selected-code signature check, not a whole resident-image hash.
+PSB traversal is bounded at64 entries. PID generation, job number and current
+context must all agree; missing mapping remains unknown.
+
+### First two native captures and decoder correction
+
+Private `build/ksys-layout/healthy-map.py` used fresh copies of the verified
+release disk, the checksum-verified local `active-tick-v1` emulator, original
+tape boot, existing monitor scope correction and per-boot DAYTIME batch proof.
+No browser/persona was admitted. A pre-halt SYSTAT supplied an independent job
+roster; the healthy halt has a30-second/128-physical-page bound and is followed
+by resume and normal single-dispatch KSYS shutdown.
+
+`runtime/ksys-map-01` and `ksys-map-02` both verified QUASAR job7/BATCON job12,
+their UPT backlinks, version words and selected code ranges. Ten monitor code
+ranges matched, excluding the scope installer's three intentionally replaced
+entry instructions. Both stopped at the PSB ownership check and subsequently
+completed native clean shutdown/process exit. These failed reports are retained.
+Run02's capture lasted1.746 host seconds.
+
+Run02 retained the exact failed operands:
+
+```
+PSB                147174
+PSBPID      400017001002
+PID mask            177
+PID limit           110
+PID index             2
+PIDTAB[2]   400017001014
+BATCON job           14
+```
+
+The generation comparison is zero (matching), and the entry's job number is14
+octal/12 decimal. The incorrect check compared the entire RH `1014` with `14`;
+the additional `1000` is **context1**, confirmed by the monitor's handle layout.
+This was a decoder rejection, not evidence of stale BATCON registration.
+Run01 did not retain those operands, so its identical error alone is less
+specific evidence. The corrected tests include these witnessed values plus
+wrong-generation, wrong-job, non-current, missing, duplicate and cyclic context
+cases. The first tests failed before implementation; all107 focused decoder/
+guest-control/deployment/lifecycle tests now pass.
+
+Failure-time capture integration remains separate. Its original deadline and
+halt must precede reads, and it must never resume or issue another KSYS.
+
+### Third capture: inaccessible signature page
+
+`runtime/ksys-map-03` matched all13 monitor signature ranges, including context
+lookup, then rejected QUASAR virtual address77643. The targeted physical words
+replay that failure offline: page-table entry at physical360077 contains
+`044400000445`, a **type-zero/no-access** pointer. Its nonzero software fields
+do not authorize reading a guessed physical page. No state interpretation
+passed. This captures an inaccessible KSYS code page, not an absent QUASAR job
+or a demonstrated registration fault. Normal KSYS/process exit were clean.
+
+Unlike01/02, this run retains only individually requested physical operands in
+0600 `targeted-words.json`, not whole memory pages. Capture lasted1.342 seconds.
+SYSTAT independently listed QUASAR job7 and BATCON job11; job numbers are found
+anew, never inherited from earlier runs.
+
+The corrected identity signature uses QUASAR `A$HELL333–400` and BATCON
+`TOPLVL652–707`, with `.JBVER` still mandatory. All38 QUASAR and30 BATCON code
+words are compared against checksum-pinned images. Independent source and
+disassembly corroborate those fixed page-zero routines (`QSRADM139–181`,
+`BATCON271–303` at the pinned Stacken commit). No instruction in these ranges
+is treated as mutable or skipped. This avoids requiring unused shutdown code
+to be resident; an inaccessible identity **or state** page still rejects the
+observation. Tests retain03's exact no-access operand and reject version-only,
+missing-code and altered-code matches.
+
+### Healthy mapping qualified
+
+`runtime/ksys-map-04` passed the corrected capture and normal shutdown:
+
+- 13 monitor code ranges matched; existing scope installation and current-boot
+  DAYTIME probe passed.
+- Independent SYSTAT and halted table reads identified QUASAR job7/UPT487 and
+  BATCON job12/UPT576 (these page numbers are decimal).
+- Both UPT job backlinks, `.JBVER` values and complete page-zero code signatures
+  matched. QUASAR's sole PSB identified BATCON, with generation/job/current
+  **context1** verified through the monitor PID table and a nonempty context
+  chain. The no-context-chain fallback remains host/source-tested.
+- PSB status0 (`PS.RUN`), QUASAR `G$KSYS=0`, BATCON `G$KSYS=0` and `KSYCNT=0`
+  were read. This is normal registered/idle state, not an observed KSYS
+  message-dispatch or logout-work transition.
+- 27 physical pages were read in1.930 seconds; the retained407 individually
+  requested words replay the exact job binding/signatures/state offline.
+  `targeted-words.json` is0600, SHA-256
+  `af05e8ef942c94bc01a569ed1416d10b9a16ace3d2f4fda7a9f314a6edfe6e26`.
+- Native KSYS, simulator Goodbye and actual process exit passed. All four
+  local experiment processes/emulators have exited; failed01–03 captures remain.
+
+Final validation is **109 focused tests**, including13 new mapping/identity/
+context/state tests, plus diff checks and the native/offline evidence above.
+Blue cleanup extracted SIXBIT encoding and reusable code-signature verification;
+no production runtime/controller changes were made.
+
+### Next failure-only experiment boundary
+
+Healthy job/page/current-context binding is now locally qualified on this
+checksum-pinned release profile. The proposed next experiment is one deployment
+diagnostic with targeted reads only after the original KSYS failure deadline
+and already-established SCP halt:
+
+1. Require the known monitor layout and job code signatures again at that
+   halt; use physical/register reads only and the existing bounded diagnostic
+   budget. A swapped/unmapped job or state page stays unknown.
+2. Preserve QUASAR PSB status/PID/deadline as separately identified QUASAR data.
+   A zero/stale PID must not prevent reporting those raw registration fields,
+   nor be associated with a current BATCON job. The current healthy helper is
+   stricter: it returns state only for a fully bound current PID. Failure-mode
+   partial-evidence reporting still needs its own red/green tests.
+3. When BATCON is independently identified, capture its KSYS/count fields
+   separately; label whether the PSB binds to that job/context. The result can
+   distinguish unregistered/waiting, registered-but-not-accepted, and accepted
+   shutdown-work states without implying a cause from one snapshot.
+4. Keep the original failed-stop result, never resume or replay KSYS, and allow
+   the existing fixture teardown to finish. A capture cannot authorize backup
+   or turn an unclean stop into a clean one.
+
+This experiment has **not** been integrated or dispatched. No new CI run was
+launched, no intermittent failure was reproduced by these four healthy fixtures,
+and no root cause or shutdown fix is claimed. Both full uninstrumented release
+acceptance jobs on intended main remain required before `v1.1.0`.
