@@ -801,3 +801,107 @@ start from an already-started worker that cannot progress; the aggregate DZ
 capture cannot do that. The logout timing hypothesis remains open. This
 documentation-only result does not change the89-test code baseline or satisfy
 either full uninstrumented release job.
+
+### KSYS source trace: QUASAR registration versus BATCON logout work
+
+Read-only source analysis uses the same pinned Stacken commit as the earlier
+KJOB review:
+
+| File | Git blob |
+| --- | --- |
+| [QSRT10.MAC][ksys-qsrt10] | `7c26a1b06a6a21167369fab5a10eb2ffb563323e` |
+| [QSRADM.MAC][ksys-qsradm] | `9338f20aa291daec535b23494128560aa60cfd15` |
+| [QUASAR.MAC][ksys-quasar] | `6cce7952c1c58e1d19a866eba3b8f3589b0decdb` |
+| [BATCON.MAC][ksys-batcon] | `c7d37893b305bfad5c38f8ca980bee116b98eaec` |
+| [BATMAC.MAC][ksys-batmac] | `813f20f893c8c0f060c9091a70449e09a14e85a0` |
+
+BATMAC39–44 declares105(5027), matching the batch-log banner in44792601384.
+That corroborates a version label, not full binary equivalence or usable live
+addresses. No binary inspection, guest execution or CI run occurred here.
+
+**The wait message belongs to QUASAR's processor-registration state.**
+QSRT10's KSYS.2/KSYS2A at4193–4218 looks up BATCON's create-job block (CJB)
+and processor status block (PSB). A PSB marked `PS.RUN` takes the direct
+KSYS-message-send path. Otherwise, an absent PSB or `PS.FIR` can trigger
+startup through `I$SXXX`/`I%CJOB`; an existing waiting PSB can reach the same
+wait branch without another startup call.
+
+At4248–4258 QUASAR sets `PS.KSY`, clears the startup retry count, sets
+`PSBUDT` and prints the observed message. Thus its emission establishes neither
+“no BATCON job exists” nor “a new BATCON process was just created.” It means
+QUASAR selected the not-yet-registered-as-running branch at that point. This
+`PS.RUN` is QUASAR bookkeeping, not SYSTAT's scheduler state `RN`.
+
+QSRADM139–197 validates a processor HELLO, records its PID, sets `PS.RUN`,
+and, when the previous state was `PS.KSY`, calls `I$SKSM`. QSRT104270–4285
+then sends IPCF message `.QOKSY` to BATCON. There is no successful-send WTO
+in that routine. The absence of later operator messages cannot show that
+registration or message delivery never occurred.
+
+**BATCON does the subsequent job scan and completion.** BATCON1548–1558
+initializes KSYS state, scans eligible jobs with `KSYJOB`, and immediately
+calls `KSYFIN` if none remain. Otherwise it creates dedicated KSYS streams.
+`KSYFIN` at882–895 emits `KSYS processing completed`. Successful browser
+logout does not remove the registration/message/completion dependencies.
+The job scan also filters operator and certain batch/PTY jobs; TCP connection
+counts are not its input and cannot substitute for that scan.
+
+**The guest has its own registration expiry, but its silence is ambiguous.**
+QSRT104253–4255 adds decimal30*3 to universal date/time: this is approximately
+30 guest seconds (the source comment says30), not a90-host-second timeout.
+QSRADM2675–2686 checks the deadline and can print `BATCON failed to startup`
+and `Use OPSER for KSYS logouts since BATCON didn't start`. QUASAR309–338
+updates `G$NOW`, handles KSYS/message traffic, checks waiting PSBs when no
+message was received, and schedules sleep/wakeup. Neither failure notice appears
+in44792601384. That does not prove a stuck timer: the PSB might have transitioned
+to running, the loop might not have reached the check, output might not have
+been delivered, or deployed code might differ. OPSER is historical source
+advice here, not an adopted fallback.
+
+#### What the existing capture can distinguish
+
+The last boot census at18:46:43 host UTC showed job1 `[OPR]`, detached,
+`BATCON 46+40 SL`. The wait message followed at18:47:06, about23 seconds later.
+That demonstrates earlier process presence and batch readiness, not its later
+registration, continued existence or progress. The failed stop provides only
+the later aggregate DZ count and halted PC; it has no current PSB or BATCON
+state. The earlier33-second successful stop is not proof of which stage consumed
+that interval.
+
+| State needed at failure | Interpretation if observed with matched identities/layouts |
+| --- | --- |
+| No BATCON job; QUASAR PSB still `PS.KSY` | Investigate launch/exit and registration expiry |
+| BATCON job exists; PSB still `PS.KSY` | Startup/HELLO delivery or QUASAR processing boundary |
+| PSB `PS.RUN`, PID matches BATCON; no accepted KSYS state | Dispatch, IPCF delivery or BATCON receive boundary |
+| BATCON `G$KSYS` set, job bitmap/streams active | Registration completed; investigate job scan/PTY/logout progress |
+| BATCON completion reached but host saw none | Operator-message/transport delivery boundary |
+| Missing or unmatched state | Unresolved; do not infer absence, timer failure or deadlock |
+
+A single state sample still cannot establish lack of progress. `G$NOW`,
+`PSBUDT`, PSB flags/PID and BATCON's `G$KSYS`/`KSYCNT`/stream state are useful
+only with the deployed layouts and job identity established. Do not derive
+addresses from these source line numbers or interpret the monitor PC354741
+as BATCON's user PC.
+
+#### Next bounded evidence gate
+
+The source review replaces the vague “BATCON did not start” hypothesis with
+three explicit stages: registration, KSYS message acceptance, and logout work.
+Before another run, establish a read-only capture for those stages against the
+actual deployed binary layouts. Prefer capture after the original deadline and
+existing diagnostic halt, with no resumed guest execution; any memory evidence
+must remain private and avoid persona/password contents. Do not add an
+unqualified SYSTAT/OPR exchange during the wait, since that perturbs the timing
+being investigated. A label-only census or another aggregate `show dz` cannot
+answer the PSB/HELLO question.
+
+No new capture code, executable modification, longer timeout, OPSER substitution
+or repeated KSYS was introduced. There is no root-cause/fix claim. This
+documentation-only analysis leaves the89-test code baseline and all release
+gates unchanged.
+
+[ksys-qsrt10]: https://github.com/PDP-10/stacken/blob/6e18f5ebefd9acb0d718ef31a08f33a60fc9fca2/files/stacken-tape-backup/dskb:10_7/galaxy/quasar/qsrt10.mac
+[ksys-qsradm]: https://github.com/PDP-10/stacken/blob/6e18f5ebefd9acb0d718ef31a08f33a60fc9fca2/files/stacken-tape-backup/dskb:10_7/galaxy/quasar/qsradm.mac
+[ksys-quasar]: https://github.com/PDP-10/stacken/blob/6e18f5ebefd9acb0d718ef31a08f33a60fc9fca2/files/stacken-tape-backup/dskb:10_7/galaxy/quasar/quasar.mac
+[ksys-batcon]: https://github.com/PDP-10/stacken/blob/6e18f5ebefd9acb0d718ef31a08f33a60fc9fca2/files/stacken-tape-backup/dskb:10_7/galaxy/batcon/batcon.mac
+[ksys-batmac]: https://github.com/PDP-10/stacken/blob/6e18f5ebefd9acb0d718ef31a08f33a60fc9fca2/files/stacken-tape-backup/dskb:10_7/galaxy/batcon/batmac.mac

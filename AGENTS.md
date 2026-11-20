@@ -31,6 +31,17 @@
 
 ## Current working system
 
+- KSYS source trace: QSRT10 wait message sets QUASAR PSB PS.KSY, not proof
+  BATCON absent/newly launched. Earlier BATCON job1 existed23s before44792601384
+  wait. HELLO changes PS.RUN and sends .QOKSY; BATCON scans jobs and emits final
+  completion even if none eligible. PS.RUN differs from scheduler RN. Guest
+  PSB expiry adds30*3 UDT (~30guest seconds), not90host sec; absent expiry
+  warnings do not prove stuck clock or absent HELLO. Need binary-matched
+  PSB/PID/time plus BATCON KSYS/stream state after existing failure halt before
+  new native run; aggregate DZ/labels cannot answer. BATMAC105(5027) label matches
+  banner, no binary equivalence/PC claim. Docs terminal-lifecycle.md has pinned
+  sources/stage table. No new instrumentation/run/fix/timeout change;89 baseline.
+
 - Run44792601384/1859326/artifact14659745438 passed install/editor/rerun and
   two complete browser logouts, then backup KSYS queued/waited for BATCON and
   timed out. Backup refused, final shutdown verification failed; fixture removed.
