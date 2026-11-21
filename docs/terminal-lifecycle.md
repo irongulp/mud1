@@ -1026,3 +1026,43 @@ No further CI run was dispatched. Documentation/evidence reconciliation only:
 the implementation and131-test baseline are unchanged. Initial admission,
 logout and KSYS registration failures remain separate investigations; both
 full uninstrumented release jobs are still required.
+
+### Passive-only comparison implementation
+
+The diagnostic workflow now accepts `logout_passive_only=true` together with
+`logout_sequence=true`, `logout_observation=true`, `shutdown_reproduction=true`
+and `shutdown_scenario=fresh-mariadb`. Set `logout_census=false`,
+`shutdown_census=false`, `healthy_census=false`, `logout_workload=false` and
+`terminal_lifecycle=false`. Selection validation rejects census/passive-only
+combinations and installs no runtime census rendezvous for this control.
+
+The gateway fixture selects the existing timed reader in passive-only mode:
+its maximum post-timeout window is22 seconds (the comparison's10+12 budget),
+with no census callback or terminal writes. Completion, EOF, unexpected prompt,
+read error or byte limit can end observation early. Cancellation reaps the reader
+and propagates. An incompatible census configuration fails before invoking
+the original logout. Production cleanup still runs first with its own existing
+deadline and single dispatch; this fixture never upgrades its failed result.
+
+Reports say `timing_mode=passive-only` and
+`census.outcome=disabled-passive-only`. A validated late report is classified
+`reproduced-passive-completion`; silence through the full window is
+`reproduced-passive-timeout`. Read errors, cancellation and incomplete prompt
+evidence remain failed captures. Either reproduction stops the original
+sequence before another login or management operation, followed by ordinary
+fixture teardown. Successful original logouts skip observation.
+
+Six new red/green tests cover later-window completion, default22-second budget,
+successful-logout bypass, incompatible census rejection, silent timeout/reader
+cleanup, installed launcher wiring and result classification. Cancellation
+coverage also exercises both modes. Blue review retains the shared bounded
+collector rather than introducing a second read loop.
+All137 focused tests and actionlint pass; source/production modules and the
+pinned runtime manifest have no changes.
+
+One35-minute original-sequence comparison is selected. If no logout failure
+occurs, it is non-reproduction; a KSYS failure answers a separate question.
+If passive late completion occurs, it establishes progress without CTY in
+this control, not the cause of the earlier census-correlated completion.
+If silence persists, it warrants a controlled follow-up, not a causal claim.
+Record the run ID and observed result before calling this native-qualified.

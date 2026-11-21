@@ -50,9 +50,14 @@ async def observe_logout(original,reader,writer,*,emit,seconds=OBSERVATION_SECON
 if __name__=='__main__':
     from logout_census import request_census
     observer=observe_logout
-    if os.environ.get('MUD86_LOGOUT_TIMING')=='1':
+    passive_only=os.environ.get('MUD86_LOGOUT_PASSIVE_ONLY')=='1'
+    census=request_census if os.environ.get('MUD86_LOGOUT_CENSUS')=='1' else None
+    if passive_only and census is not None:
+        raise ValueError('Passive-only observation forbids census')
+    if os.environ.get('MUD86_LOGOUT_TIMING')=='1' or passive_only:
         from logout_timing import observe_timed_logout
         observer=observe_timed_logout
+    observation_options=dict(passive_only=True) if passive_only else {}
     original=gateway.logout_guest
     original_wake=gateway.wake_monitor
     async def wake(reader,writer,*,progress=None):
@@ -65,6 +70,6 @@ if __name__=='__main__':
         gateway.LOG.warning('Fixture post-timeout logout observation: %s',json.dumps(record,sort_keys=True))
     async def observed(reader,writer,**kwargs):
         return await observer(original,reader,writer,emit=emit,
-                    census=request_census if os.environ.get('MUD86_LOGOUT_CENSUS')=='1' else None,**kwargs)
+                    census=census,**observation_options,**kwargs)
     with patch.object(gateway,'wake_monitor',wake),patch.object(gateway,'logout_guest',observed):
         gateway.main()

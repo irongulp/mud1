@@ -42,7 +42,11 @@ on:
       logout_sequence:
         type: boolean
         default: false
-        description: Original four-session sequence with passive-before-census timing; requires logout observer and census
+        description: Original four-session sequence; requires observer and either census or passive-only control
+      logout_passive_only:
+        type: boolean
+        default: false
+        description: Diagnostic original-sequence control; observe failed logout silently for 22 seconds without census
 permissions:
   contents: write # Needed to download the draft runtime asset before publication.
 jobs:
@@ -226,7 +230,12 @@ jobs:
       - name: Validate original-sequence diagnostic selection
         if: inputs.logout_sequence
         env:
-          VALID_SELECTION: ${{ inputs.shutdown_scenario == 'fresh-mariadb' && inputs.logout_observation && inputs.logout_census && !inputs.logout_workload && !inputs.healthy_census && !inputs.shutdown_census }}
+          VALID_SELECTION: ${{ inputs.shutdown_scenario == 'fresh-mariadb' && inputs.logout_observation && (inputs.logout_census != inputs.logout_passive_only) && !inputs.logout_workload && !inputs.healthy_census && !inputs.shutdown_census }}
+        run: test "$VALID_SELECTION" = true
+      - name: Validate passive-only control selection
+        if: inputs.logout_passive_only
+        env:
+          VALID_SELECTION: ${{ inputs.logout_sequence && inputs.logout_observation && !inputs.logout_census && !inputs.shutdown_census && !inputs.healthy_census && !inputs.logout_workload && !inputs.terminal_lifecycle && inputs.shutdown_scenario == 'fresh-mariadb' }}
         run: test "$VALID_SELECTION" = true
       - name: Prepare fixture
         env:
@@ -259,9 +268,12 @@ jobs:
         run: |
           docker exec "$ACCEPTANCE_CONTAINER" install -Dm644 /checkout/tests/fixtures/logout-census.conf /etc/systemd/system/mud86-runtime.service.d/logout-census.conf
           docker exec "$ACCEPTANCE_CONTAINER" install -Dm644 /checkout/tests/fixtures/logout-census.conf /etc/systemd/system/mud86-gateway.service.d/logout-census.conf
-      - name: Select passive-before-census timing
+      - name: Select timed logout observation
         if: inputs.logout_sequence
         run: docker exec "$ACCEPTANCE_CONTAINER" install -Dm644 /checkout/tests/fixtures/logout-timing.conf /etc/systemd/system/mud86-gateway.service.d/logout-timing.conf
+      - name: Select passive-only comparison
+        if: inputs.logout_passive_only
+        run: docker exec "$ACCEPTANCE_CONTAINER" install -Dm644 /checkout/tests/fixtures/logout-passive-only.conf /etc/systemd/system/mud86-gateway.service.d/logout-passive-only.conf
       - name: Installed native lifecycle
         if: inputs.shutdown_scenario != 'fresh-mariadb'
         run: .venv/bin/python -m tests.integration_deployment

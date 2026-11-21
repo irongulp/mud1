@@ -31,6 +31,16 @@
 
 ## Current working system
 
+- Passive-only logout comparison is now explicit via workflow
+  logout_passive_only+logout_sequence+logout_observation, fresh-mariadb
+  shutdown diagnostic, all census options off. Existing timed reader observes
+  up to22s after original failure, no guest input/census, original false retained.
+  Incompatible census fails before logout; cancellation reaps reader. Separate
+  passive-completion/passive-timeout results retain first-warning fence.
+  Six red-green tests plus cancellation coverage/137 focused/actionlint pass;
+  shared collector, production/source/media unchanged. One35-minute comparison
+  selected; record run/outcome before native claims. See terminal-lifecycle.md.
+
 - Diagnostic44835421772 ata6830f0 stopped at login2 logout timeout, not KSYS.
   First timed passive-before-census failure:6-byte KJOB echo, no new bytes for
   10s; census job2/line0/LOGIN10+31/RN, then new data180ms after CTY Enter/

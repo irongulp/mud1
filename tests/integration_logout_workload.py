@@ -27,6 +27,14 @@ def classify(messages):
             if marker in row:
                 observation=json.loads(row.split(marker,1)[1])
                 if connection and observation.get('connection')==connection:
+                    if (observation.get('timing_mode')=='passive-only'
+                            and observation.get('census',{}).get('outcome')=='disabled-passive-only'):
+                        outcome='reproduced-capture-failed'
+                        if observation.get('outcome')=='prompt' and observation.get('late_complete') is True:
+                            outcome='reproduced-passive-completion'
+                        elif observation.get('outcome')=='timeout' and observation.get('late_complete') is False:
+                            outcome='reproduced-passive-timeout'
+                        return dict(outcome=outcome,connection=connection,observation=observation)
                     if (observation.get('late_complete') is True
                             and observation.get('census',{}).get('outcome')=='not-requested-passive-complete'):
                         return dict(outcome='reproduced-passive-completion',

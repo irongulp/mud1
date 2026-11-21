@@ -1,4 +1,4 @@
-"""Failure-only silent interval, then one census, with concurrent terminal reads."""
+"""Failure-only bounded observation, optionally followed by one timed census."""
 import asyncio
 import time
 
@@ -17,17 +17,23 @@ MAX_REPORT_BYTES = 16384
 
 async def observe_timed_logout(original, reader, writer, *, emit, census=None,
                                seconds=OBSERVATION_SECONDS,
-                               request_seconds=REQUEST_SECONDS, **kwargs):
+                               request_seconds=REQUEST_SECONDS, passive_only=False, **kwargs):
+    if passive_only and census is not None:
+        raise ValueError('Passive-only observation forbids census')
     result = await original(reader, writer, **kwargs)
     if result:
         return result
     started = time.monotonic()
+    passive_seconds = seconds + request_seconds if passive_only else seconds
     before = gateway.terminal_response_facts(reader)
     record = dict(connection=kwargs.get('connection_id'), late_complete=False,
-                  timing_mode='passive-before-census', before=before,
-                  observation_started_at=started, passive_seconds=seconds,
+                  timing_mode='passive-only' if passive_only else 'passive-before-census',
+                  before=before,
+                  observation_started_at=started, passive_seconds=passive_seconds,
                   line_open_before=not writer.is_closing())
-    deadline = started + seconds + (request_seconds if census is not None else 0)
+    deadline = started + passive_seconds + (request_seconds if census is not None else 0)
+    if passive_only:
+        record['census'] = dict(outcome='disabled-passive-only')
     reply = bytearray()
 
     async def collect():
@@ -55,8 +61,8 @@ async def observe_timed_logout(original, reader, writer, *, emit, census=None,
 
     collector = asyncio.create_task(collect())
     try:
-        await asyncio.wait({collector}, timeout=seconds)
-        if collector.done():
+        await asyncio.wait({collector}, timeout=passive_seconds)
+        if collector.done() and not passive_only:
             record['census'] = dict(outcome='not-requested-passive-complete'
                                     if record['late_complete'] else 'not-requested-terminal-ended')
         elif census is not None:
