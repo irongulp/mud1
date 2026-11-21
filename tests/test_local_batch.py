@@ -15,8 +15,50 @@ LOG = '''Job ABCDEF Req #7 for OPR [1,2]
  3:00:36 USER   Logged-off TTY43 at 3:00:37
 '''
 
+MIDNIGHT_BOOT = '2ba24b03760142a28e17a1fc1df615b1'
+MIDNIGHT_LOG = '''Job 2BA24B Req #4 for OPR [1,2] in stream 0
+ 0:26:22 COMENT ;MUD86 batch probe 2ba24b03760142a28e17a1fc1df615b1
+ 0:26:22 BATCH  DAYTIME
+ 0:26:22 MONITR Saturday 21-Nov-126 :26:23
+ 0:26:22 BATCH  .KJOB/BATCH
+ 0:26:22 USER   Logged-off TTY43  at  0:26:23  on 21-Nov-126
+'''
+
 
 class BatchReadinessTests(unittest.TestCase):
+    def test_witnessed_midnight_daytime_requires_identity_result_and_logout(self):
+        for label in ('BATCH  DAYTIME', 'MONITR .DAYTIME'):
+            log = MIDNIGHT_LOG.replace('BATCH  DAYTIME', label)
+            with self.subTest(label=label):
+                self.assertTrue(completed_probe(log, '2ba24b', MIDNIGHT_BOOT, 4))
+                self.assertFalse(completed_probe(log, '2ba24b', '0'*32, 4))
+                self.assertFalse(completed_probe(log, '2ba24b', MIDNIGHT_BOOT, 5))
+                for altered in (
+                        log.replace('MONITR Saturday', 'USER Saturday'),
+                        log.replace('Saturday 21-Nov-126 :26:23', ''),
+                        log.replace('Logged-off', ''),
+                        log.replace('.KJOB/BATCH', ''),
+                        log.replace(':26:23\n', ':26:\n'),
+                        log.replace(':26:23\n', ':99:23\n'),
+                        log.replace(':26:23\n', ':26:23garbage\n')):
+                    self.assertFalse(completed_probe(altered, '2ba24b', MIDNIGHT_BOOT, 4))
+
+    def test_midnight_probe_accepts_first_completed_log_without_resubmission(self):
+        with tempfile.TemporaryDirectory() as directory:
+            machine = self.machine(directory)
+            original = machine.command.side_effect
+            log = MIDNIGHT_LOG.replace('2BA24B', 'ABCDEF').replace(
+                MIDNIGHT_BOOT, BOOT).replace('Req #4', 'Req #7')
+            def command(text, **kwargs):
+                return log if text == 'type abcdef.log' else original(text, **kwargs)
+            machine.command.side_effect = command
+            prepare_batch(machine)
+            self.assertTrue(machine._batch_verified)
+            self.assertEqual([call.args[0] for call in machine.command.call_args_list],
+                             ['directory abcdef.*', 'submit abcdef.ctl/time:0:00:10/output:nolog',
+                              'systat', 'type abcdef.log'])
+            machine.copy_text.assert_called_once()
+
     def machine(self, directory):
         evidence = Path(directory)/BOOT
         evidence.mkdir()

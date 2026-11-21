@@ -1066,3 +1066,88 @@ If passive late completion occurs, it establishes progress without CTY in
 this control, not the cause of the earlier census-correlated completion.
 If silence persists, it warrants a controlled follow-up, not a causal claim.
 Record the run ID and observed result before calling this native-qualified.
+
+### Passive-only run blocked by midnight batch-result parsing
+
+Run [44841223579](https://github.com/irongulp/mud1/actions/runs/44841223579)
+at `14c27ff` ended after23m26s. Both browser logouts completed normally
+(`recovered=False`); no post-timeout observer ran and no coordinated census
+was installed. The sequence reports `experiment-error`, phase
+`host-command:sudo`, `AssertionError`, two admissions. It did not finish its
+four-admission workload, so this is a blocked comparison rather than a completed
+negative experiment.
+
+Artifact14681718733 (`installed-shutdown-capture`,61,586 bytes), digest
+`sha256:cb53d2baf46621cde8adb888a0e2b9a0b5c931e31ff21b429d8470e8ef98200f`,
+and the workflow log are retained under `runtime/logout-passive-44841223579/`.
+The original failed reports remain unchanged.
+
+Installation/editor/rerun and the two logouts progressed. Backup's native stop
+completed and it published disk/database backup paths. Its subsequent service
+start failed. This is **backup-restart failure**, not the earlier KSYS-expiry
+backup refusal. No claim is made about restoring those backup files.
+
+The restarting runtime PID1509 reached the per-boot batch probe:
+boot ID `2ba24b03760142a28e17a1fc1df615b1`, job2BA24B, request4. The retained
+service journal shows this complete output at00:26:34 UTC:
+
+```text
+ 0:26:22 BATCH  DAYTIME
+ 0:26:22 MONITR Saturday 21-Nov-126 :26:23
+ 0:26:22 MONITR
+ 0:26:22 MONITR .
+ 0:26:22 BATCH  .KJOB/BATCH
+ 0:26:22 USER   [LGNJSP Other jobs same PPN]
+ 0:26:22 USER   Job 10  User OPR  [1,2]
+ 0:26:22 USER   Logged-off TTY43  at  0:26:23  on 21-Nov-126
+```
+
+`server.local_batch.completed_probe()` required a digit before the first colon.
+It therefore rejected the witnessed zero-hour omission, despite the current
+identity, actual DAYTIME output and logout. Repeated TYPE/SYSTAT reads continued
+until the existing30-second deadline; these are reads of the same log, not
+repeated submissions or repeated batch logins. `%LGNSVM` also appeared on earlier
+successful boots and is not demonstrated to cause this failure.
+
+Offline replay extracted29 TYPE responses for this boot. The original parser
+rejects all29; the correction accepts27 completed responses, beginning with
+zero-based response2. `reconciliation.json` records that comparison. The added
+alternative accepts the complete `:mm:ss` form with valid minute/second widths,
+while requiring its MONITR DAYTIME context, matching boot/request and subsequent
+KJOB/logout. Malformed times, missing results and stale identities still fail.
+The response line is anchored; no arbitrary suffix is accepted.
+
+#### Native shutdown versus overwritten marker
+
+All four shutdown-wrapper reports say `shutdown_clean:true`. The last service
+journal independently records one KSYS completion at00:27:00 UTC and Goodbye
+at00:27:01, then the bootstrap-error exit78. The final marker nevertheless reads
+`{"clean": false, "failure": null}`, so final verification correctly failed on
+its available marker. Runtime ended `failed/exit-code/78`, gateway `inactive/dead`,
+and container removal passed. No failed-KSYS halt/PID capture occurred.
+
+The corresponding host path was reproduced separately: `Runtime.run()` stops
+the guest while handling failed bootstrap, then its outer `finally` calls
+`stop()` again. That second call has no child but formerly overwrote
+`shutdown.json`, losing either success or the first failure's details.
+`stop()` now writes a new outcome only when it actually had a child. A childless
+call still closes any remaining bridge/store and returns false; it does not
+read or claim success from an old marker. Run startup still invalidates old
+clean evidence. This preserves evidence without upgrading failed commands or
+replaying shutdown.
+
+Four new red/green tests cover witnessed midnight parsing and one-submission
+acceptance, the failed-bootstrap/double-cleanup path for both successful and
+failed KSYS, and childless resource cleanup/evidence preservation. Existing
+startup-invalidation and no-replay tests pass. Blue review retained the existing
+parser/controller structure; no wider refactor was needed. All163 focused tests,
+actionlint and diff checks pass. The diagnostic workflow runs batch/runtime-scope
+regressions before its expensive fixture preparation.
+
+These corrections are host-tested and the parser has saved-native-log replay.
+They have not been deployed in another native run. The original experiment
+still failed; neither passive-only timing nor the new PID capture was exercised.
+No new evidence resolves CTY causation, admission stalls or BATCON registration
+expiry. The next useful comparison can use these corrections with the same
+bounded passive-only selection; no additional run was dispatched here. Both
+full uninstrumented acceptance jobs on intended main still gate `v1.1.0`.

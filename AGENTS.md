@@ -31,6 +31,19 @@
 
 ## Current working system
 
+- Passive-only run44841223579 at14c27ff was blocked after2 normal browser
+  logouts: backup created files, restart batch preflight rejected native
+  `Saturday 21-Nov-126 :26:23` despite actual DAYTIME/current boot/logout.
+  No passive observation or KSYS/PID capture.4 wrapper stops clean, final
+  KSYS/Goodbye witnessed, but second childless Runtime.stop overwrote marker
+  false; runtime exit78/final verification failed/container removed. Keep
+  original reports/artifact14681718733. Narrow complete midnight-time parser
+  and child-owned marker publication now red-green:4 new tests/163 focused;
+  old parser rejects29 saved log reads, new accepts27 completed/first index2.
+  Childless stop still returns false/closes resources, never trusts old marker;
+  startup invalidation/single dispatch/deadlines unchanged. Host/log-replay
+  corrections only, no native recheck/additional dispatch. See terminal-lifecycle.md.
+
 - Passive-only logout comparison is now explicit via workflow
   logout_passive_only+logout_sequence+logout_observation, fresh-mariadb
   shutdown diagnostic, all census options off. Existing timed reader observes
