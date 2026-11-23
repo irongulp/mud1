@@ -1151,3 +1151,57 @@ No new evidence resolves CTY causation, admission stalls or BATCON registration
 expiry. The next useful comparison can use these corrections with the same
 bounded passive-only selection; no additional run was dispatched here. Both
 full uninstrumented acceptance jobs on intended main still gate `v1.1.0`.
+
+### Corrected passive-only comparison: complete, not reproduced
+
+Run [45233742866](https://github.com/irongulp/mud1/actions/runs/45233742866)
+at `b86394c` completed successfully on23-Nov-2026. The diagnostic job ran
+18:00:41–18:26:58 UTC (26m17s). It selected guarded fresh-MariaDB shutdown
+reproduction, logout observation, the original four-admission sequence and
+passive-only mode; shutdown/logout/healthy census and the separate three-cycle
+workload were disabled. Selection checks passed and the coordinated-census
+steps were skipped.
+
+Artifact14850548038 (`installed-shutdown-capture`,53,318 bytes), SHA256
+`f7abaa3357d01b0e991531db584db4adb5d7cff9d5f0bb09b19787f27d74ee85`,
+is retained with the workflow log and experiment metadata under
+`runtime/logout-passive-corrected-20261123/`. The downloaded archive's digest
+was independently verified against GitHub's artifact digest.
+
+The sequence reports `not-reproduced`, four admissions. Journal reconciliation
+matches every connection ID to one complete logout, all `recovered=False`,
+with no logout warning or fixture post-timeout observation:
+
+| Admission | Connection prefix | Logout completion, host UTC |
+| --- | --- | --- |
+| 1 | `95d04647` | 18:20:48.200459 |
+| 2 | `4b11d92f` | 18:22:05.890373 |
+| 3 | `18475e7e` | 18:24:59.819272 |
+| 4 | `96a3db9a` | 18:26:47.764799 |
+
+Installation, inspection/editor checks, installer rerun, backup and restart
+completed. The external report records six scope/batch-verified boots. Five
+service wrapper reports have `shutdown_clean:true`, `census_enabled:false`,
+and no failure capture. The service journal independently contains five KSYS
+completions and five Goodbyes; the foreground installation transcript contains
+one additional completion/Goodbye pair, not a sixth service-wrapper capture.
+Final marker is `{"clean": true, "failure": null}`; runtime and gateway both
+ended inactive/dead with exit status0. Final verification and fixture removal
+passed.
+
+This completes the bounded original-sequence control that44841223579 could
+not finish. No failed logout occurred, so the22-second passive reader was not
+exercised and this run cannot distinguish natural delayed logout from progress
+following CTY input in44835421772. No failed KSYS/PID capture occurred either.
+Native service DAYTIME output used18-hour timestamps, not the corrected
+zero-hour omission; there was no failed-startup double cleanup. Those specific
+branches retain host/saved-log validation rather than new native coverage.
+
+The one-run budget is exhausted. No unchanged retry or longer observation was
+launched. Further diagnostic work needs a distinct source/evidence-backed
+hypothesis; this negative result is not a logout or BATCON reliability fix.
+The separate fourteen-case editor matrix and both full uninstrumented release
+jobs were skipped by this diagnostic selection. Review/integration and both
+full jobs on intended main still gate `v1.1.0`. Documentation-only recording
+adds no code or tests; the fresh checkout passed163 focused tests and actionlint
+before dispatch.

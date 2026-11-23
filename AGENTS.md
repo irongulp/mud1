@@ -31,6 +31,17 @@
 
 ## Current working system
 
+- Corrected passive-only45233742866 atb86394c completed26m17s/not-reproduced:
+  all4 original-sequence browser logouts normal; install/editor/rerun/backup/
+  restart and6 scope-batch proofs passed.5 service wrapper stops plus matching
+  KSYS/Goodbye clean; separate foreground install pair; final marker true,
+  services inactive/exit0, verification/removal passed. Artifact14850548038
+  digest verified, private runtime/logout-passive-corrected-20261123 retained.
+  No failed logout/passive reader/census/KSYS-PID capture; no midnight DAYTIME
+  or failed-startup double-cleanup branch exercised. One-run budget exhausted,
+  no unchanged retry/fix/release claim; both full jobs still gate1.1.0.
+  Fresh clone163 tests/actionlint passed; see docs/terminal-lifecycle.md.
+
 - Passive-only run44841223579 at14c27ff was blocked after2 normal browser
   logouts: backup created files, restart batch preflight rejected native
   `Saturday 21-Nov-126 :26:23` despite actual DAYTIME/current boot/logout.
