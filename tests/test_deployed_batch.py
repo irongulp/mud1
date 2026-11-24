@@ -1,4 +1,5 @@
 from pathlib import Path
+import json
 import tempfile
 import unittest
 from unittest.mock import Mock, patch
@@ -11,6 +12,35 @@ from server.runtime import OPERATOR_PROMPT
 
 
 class DeployedBatchTests(unittest.TestCase):
+    def test_failed_probe_preserves_cleanup_result_through_outer_finally(self):
+        for ksys_failure in (False, True):
+            with self.subTest(ksys_failure=ksys_failure), tempfile.TemporaryDirectory() as directory:
+                runtime = Runtime(Path(directory), '/unused', monitor_scope=True, batch_preflight=True)
+                child = Mock()
+                def boot():
+                    runtime.child = child
+                    runtime.booted = True
+                    runtime.control_prompt = OPERATOR_PROMPT
+                    raise BatchBootstrapError('completed log rejected')
+                def command(text, *args, **kwargs):
+                    if ksys_failure and text == 'set ksys now':
+                        raise TimeoutError('no completion')
+                    return '-- System Queues Listing --'
+                with patch.object(runtime, 'boot', side_effect=boot) as start, \
+                        patch.object(runtime, 'command', side_effect=command) as submit, \
+                        patch('server.runtime.signal.signal'), patch('server.runtime.notify') as notify:
+                    with self.assertRaises(MonitorBootstrapError):
+                        runtime.run()
+                start.assert_called_once()
+                self.assertEqual([call.args[0] for call in submit.call_args_list],
+                                 ['show queues', 'set ksys now'])
+                child.send.assert_called_once_with('quit\r')
+                child.close.assert_called_once_with(force=True)
+                self.assertFalse(any('READY=1' in call.args[0] for call in notify.call_args_list))
+                marker = json.loads((Path(directory) / 'shutdown.json').read_text())
+                self.assertEqual(marker, dict(clean=not ksys_failure,
+                    failure=dict(phase='ksys', error_type='TimeoutError') if ksys_failure else None))
+
     def test_guarded_shutdown_checks_semantic_queue_readiness_before_one_ksys(self):
         with tempfile.TemporaryDirectory() as directory:
             runtime=Runtime(Path(directory),'/unused',monitor_scope=True,batch_preflight=True)

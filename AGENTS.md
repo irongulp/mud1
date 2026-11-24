@@ -31,6 +31,16 @@
 
 ## Current working system
 
+- Release lifecycle consolidation from main1a858df selects four production
+  files and regressions from diagnostic50f47ce: full KJOB report gate,
+  payload-free admission/logout facts, midnight BIGBEN/DAYTIME parsing and
+  child-owned shutdown marker. Red reproduced against main;531 host/Chromium
+  tests pass. Diagnostic fixtures/workflow remain on fix/native-terminal-lifecycle.
+  Run45233742866 was four normal logouts/five clean service stops, not proof
+  intermittent stalls fixed. Preserve historical evidence via the pinned
+  chronology link in docs/release-1.1.0.md. Both full jobs on merged main and
+  warning/shutdown review still gate release; no retries-until-green.
+
 - macOS arm64; use Python 3.12 for the security-updated dependencies. Legacy
   Python 3.9 `.venv` directories need fresh recreation (README host setup).
 - SIMH revision `47b7ddabbe5b548cfc32f2fd45f7bed238ff7921`, `upstream/simh/BIN/pdp10`.

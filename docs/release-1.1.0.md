@@ -58,6 +58,21 @@ separate branch; they have not been silently incorporated into this candidate.
 
 ## Evidence and limits
 
+- Follow-up consolidation from main `1a858df` brings in four production-file
+  changes from diagnostic revision `50f47ce`: complete KJOB accounting/prompt
+  verification, payload-free admission/logout facts, native midnight BIGBEN
+  and DAYTIME parsing, and child-owned shutdown-marker publication. Existing
+  deadlines, single dispatch, startup marker invalidation and failure gates
+  remain. Childless cleanup returns false and preserves prior evidence.
+  Ten additional host regressions bring the local host/Chromium suite to
+  **531 passing tests**. Diagnostic fixtures and workflow modes are excluded.
+- The retained [diagnostic chronology](https://github.com/irongulp/mud1/blob/50f47ce/docs/terminal-lifecycle.md)
+  records both failures and controls. Corrected passive-only run
+  [45233742866](https://github.com/irongulp/mud1/actions/runs/45233742866)
+  completed four normal logouts, backup/restart and five clean service stops.
+  It did not exercise failed-logout observation, midnight output or failed-boot
+  double cleanup, and does not establish a fix for intermittent native stalls.
+  Full acceptance must use the merged consolidation, not that diagnostic run.
 - Consolidated local suite: **521 host tests passed**, including Chromium.
   The workflow passed actionlint1.7.12. Original source-tree diff is empty.
 - Earlier candidate run [42380468514](https://github.com/irongulp/mud1/actions/runs/42380468514)

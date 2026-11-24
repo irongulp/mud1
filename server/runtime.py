@@ -266,7 +266,9 @@ class Runtime:
                 self.control_prompt = None
                 if self.bridge is not None: self.bridge.__exit__(None,None,None); self.bridge=None
                 if self.store is not None: self.store.close(); self.store=None
-        (self.state / 'shutdown.json').write_text(json.dumps({'clean': clean, 'failure': failure}) + '\n')
+            # A second cleanup with no child has no new shutdown outcome.
+            # Preserve both confirmed completion and structured failure evidence.
+            (self.state / 'shutdown.json').write_text(json.dumps({'clean': clean, 'failure': failure}) + '\n')
         if self.bridge is not None: self.bridge.__exit__(None,None,None); self.bridge=None
         if self.store is not None: self.store.close(); self.store=None
         return clean

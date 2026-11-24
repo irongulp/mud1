@@ -23,7 +23,9 @@ def completed_probe(log, basename, boot_id, request):
         r'(?:MONITR[ \t]+\.DAYTIME|BATCH[ \t]+DAYTIME)[ \t]*\r?\n'
         r'[ \t]*\d+:\d+:\d+\s+MONITR[ \t]+'
         r'(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)'
-        r'\s+\d+-[A-Za-z]+-\d+\s+\d+:\d+:\d+', log)
+        # Native DAYTIME omits the zero hour: "Saturday 21-Nov-126 :26:23".
+        r'\s+\d+-[A-Za-z]+-\d+[ \t]+'
+        r'(?:\d+:\d+:\d+|:[0-5]\d:[0-5]\d)[ \t]*\r?$', log)
     if not identity or not result or boot_id not in log.lower():
         return False
     tail = log[result.end():]
