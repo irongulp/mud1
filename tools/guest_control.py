@@ -22,7 +22,9 @@ _HOURLY_STATUS = re.compile(
     rb'(?:[0-9]*:[0-5][0-9]:[0-5][0-9]|[0-5]?[0-9]\.[0-9]{2})\r\n'
     rb'Current date/time (?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday) '
     rb'[0-9]{1,2}-(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)-[0-9]{3,4} '
-    rb'[0-9]{1,2}:[0-5][0-9]:[0-5][0-9]\r\n\r\n')
+    # BIGBEN's DAYTIM -> PRNOW uses PRTIM too: midnight can print 0.00
+    # or :MM:SS, rather than a nonempty hour field.
+    rb'(?:[0-9]{0,2}:[0-5][0-9]:[0-5][0-9]|[0-5]?[0-9]\.[0-9]{2})\r\n\r\n')
 
 
 class ControlError(RuntimeError):
@@ -30,6 +32,14 @@ class ControlError(RuntimeError):
         super().__init__(message)
         self.submitted = submitted
         self.input_started = input_started
+
+
+def completed_logout(text):
+    """Logged-off starts the native report; require accounting and final prompt."""
+    text=text.replace('\r','').expandtabs(8)
+    return re.search(r'Logged-off[^\n]*\n[\s\S]*?'
+                     r'^Disk Reads:[0-9]+, Writes:[0-9]+, Blocks saved:[0-9]+\n\n\.$',
+                     text,re.M) is not None
 
 
 def submit_line(text, write, read_one, *, timeout, clock=None, notice=None, monitor_padding=False, redraw=None):

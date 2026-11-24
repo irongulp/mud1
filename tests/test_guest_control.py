@@ -140,3 +140,35 @@ class GuestControlTests(unittest.TestCase):
             with self.assertRaises(ControlError):
                 terminal.submit('r opr', notice=console_notice)
             self.assertEqual(terminal.sent, [])
+
+    def test_midnight_hourly_notice_accepts_native_prtim_formats(self):
+        # 44422985974 install.log: BIGBEN used PRTIM for time of day as well
+        # as uptime. Under one minute it prints seconds.hundredths.
+        for current in (b'0.00', b'59.99', b':01:00', b':59:59', b'1:00:00'):
+            notice = (b'\r\nMonitor KS10\r\nSystem uptime :14:43\r\n'
+                      b'Current date/time Thursday 19-Nov-126 ' + current + b'\r\n\r\n')
+            terminal = EchoTerminal(stale=notice)
+            terminal.submit('type sys:tty.ini', notice=console_notice)
+            self.assertEqual(terminal.executed, [b'type sys:tty.ini'])
+
+    def test_midnight_notice_cannot_replace_echo_or_hide_unknown_output(self):
+        notice = (b'\r\nMonitor KS10\r\nSystem uptime :14:43\r\n'
+                  b'Current date/time Thursday 19-Nov-126 0.00\r\n\r\n')
+        for stale in (notice[:-2], notice.replace(b'0.00', b'60.00'),
+                      notice.replace(b'0.00', b'0.000'),
+                      notice.replace(b'0.00', b':60:00'),
+                      notice.replace(b'0.00', b'0.00 ?Unexpected'),
+                      notice + b'?Unexpected\r\n'):
+            terminal = EchoTerminal(stale=stale)
+            with self.subTest(stale=stale), self.assertRaises(ControlError):
+                terminal.submit('type sys:tty.ini', notice=console_notice)
+            self.assertEqual(terminal.sent, [])
+        terminal = EchoTerminal(stale=notice, fault=lambda byte: b'')
+        with self.assertRaises(ControlError):
+            terminal.submit('type sys:tty.ini', notice=console_notice)
+        self.assertEqual(terminal.executed, [])
+        # Interleaved notices are not echoes, even with a valid timestamp.
+        terminal = EchoTerminal(fault=lambda byte: notice if byte == b'y' else byte)
+        with self.assertRaises(ControlError):
+            terminal.submit('type sys:tty.ini', notice=console_notice)
+        self.assertEqual(terminal.executed, [])

@@ -10,6 +10,21 @@ from tools.inspect_game import InspectionError, NativeInspector
 
 
 class VerifiedControllerTests(unittest.TestCase):
+    def test_childless_cleanup_preserves_evidence_but_does_not_claim_new_shutdown(self):
+        with tempfile.TemporaryDirectory() as directory:
+            runtime = Runtime(Path(directory), '/unused')
+            marker = Path(directory) / 'shutdown.json'
+            evidence = '{"clean": true, "failure": null}\n'
+            marker.write_text(evidence)
+            bridge, store = Mock(__exit__=Mock()), Mock()
+            runtime.bridge, runtime.store = bridge, store
+            self.assertFalse(runtime.stop())
+            self.assertEqual(marker.read_text(), evidence)
+            bridge.__exit__.assert_called_once_with(None, None, None)
+            store.close.assert_called_once()
+            self.assertIsNone(runtime.bridge)
+            self.assertIsNone(runtime.store)
+
     def test_shutdown_failure_records_phase_without_exception_payload_or_replay(self):
         for phase, failed_command in (('operator-start', 'r opr'), ('ksys', 'set ksys now')):
             with self.subTest(phase=phase), tempfile.TemporaryDirectory() as directory:
