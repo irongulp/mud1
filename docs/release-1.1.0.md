@@ -91,6 +91,52 @@ separate branch; they have not been silently incorporated into this candidate.
 
 ## Publication gate
 
+### Full acceptance on merged lifecycle fixes: blocked
+
+PR18 merged as `d0effa83aec6a9f035e180ac07e69ba18b65a0c7`, with the same
+tree as the locally tested531-test candidate and successful PR CI45376505342.
+Full guarded [run45377035352](https://github.com/irongulp/mud1/actions/runs/45377035352)
+on24-Nov-2026 failed both jobs:
+
+- **Native-upgrade:** initial install/rerun/backup and HTTP multiplayer passed.
+  HTTPS smoke timed out waiting for the initial name prompt. At10:49:47 UTC,
+  gateway connection `9731f6e…` reported `stage=monitor`,
+  `admission_stage=monitor-response`, line0, `wakeup_submitted=True`,
+  `monitor_seen=False`, one buffered response byte and `eof=False`.
+  This localizes the failure to guest monitor admission; it does not establish
+  a TLS fault or explain the byte. Cleanup queued KSYS, waited for BATCON
+  at10:49:53, then timed out at10:51:22. Goodbye followed at10:51:24,
+  without a final native KSYS completion. Reboot and cutover were not reached.
+- **Fresh-MariaDB:** install, editor check, rerun, backup and three browser
+  logouts completed (`recovered=False`). The next explicit `mud86ctl restart`
+  failed its shutdown gate: BATCON wait at11:06:47, KSYS timeout at11:08:15,
+  Goodbye at11:08:16. The guard refused reboot; the fourth admission and
+  later editor/recovery matrix were not reached. This is a restart shutdown
+  failure, not backup refusal or failed logout.
+
+Both final markers retain `clean:false` and
+`failure:{"phase":"ksys","error_type":"TIMEOUT"}`. Both services ended
+inactive/dead with process exit0; that does not supersede native shutdown
+evidence. Both final verification steps correctly failed. The two clean native
+stops and three clean external service stops earlier in the respective journals
+do not cover either failed final stop. No failure-only census or memory capture
+was installed in this full acceptance.
+
+Artifacts: native14913275408 (163,119 bytes), SHA256
+`51134032a1a1f054e97cbba33e89a85480263121e5acbf94027cf5424ce2f0ce`;
+external14914830356 (41,670 bytes), SHA256
+`17dc56682b509f28a3db912c9a3c3b433c3c0b5a260f7bcc93197d335edb1dfc`.
+Extracted reports, service journals and workflow log are retained privately at
+`runtime/release-1.1-acceptance-20261124/`.
+
+No tag/release or unchanged rerun follows this result. Next investigation should
+use the existing admission boundary and separately qualified KSYS state capture
+to choose a bounded, decisive experiment. The wait message alone does not prove
+BATCON absence, and the two symptoms have no established common cause. Current
+evidence is insufficient to select a new production fix.
+
+### Required before publication
+
 1. Review and merge the intended implementation; retain previous failed evidence.
 2. Run both independent deployment scenarios on the exact intended release
    commit with `guarded_profile=true`. Native-upgrade retains the end-to-end

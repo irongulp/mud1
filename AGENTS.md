@@ -31,6 +31,17 @@
 
 ## Current working system
 
+- Full guarded acceptance45377035352 at merged PR18/d0effa8 failed both jobs.
+  Native install/rerun/backup/HTTP passed; HTTPS first admission monitor-response
+  line0/one byte/open timed out, then final KSYS timed out. External install/
+  editor/rerun/backup/3 normal logouts passed; explicit restart KSYS timed out,
+  guard refused reboot. Both final markers clean=false/phase=ksys/TIMEOUT;
+  services inactive/exit0 do not imply clean native shutdown. Artifacts
+  14913275408/14914830356 retained in runtime/release-1.1-acceptance-20261124.
+  No diagnostic capture, release/tag or unchanged rerun. Keep admission and
+  KSYS tracks separate; next source/evidence-backed bounded investigation.
+  See docs/release-1.1.0.md.531-test local/PR CI remains host evidence only.
+
 - Release lifecycle consolidation from main1a858df selects four production
   files and regressions from diagnostic50f47ce: full KJOB report gate,
   payload-free admission/logout facts, midnight BIGBEN/DAYTIME parsing and
